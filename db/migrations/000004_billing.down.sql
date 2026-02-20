@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS billing_events CASCADE;
+DROP TABLE IF EXISTS subscriptions CASCADE;

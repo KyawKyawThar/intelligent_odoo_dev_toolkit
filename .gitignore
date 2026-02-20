@@ -1,0 +1,5 @@
+# Ignore postgres data
+deploy/db-data/postgres_data
+deploy/.env
+ongoing_final.md
+.air.toml
