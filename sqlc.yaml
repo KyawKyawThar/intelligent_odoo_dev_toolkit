@@ -1,18 +1,146 @@
 version: "2"
 sql:
-- schema: "db/migrations"
+- engine: "postgresql"
   queries: "db/query"
-  engine: "postgresql"
+  schema: "db/migrations"
   gen:
     go:
       package: "db"
       out: "db/sqlc"
       sql_package: "pgx/v5"
-      emit_interface: true
-      emit_empty_slices: true
       emit_json_tags: true
+      emit_db_tags: true
+      emit_empty_slices: true
+      emit_exact_table_names: false
+      emit_prepared_queries: false
+      emit_interface: true
+      emit_result_struct_pointers: false
+      emit_params_struct_pointers: false
+      emit_enum_valid_method: true
+      emit_all_enum_values: true
       overrides:
+
+      # ── timestamptz ───────────────────────────────────────────
       - db_type: "timestamptz"
+        nullable: false
         go_type: "time.Time"
+
+      - db_type: "timestamptz"
+        nullable: true
+        go_type:
+          type: "time.Time"
+          pointer: true
+
+      # ── UUID ─────────────────────────────────────────────────
       - db_type: "uuid"
-        go_type: "github.com/google/uuid.UUID"
+        nullable: false
+        go_type:
+          import: "github.com/google/uuid"
+          type: "UUID"
+
+      - db_type: "uuid"
+        nullable: true
+        go_type:
+          import: "github.com/google/uuid"
+          type: "UUID"
+          pointer: true
+
+      # ── JSONB ────────────────────────────────────────────────
+      - db_type: "jsonb"
+        nullable: false
+        go_type:
+          import: "encoding/json"
+          type: "RawMessage"
+
+      - db_type: "jsonb"
+        nullable: true
+        go_type:
+          import: "encoding/json"
+          type: "RawMessage"
+          pointer: true
+
+      # ── INET ─────────────────────────────────────────────────
+      - db_type: "inet"
+        nullable: false
+        go_type:
+          import: "net/netip"
+          type: "Addr"
+
+      - db_type: "inet"
+        nullable: true
+        go_type:
+          import: "net/netip"
+          type: "Addr"
+          pointer: true
+
+      # ── TEXT (nullable → *string) ─────────────────────────────
+      - db_type: "text"
+        nullable: true
+        go_type:
+          type: "string"
+          pointer: true
+
+      # ── TEXT[] ───────────────────────────────────────────────
+      - db_type: "text[]"
+        nullable: false
+        go_type:
+          type: "[]string"
+
+      - db_type: "text[]"
+        nullable: true
+        go_type:
+          type: "[]string"
+
+      # ── INT[] ────────────────────────────────────────────────
+      - db_type: "int4[]"
+        nullable: false
+        go_type:
+          type: "[]int32"
+
+      - db_type: "int4[]"
+        nullable: true
+        go_type:
+          type: "[]int32"
+
+      # ── INT4 ─────────────────────────────────────────────────
+      - db_type: "int4"
+        nullable: false
+        go_type: "int32"
+
+      - db_type: "int4"
+        nullable: true
+        go_type:
+          type: "int32"
+          pointer: true
+
+      - db_type: "pg_catalog.int4"
+        nullable: false
+        go_type: "int32"
+
+      - db_type: "pg_catalog.int4"
+        nullable: true
+        go_type:
+          type: "int32"
+          pointer: true
+
+      # ── NUMERIC (plain) ──────────────────────────────────────
+      - db_type: "numeric"
+        nullable: false
+        go_type: "string"
+
+      - db_type: "numeric"
+        nullable: true
+        go_type:
+          type: "string"
+          pointer: true
+
+      # ── NUMERIC(p,s) ─────────────────────────────────────────
+      - db_type: "pg_catalog.numeric"
+        nullable: false
+        go_type: "string"
+
+      - db_type: "pg_catalog.numeric"
+        nullable: true
+        go_type:
+          type: "string"
+          pointer: true
