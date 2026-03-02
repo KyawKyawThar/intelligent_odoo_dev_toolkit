@@ -163,18 +163,18 @@ type ListProfilerRecordingsParams struct {
 }
 
 type ListProfilerRecordingsRow struct {
-	ID          uuid.UUID   `db:"id" json:"id"`
-	EnvID       uuid.UUID   `db:"env_id" json:"env_id"`
-	TriggeredBy *uuid.UUID  `db:"triggered_by" json:"triggered_by"`
-	Name        string      `db:"name" json:"name"`
-	Endpoint    *string     `db:"endpoint" json:"endpoint"`
-	TotalMs     int32       `db:"total_ms" json:"total_ms"`
-	SqlCount    *int32      `db:"sql_count" json:"sql_count"`
-	SqlMs       *int32      `db:"sql_ms" json:"sql_ms"`
-	PythonMs    *int32      `db:"python_ms" json:"python_ms"`
-	HasN1       interface{} `db:"has_n1" json:"has_n1"`
-	RawLogRef   *string     `db:"raw_log_ref" json:"raw_log_ref"`
-	RecordedAt  time.Time   `db:"recorded_at" json:"recorded_at"`
+	ID          uuid.UUID  `db:"id" json:"id"`
+	EnvID       uuid.UUID  `db:"env_id" json:"env_id"`
+	TriggeredBy *uuid.UUID `db:"triggered_by" json:"triggered_by"`
+	Name        string     `db:"name" json:"name"`
+	Endpoint    *string    `db:"endpoint" json:"endpoint"`
+	TotalMs     int32      `db:"total_ms" json:"total_ms"`
+	SqlCount    *int32     `db:"sql_count" json:"sql_count"`
+	SqlMs       *int32     `db:"sql_ms" json:"sql_ms"`
+	PythonMs    *int32     `db:"python_ms" json:"python_ms"`
+	HasN1       any        `db:"has_n1" json:"has_n1"`
+	RawLogRef   *string    `db:"raw_log_ref" json:"raw_log_ref"`
+	RecordedAt  time.Time  `db:"recorded_at" json:"recorded_at"`
 }
 
 func (q *Queries) ListProfilerRecordings(ctx context.Context, arg ListProfilerRecordingsParams) ([]ListProfilerRecordingsRow, error) {

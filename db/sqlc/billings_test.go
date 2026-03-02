@@ -321,7 +321,7 @@ func TestCreateBillingEvent_AllFields(t *testing.T) {
 	require.NotZero(t, evt.CreatedAt)
 
 	// Payload round-trip
-	var expected, actual map[string]interface{}
+	var expected, actual map[string]any
 	require.NoError(t, json.Unmarshal(payload, &expected))
 	require.NoError(t, json.Unmarshal(evt.Payload, &actual))
 	require.Equal(t, expected, actual)

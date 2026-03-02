@@ -191,7 +191,7 @@ func TestUpdateTenantSettings(t *testing.T) {
 
 	require.Equal(t, "Renamed Tenant", updated.Name)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(updated.Settings, &parsed))
 	require.Equal(t, "America/New_York", parsed["timezone"])
 	require.Equal(t, true, parsed["dark_mode"])
@@ -213,7 +213,7 @@ func TestUpdateTenantRetention(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(updated.RetentionConfig, &parsed))
 	require.Equal(t, float64(180), parsed["audit_logs_days"])
 	require.Equal(t, float64(60), parsed["error_groups_days"])

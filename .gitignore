@@ -1,5 +1,6 @@
 # Ignore postgres data
 deploy/db-data/postgres_data
-deploy/.env
-ongoing_final.md
+cmd/server/tmp
+.env
+*.md
 .air.toml

@@ -454,7 +454,7 @@ func TestRunAnonymizationTx_DoesNotMutateProfileFields(t *testing.T) {
 	require.Equal(t, profile.SourceEnv, updated.SourceEnv)
 	require.Equal(t, profile.TargetEnv, updated.TargetEnv)
 
-	var originalRules, updatedRules interface{}
+	var originalRules, updatedRules any
 	require.NoError(t, json.Unmarshal(profile.FieldRules, &originalRules))
 	require.NoError(t, json.Unmarshal(updated.FieldRules, &updatedRules))
 	require.Equal(t, originalRules, updatedRules, "field_rules must not be mutated")

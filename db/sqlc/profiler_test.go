@@ -224,7 +224,7 @@ func TestListProfilerRecordings_HasN1_TrueWhenN1PatternsSet(t *testing.T) {
 	require.Len(t, rows, 2)
 
 	// Find each by TotalMs
-	hasN1Map := make(map[int32]interface{})
+	hasN1Map := make(map[int32]any)
 	for _, r := range rows {
 		hasN1Map[r.TotalMs] = r.HasN1
 	}
