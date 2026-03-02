@@ -91,7 +91,7 @@ func TestCreateAuditLog_MetadataRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var expected, actual map[string]interface{}
+	var expected, actual map[string]any
 	require.NoError(t, json.Unmarshal(inputMeta, &expected))
 	require.NoError(t, json.Unmarshal(log.Metadata, &actual))
 	require.Equal(t, expected, actual)

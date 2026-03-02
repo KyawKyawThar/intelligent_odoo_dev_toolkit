@@ -325,7 +325,7 @@ func TestInsertBudgetSample_AllFields(t *testing.T) {
 	require.NotZero(t, sample.SampledAt)
 
 	// Breakdown round-trip
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(*sample.Breakdown, &parsed))
 	require.Equal(t, float64(120), parsed["orm"])
 }

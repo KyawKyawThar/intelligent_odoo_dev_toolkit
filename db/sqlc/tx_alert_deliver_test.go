@@ -438,7 +438,7 @@ func TestCreateAlertWithDeliveryTx_MetadataRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var fetchedMeta map[string]interface{}
+	var fetchedMeta map[string]any
 	require.NoError(t, json.Unmarshal(fetched.Metadata, &fetchedMeta))
 	require.Equal(t, expected, fetchedMeta)
 }
@@ -469,7 +469,7 @@ func TestCreateAlertWithDeliveryTx_EmptyMetadata(t *testing.T) {
 		require.NoError(t, err)
 		require.NotZero(t, alert.ID)
 
-		var meta map[string]interface{}
+		var meta map[string]any
 		require.NoError(t, json.Unmarshal(alert.Metadata, &meta))
 		require.Empty(t, meta)
 	})

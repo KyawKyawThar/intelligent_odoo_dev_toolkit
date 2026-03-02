@@ -8,6 +8,7 @@ import (
 
 type Store interface {
 	Querier
+	Ping(ctx context.Context) error
 	RegisterTenantTx(ctx context.Context, arg RegisterTenantParams) (RegisterTenantResult, error)
 	DeleteEnvironmentTx(ctx context.Context, arg DeleteEnvironmentTxParams) error
 	IngestErrorBatchTx(ctx context.Context, arg IngestErrorBatchParams) error
@@ -27,4 +28,8 @@ func NewStore(connPool *pgxpool.Pool) *SQLStore {
 		Queries:  New(connPool),
 		connPoll: connPool,
 	}
+}
+
+func (s *SQLStore) Ping(ctx context.Context) error {
+	return s.connPoll.Ping(ctx)
 }

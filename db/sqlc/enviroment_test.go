@@ -341,7 +341,7 @@ func TestGetFeatureFlags(t *testing.T) {
 	flags, err := testStore.GetFeatureFlags(context.Background(), env.ID)
 	require.NoError(t, err)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(flags, &parsed))
 	require.Equal(t, true, parsed["n1_detection"])
 }
@@ -358,7 +358,7 @@ func TestUpdateFeatureFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(updated.FeatureFlags, &parsed))
 	require.Equal(t, false, parsed["n1_detection"])
 	require.Equal(t, true, parsed["budget_alerts"])
