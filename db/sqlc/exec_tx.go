@@ -10,7 +10,7 @@ func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) erro
 	tx, err := store.connPoll.Begin(ctx)
 
 	if err != nil {
-		return fmt.Errorf("failed to begin transactionn %w", err)
+		return fmt.Errorf("failed to begin transaction %w", err)
 	}
 
 	q := New(tx)

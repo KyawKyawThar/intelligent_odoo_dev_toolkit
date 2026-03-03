@@ -1,8 +1,12 @@
-ENV_FILE=deploy/.env
 MIGRATIONS_PATH=db/migrations
 
-ifneq (,$(wildcard $(ENV_FILE)))
-  include $(ENV_FILE)
+ifneq (,$(wildcard deploy/.env))
+  include deploy/.env
+  export
+endif
+
+ifneq (,$(wildcard .env))
+  include .env
   export
 endif
 

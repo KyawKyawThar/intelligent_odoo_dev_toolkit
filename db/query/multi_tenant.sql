@@ -60,7 +60,7 @@ INSERT INTO users (
     email,
     password_hash,
     full_name,
-    role,
+    email_verified,
     is_active
 ) VALUES (
     $1, $2, $3, $4, $5, $6
@@ -85,7 +85,7 @@ ORDER BY created_at;
 UPDATE users
 SET
     full_name = $2,
-    role = $3,
+    email_verified = $3,
     is_active = $4,
     updated_at = now()
 WHERE id = $1 AND tenant_id = $5
@@ -97,6 +97,15 @@ SET
     password_hash = $2,
     updated_at = now()
 WHERE id = $1 AND tenant_id = $3;
+
+-- name: UpdateUserProfile :one
+UPDATE users
+SET
+    full_name = COALESCE($2, full_name),
+    email = COALESCE($3, email),
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $4
+RETURNING *;
 
 -- name: UpdateUserLastLogin :exec
 UPDATE users
@@ -113,6 +122,14 @@ JOIN tenants t ON u.tenant_id = t.id
 WHERE u.email = $1 AND u.is_active = true
 LIMIT 1;
 
+-- name: GetUserByIDGlobal :one
+-- Fetch user by id across tenants (used by password reset flows)
+SELECT u.*, t.slug AS tenant_slug, t.plan AS tenant_plan
+FROM users u
+JOIN tenants t ON u.tenant_id = t.id
+WHERE u.id = $1
+LIMIT 1;
+
 -- name: CountUsersByTenant :one
 SELECT count(*) FROM users
 WHERE tenant_id = $1;
@@ -126,5 +143,12 @@ WHERE id = $1 AND tenant_id = $2;
 UPDATE users
 SET
     is_active = false,
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $2;
+
+-- name: VerifyUserEmail :exec
+UPDATE users
+SET
+    email_verified = true,
     updated_at = now()
 WHERE id = $1 AND tenant_id = $2;

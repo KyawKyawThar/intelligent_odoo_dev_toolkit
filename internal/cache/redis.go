@@ -3,11 +3,24 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
+
+var (
+	ErrSessionNotFound = errors.New("session not found")
+	ErrTokenNotFound   = errors.New("token not found")
+	ErrKeyNotFound     = errors.New("key not found")
+)
+
+const blacklistPrefix = "blacklist"
+const rateLimitPrefix = "ratelimit"
 
 type RedisClient struct {
 	client *redis.Client
@@ -15,6 +28,11 @@ type RedisClient struct {
 }
 
 type RedisConfig struct {
+	// Address may contain a full redis URI (redis:// or rediss://) or a
+	// simple host:port pair.  If provided, it takes precedence over Host/Port
+	// fields and is parsed internally by NewRedisClient.
+	Address string
+
 	Host     string
 	Port     int
 	Password string
@@ -22,10 +40,91 @@ type RedisConfig struct {
 	Prefix   string
 }
 
-func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
+// ParseRedisConfig takes either a simple host:port string or a full Redis URL
+// (e.g. redis://:password@host:6379/0) and returns a RedisConfig that can be
+// passed to NewRedisClient.  This helper is primarily used when loading
+// configuration from environment variables where some platforms supply a
+// complete URL.  The returned config will fill Host, Port, Password and DB
+// fields.  If the input string is empty an error is returned.
+func ParseRedisConfig(urlStr string) (RedisConfig, error) {
+	if urlStr == "" {
+		return RedisConfig{}, fmt.Errorf("empty redis url")
+	}
 
+	cfg := RedisConfig{
+		Port: 6379,
+	}
+
+	// If it looks like a URL with scheme, parse it properly.
+	if strings.HasPrefix(urlStr, "redis://") || strings.HasPrefix(urlStr, "rediss://") {
+		u, err := url.Parse(urlStr)
+		if err != nil {
+			return cfg, fmt.Errorf("invalid redis url: %w", err)
+		}
+
+		cfg.Host = u.Hostname()
+		if p := u.Port(); p != "" {
+			if pi, err := strconv.Atoi(p); err == nil {
+				cfg.Port = pi
+			}
+		}
+
+		if u.User != nil {
+			if pass, ok := u.User.Password(); ok {
+				cfg.Password = pass
+			}
+		}
+
+		if u.Path != "" && u.Path != "/" {
+			dbStr := strings.TrimPrefix(u.Path, "/")
+			if di, err := strconv.Atoi(dbStr); err == nil {
+				cfg.DB = di
+			}
+		}
+		return cfg, nil
+	}
+
+	// Fallback: simple host[:port] style
+	host := urlStr
+	if parts := strings.Split(urlStr, ":"); len(parts) == 2 {
+		host = parts[0]
+		if p, err := strconv.Atoi(parts[1]); err == nil {
+			cfg.Port = p
+		}
+	}
+	cfg.Host = host
+	return cfg, nil
+}
+
+func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
+	// if an address string is provided, parse it to fill missing fields.
+	if cfg.Address != "" {
+		parsed, err := ParseRedisConfig(cfg.Address)
+		if err != nil {
+			return nil, fmt.Errorf("invalid redis address: %w", err)
+		}
+		// only override hosts/port/password/db when not explicitly set
+		if cfg.Host == "" {
+			cfg.Host = parsed.Host
+		}
+		if cfg.Port == 0 {
+			cfg.Port = parsed.Port
+		}
+		if cfg.Password == "" {
+			cfg.Password = parsed.Password
+		}
+		if cfg.DB == 0 {
+			cfg.DB = parsed.DB
+		}
+	}
+
+	if cfg.Port == 0 {
+		cfg.Port = 6379
+	}
+
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	client := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+		Addr:     addr,
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	})
@@ -40,11 +139,20 @@ func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
 	if prefix == "" {
 		prefix = "odt:"
 	}
-	return &RedisClient{}, nil
+	return &RedisClient{
+		client: client,
+		prefix: prefix,
+	}, nil
 }
 func (r *RedisClient) Close() error {
 	return r.client.Close()
 }
+
+// Client returns the underlying redis client (for testing)
+func (r *RedisClient) Client() *redis.Client {
+	return r.client
+}
+
 func (r *RedisClient) key(parts ...string) string {
 	result := r.prefix
 	for _, part := range parts {
@@ -62,15 +170,23 @@ func (r *RedisClient) Set(ctx context.Context, key string, value any, expiration
 func (r *RedisClient) Get(ctx context.Context, key string, dest any) error {
 	data, err := r.client.Get(ctx, r.key(key)).Bytes()
 	if err != nil {
+		if err == redis.Nil {
+			return ErrKeyNotFound
+		}
 		return err
 	}
 	return json.Unmarshal(data, dest)
 }
 
 func (r *RedisClient) GetString(ctx context.Context, key string) (string, error) {
-	return r.client.Get(ctx, r.key(key)).Result()
+	result, err := r.client.Get(ctx, r.key(key)).Result()
+	if err == redis.Nil {
+		return "", ErrKeyNotFound
+	}
+	return result, err
 }
 
+// SetString stores a string value with expiration
 func (r *RedisClient) SetString(ctx context.Context, key, value string, expiration time.Duration) error {
 	return r.client.Set(ctx, r.key(key), value, expiration).Err()
 }
@@ -126,6 +242,9 @@ func (r *RedisClient) CreateSession(ctx context.Context, session *Session) error
 	}
 
 	ttl := time.Until(session.ExpiresAt)
+	if ttl <= 0 {
+		return fmt.Errorf("session expired")
+	}
 	if err := r.client.Set(ctx, sessionKey, data, ttl).Err(); err != nil {
 		return fmt.Errorf("failed to store session: %w", err)
 	}
@@ -188,6 +307,14 @@ func (r *RedisClient) DeleteSession(ctx context.Context, sessionID, userID strin
 	return err
 }
 
+func (r *RedisClient) RevokeSession(ctx context.Context, userID, sessionID string) error {
+	return r.DeleteSession(ctx, sessionID, userID)
+}
+
+func (r *RedisClient) RevokeAllSessions(ctx context.Context, userID string) error {
+	return r.DeleteAllUserSessions(ctx, userID)
+}
+
 // DeleteAllUserSessions removes all sessions for a user (logout everywhere)
 func (r *RedisClient) DeleteAllUserSessions(ctx context.Context, userID string) error {
 	userSessionsKey := r.key(userSessionPrefix, userID)
@@ -234,8 +361,6 @@ func (r *RedisClient) GetUserSessions(ctx context.Context, userID string) ([]*Se
 
 	return sessions, nil
 }
-
-const blacklistPrefix = "blacklist"
 
 // BlacklistToken adds a token to the blacklist
 func (r *RedisClient) BlacklistToken(ctx context.Context, tokenID string, expiresAt time.Time) error {
@@ -357,8 +482,6 @@ func (r *RedisClient) DeleteVerifyEmailToken(ctx context.Context, token string) 
 // =============================================================================
 // Rate Limiting
 // =============================================================================
-
-const rateLimitPrefix = "ratelimit"
 
 type RateLimitResult struct {
 	Allowed    bool

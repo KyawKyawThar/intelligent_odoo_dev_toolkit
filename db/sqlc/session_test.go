@@ -251,8 +251,8 @@ func TestListSessions_IsolatedFromOtherUsers(t *testing.T) {
 		Email:        utils.RandomEmail(),
 		PasswordHash: hashedPw,
 		FullName:     nil,
-		Role:         "member",
-		IsActive:     true,
+
+		IsActive: true,
 	})
 	require.NoError(t, err)
 
@@ -350,8 +350,8 @@ func TestRevokeAllSessions_OnlyAffectsTargetUser(t *testing.T) {
 		Email:        utils.RandomEmail(),
 		PasswordHash: hashedPw,
 		FullName:     nil,
-		Role:         "member",
-		IsActive:     true,
+
+		IsActive: true,
 	})
 	require.NoError(t, err)
 
@@ -432,6 +432,27 @@ func TestDeleteExpiredSessions_NoExpiredSessions_AffectsZeroRows(t *testing.T) {
 
 	tag, err := testStore.DeleteExpiredSessions(context.Background())
 	require.NoError(t, err)
-	// May affect 0 rows for this tenant's sessions (other tests may have expired ones)
+	//affect 0 rows for this tenant's sessions (other tests may have expired ones)
 	_ = tag // just verify no error
+}
+
+func TestUpdateSessionToken(t *testing.T) {
+	reg := createRegisteredTenant(t)
+	sess := createTestSession(t, reg.User.ID, reg.Tenant.ID, time.Hour)
+
+	newToken := utils.RandomString(64)
+	newExpiry := time.Now().Add(2 * time.Hour)
+
+	err := testStore.UpdateSessionToken(context.Background(), UpdateSessionTokenParams{
+		ID:           sess.ID,
+		RefreshToken: newToken,
+		ExpiresAt:    newExpiry,
+	})
+	require.NoError(t, err)
+
+	updated, err := testStore.GetSession(context.Background(), sess.ID)
+	require.NoError(t, err)
+	require.Equal(t, newToken, updated.RefreshToken)
+	require.WithinDuration(t, newExpiry, updated.ExpiresAt, time.Second)
+	require.True(t, updated.LastUsedAt.After(sess.LastUsedAt))
 }

@@ -53,12 +53,12 @@ type GetORMStatsAggregatedParams struct {
 }
 
 type GetORMStatsAggregatedRow struct {
-	Model           string `db:"model" json:"model"`
-	Method          string `db:"method" json:"method"`
-	TotalCalls      int32  `db:"total_calls" json:"total_calls"`
-	TotalDurationMs int32  `db:"total_duration_ms" json:"total_duration_ms"`
-	PeakMs          any    `db:"peak_ms" json:"peak_ms"`
-	HasN1           bool   `db:"has_n1" json:"has_n1"`
+	Model           string      `db:"model" json:"model"`
+	Method          string      `db:"method" json:"method"`
+	TotalCalls      int32       `db:"total_calls" json:"total_calls"`
+	TotalDurationMs int32       `db:"total_duration_ms" json:"total_duration_ms"`
+	PeakMs          interface{} `db:"peak_ms" json:"peak_ms"`
+	HasN1           bool        `db:"has_n1" json:"has_n1"`
 }
 
 func (q *Queries) GetORMStatsAggregated(ctx context.Context, arg GetORMStatsAggregatedParams) ([]GetORMStatsAggregatedRow, error) {

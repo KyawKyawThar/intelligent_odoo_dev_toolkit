@@ -28,16 +28,22 @@ type IngestErrorBatchParams struct {
 func (store *SQLStore) IngestErrorBatchTx(ctx context.Context, arg IngestErrorBatchParams) error {
 
 	return store.execTx(ctx, func(q *Queries) error {
+		affectedUsers := arg.AffectedUIDs
+		if affectedUsers == nil {
+			affectedUsers = []int32{}
+		}
+
 		// 1. Upsert error group
 		eg, err := q.UpsertErrorGroup(ctx, UpsertErrorGroupParams{
-			EnvID:         arg.EnvID,
-			Signature:     arg.Signature,
-			ErrorType:     arg.ErrorType,
-			Message:       arg.Message,
-			Module:        arg.Model,
-			Model:         arg.Module,
+			EnvID:     arg.EnvID,
+			Signature: arg.Signature,
+			ErrorType: arg.ErrorType,
+			Message:   arg.Message,
+			Module:    arg.Module,
+			Model:     arg.Model,
+
 			FirstSeen:     arg.Timestamp,
-			AffectedUsers: arg.AffectedUIDs,
+			AffectedUsers: affectedUsers,
 			RawTraceRef:   arg.RawTraceRef,
 		})
 
@@ -47,7 +53,7 @@ func (store *SQLStore) IngestErrorBatchTx(ctx context.Context, arg IngestErrorBa
 		// 2. Merge affected user IDs
 		if len(arg.AffectedUIDs) > 0 {
 			if err := q.AppendAffectedUsers(ctx, AppendAffectedUsersParams{
-				ID:      eg.EnvID,
+				ID:      eg.ID,
 				UserIds: arg.AffectedUIDs,
 			}); err != nil {
 				return fmt.Errorf("append affected users: %w", err)
@@ -69,11 +75,16 @@ func (store *SQLStore) IngestErrorBatchTx(ctx context.Context, arg IngestErrorBa
 					"model":            arg.Model,
 					"module":           arg.Module})
 
+				sigShort := arg.Signature
+				if len(sigShort) > 8 {
+					sigShort = sigShort[:8]
+				}
+
 				_, err := q.CreateAlert(ctx, CreateAlertParams{
 					EnvID:    arg.EnvID,
 					Type:     "error_spike",
 					Severity: "warning",
-					Message:  fmt.Sprintf("%s: %d occurrences of %s", arg.ErrorType, eg.OccurrenceCount, arg.Signature[:8]),
+					Message:  fmt.Sprintf("%s: %d occurrences of %s", arg.ErrorType, eg.OccurrenceCount, sigShort),
 					Metadata: json.RawMessage(metadata),
 				})
 

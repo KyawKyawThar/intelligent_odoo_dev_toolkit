@@ -115,6 +115,8 @@ type Querier interface {
 	// Login flow: user provides email only, we resolve tenant from the result
 	GetUserByEmailGlobal(ctx context.Context, email string) (GetUserByEmailGlobalRow, error)
 	GetUserByID(ctx context.Context, arg GetUserByIDParams) (User, error)
+	// Fetch user by id across tenants (used by password reset flows)
+	GetUserByIDGlobal(ctx context.Context, id uuid.UUID) (GetUserByIDGlobalRow, error)
 	// ════════════════════════════════════════════
 	//  Budget Samples (from ingest worker)
 	// ════════════════════════════════════════════
@@ -180,6 +182,7 @@ type Querier interface {
 	UpdateFeatureFlags(ctx context.Context, arg UpdateFeatureFlagsParams) (Environment, error)
 	UpdateNotificationChannel(ctx context.Context, arg UpdateNotificationChannelParams) (NotificationChannel, error)
 	UpdatePerfBudget(ctx context.Context, arg UpdatePerfBudgetParams) (PerfBudget, error)
+	UpdateSessionToken(ctx context.Context, arg UpdateSessionTokenParams) error
 	UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscriptionStatusParams) (Subscription, error)
 	UpdateSubscriptionStripeIDs(ctx context.Context, arg UpdateSubscriptionStripeIDsParams) (Subscription, error)
 	UpdateTenantPlan(ctx context.Context, arg UpdateTenantPlanParams) (Tenant, error)
@@ -188,7 +191,9 @@ type Querier interface {
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserLastLogin(ctx context.Context, id uuid.UUID) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertErrorGroup(ctx context.Context, arg UpsertErrorGroupParams) (ErrorGroup, error)
+	VerifyUserEmail(ctx context.Context, arg VerifyUserEmailParams) error
 }
 
 var _ Querier = (*Queries)(nil)

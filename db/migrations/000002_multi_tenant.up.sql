@@ -24,7 +24,8 @@ CREATE TABLE users (
     email         TEXT        NOT NULL,
     password_hash TEXT        NOT NULL,
     full_name     TEXT,
-    role          TEXT        NOT NULL DEFAULT 'member',
+    email_verified BOOLEAN     NOT NULL DEFAULT false,
+    
     is_active     BOOLEAN     NOT NULL DEFAULT true,
     last_login_at TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
