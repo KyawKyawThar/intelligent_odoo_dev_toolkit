@@ -175,6 +175,7 @@ type Querier interface {
 	SearchErrorGroups(ctx context.Context, arg SearchErrorGroupsParams) ([]ErrorGroup, error)
 	TouchAPIKey(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
+	UnverifyUserEmail(ctx context.Context, arg UnverifyUserEmailParams) error
 	UpdateAnonProfile(ctx context.Context, arg UpdateAnonProfileParams) (AnonProfile, error)
 	UpdateAnonProfileStatus(ctx context.Context, arg UpdateAnonProfileStatusParams) (AnonProfile, error)
 	UpdateEnvironment(ctx context.Context, arg UpdateEnvironmentParams) (Environment, error)

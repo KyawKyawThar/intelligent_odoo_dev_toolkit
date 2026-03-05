@@ -2,6 +2,7 @@ package handler
 
 import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
+	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/middleware"
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
 	"encoding/json"
@@ -13,41 +14,65 @@ import (
 	"github.com/google/uuid"
 )
 
-type Handler struct {
+// Handlers is the main container for all HTTP handlers.
+type Handlers struct {
 	Auth *AuthHandler
+
+	// Future handlers:
+	// Environment *EnvironmentHandler
+	// Profiler    *ProfilerHandler
+	// Alert       *AlertHandler
+	//	APIKey *APIKeyHandler
+	//Tenant *TenantHandler
+	//User   *UserHandler
 }
 
-type AuthHandler struct {
-	svc      *service.AuthService
-	validate *validator.Validate
-}
-
-func NewHandler(services *service.Services) *Handler {
+// NewHandlers creates all handlers with their service dependencies.
+func NewHandlers(services *service.Services) *Handlers {
 	v := validator.New()
-	api.RegisterCustomValidations(v) // slug, env_type, odoo_version, …
+	api.RegisterCustomValidations(v)
 
-	return &Handler{
-		Auth: &AuthHandler{
-			svc:      services.Auth,
-			validate: v,
-		},
+	base := &BaseHandler{validate: v}
+
+	return &Handlers{
+		Auth: NewAuthHandler(services.Auth.(*service.AuthService), base),
+		// APIKey: NewAPIKeyHandler(services.APIKey, base),
+		// Tenant: NewTenantHandler(services.Tenant, base),
+		// User:   NewUserHandler(services.User, base),
 	}
+}
+
+// =============================================================================
+// Base Handler (common utilities)
+// =============================================================================
+
+// BaseHandler provides common functionality for all handlers.
+type BaseHandler struct {
+	validate *validator.Validate
 }
 
 // =============================================================================
 // AUTH HANDLERS
 // =============================================================================
 
-func (h *AuthHandler) HandleNotImplement(w http.ResponseWriter, r *http.Request) {
-	h.svc.NotImplemented(w, r)
+func (h *BaseHandler) HandleNotImplement(w http.ResponseWriter, r *http.Request) {
+	api.HandleError(w, r, api.NewAPIError(
+		api.ErrCodeInternal,
+		"This endpoint is not yet implemented",
+		http.StatusNotImplemented,
+	))
 }
 
-func (h *AuthHandler) HandleVersion(w http.ResponseWriter, r *http.Request) {
-	h.svc.ServiceVersion(w, r)
+func (h *BaseHandler) HandleVersion(w http.ResponseWriter, r *http.Request) {
+	dto.WriteSuccess(w, r, map[string]string{
+		"version":     "1.0.0",
+		"api_version": "v1",
+		"go_version":  "1.21",
+	})
 }
 
 // DecodeJSON decodes the request body into v. It rejects unknown fields.
-func (h *AuthHandler) DecodeJSON(r *http.Request, v any) *api.APIError {
+func (h *BaseHandler) DecodeJSON(r *http.Request, v any) *api.APIError {
 
 	if r.Body == nil {
 		return api.ErrBadRequest("Request body is empty")
@@ -64,7 +89,7 @@ func (h *AuthHandler) DecodeJSON(r *http.Request, v any) *api.APIError {
 }
 
 // ValidateRequest validates v against struct tags and returns a rich APIError.
-func (h *AuthHandler) ValidateRequest(v any) *api.APIError {
+func (h *BaseHandler) ValidateRequest(v any) *api.APIError {
 	if err := h.validate.Struct(v); err != nil {
 		return api.FromValidationError(err)
 	}
@@ -72,12 +97,12 @@ func (h *AuthHandler) ValidateRequest(v any) *api.APIError {
 }
 
 // WriteErr writes an APIError response with request context (request-id, path …).
-func (h *AuthHandler) WriteErr(w http.ResponseWriter, r *http.Request, err *api.APIError) {
+func (h *BaseHandler) WriteErr(w http.ResponseWriter, r *http.Request, err *api.APIError) {
 	api.WriteErrorWithContext(w, r, err)
 }
 
 // MapErr converts any error (sentinel, APIError, pg, …) to an *api.APIError.
-func (h *AuthHandler) MapErr(err error) *api.APIError {
+func (h *BaseHandler) MapErr(err error) *api.APIError {
 	if err == nil {
 		return nil
 	}
@@ -99,12 +124,12 @@ func (h *AuthHandler) MapErr(err error) *api.APIError {
 }
 
 // HandleErr is a convenience that maps then writes.
-func (h *AuthHandler) HandleErr(w http.ResponseWriter, r *http.Request, err error) {
+func (h *BaseHandler) HandleErr(w http.ResponseWriter, r *http.Request, err error) {
 	h.WriteErr(w, r, h.MapErr(err))
 }
 
 // MustUserID reads the user ID from context; writes 401 and returns false on failure.
-func (h *AuthHandler) MustUserID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+func (h *BaseHandler) MustUserID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	raw := middleware.GetUserID(r.Context())
 	if raw == "" {
 		h.WriteErr(w, r, api.ErrUnauthorized(""))
@@ -119,7 +144,7 @@ func (h *AuthHandler) MustUserID(w http.ResponseWriter, r *http.Request) (uuid.U
 }
 
 // MustTenantID reads the tenant ID from context; writes 401 and returns false on failure.
-func (h *AuthHandler) MustTenantID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+func (h *BaseHandler) MustTenantID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	raw := middleware.GetTenantID(r.Context())
 	if raw == "" {
 		h.WriteErr(w, r, api.ErrUnauthorized("Tenant ID missing from token"))
@@ -133,7 +158,7 @@ func (h *AuthHandler) MustTenantID(w http.ResponseWriter, r *http.Request) (uuid
 	return id, true
 }
 
-func (h *AuthHandler) ClientIP(r *http.Request) string {
+func (h *BaseHandler) ClientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		return strings.TrimSpace(strings.SplitN(xff, ",", 2)[0])
 	}
@@ -142,10 +167,34 @@ func (h *AuthHandler) ClientIP(r *http.Request) string {
 	}
 	return r.RemoteAddr
 }
-func (h *AuthHandler) BearerToken(r *http.Request) string {
+func (h *BaseHandler) BearerToken(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
 	if after, ok := strings.CutPrefix(auth, "Bearer "); ok {
 		return after
 	}
 	return ""
+}
+
+// =============================================================================
+// Response Helpers
+// =============================================================================
+
+// WriteSuccess writes a successful JSON response with status 200.
+func (h *BaseHandler) WriteSuccess(w http.ResponseWriter, r *http.Request, data any) {
+	dto.WriteSuccess(w, r, data)
+}
+
+// WriteCreated writes a successful JSON response with status 201.
+func (h *BaseHandler) WriteCreated(w http.ResponseWriter, r *http.Request, data any) {
+	dto.WriteCreated(w, r, data)
+}
+
+// WriteNoContent writes a 204 No Content response.
+func (h *BaseHandler) WriteNoContent(w http.ResponseWriter) {
+	dto.WriteNoContent(w)
+}
+
+// WriteMessage writes a simple message response.
+func (h *BaseHandler) WriteMessage(w http.ResponseWriter, r *http.Request, msg string) {
+	dto.WriteSuccess(w, r, dto.NewMessageResponse(msg))
 }

@@ -58,104 +58,18 @@ func parseIP(s string) *netip.Addr {
 	return &addr
 }
 
-// toUserResponse maps db.User → UserResponse.
-func toUserResponse(u db.User) *UserResponse {
-	return &UserResponse{
-		ID:       u.ID.String(),
-		Email:    u.Email,
-		FullName: u.FullName,
-
-		TenantID:      u.TenantID.String(),
-		EmailVerified: u.EmailVerified,
-		IsActive:      u.IsActive,
-		CreatedAt:     u.CreatedAt,
-		UpdatedAt:     u.UpdatedAt,
-		LastLoginAt:   u.LastLoginAt,
-	}
-}
-
-func toUserResponseFromGlobal(u db.GetUserByEmailGlobalRow) *UserResponse {
-	return &UserResponse{
-		ID:            u.ID.String(),
-		Email:         u.Email,
-		FullName:      u.FullName,
-		TenantID:      u.TenantID.String(),
-		EmailVerified: u.EmailVerified,
-		IsActive:      u.IsActive,
-		CreatedAt:     u.CreatedAt,
-		UpdatedAt:     u.UpdatedAt,
-		LastLoginAt:   u.LastLoginAt,
-	}
-}
-
-// UserGlobalRowResponse
-func toUserGlobalRowResponse(u db.GetUserByEmailGlobalRow) *UserGlobalRowResponse {
-	return &UserGlobalRowResponse{
-		ID:            u.ID,
-		TenantID:      u.TenantID,
-		Email:         u.Email,
-		PasswordHash:  u.PasswordHash,
-		FullName:      u.FullName,
-		EmailVerified: u.EmailVerified,
-		IsActive:      u.IsActive,
-		LastLoginAt:   u.LastLoginAt,
-		CreatedAt:     u.CreatedAt,
-		UpdatedAt:     u.UpdatedAt,
-		TenantSlug:    u.TenantSlug,
-		TenantPlan:    u.TenantPlan,
-	}
-}
-
-// toTenantResponse maps db.Tenant → TenantResponse.
-func toTenantResponse(t db.Tenant) *TenantResponse {
-	return &TenantResponse{
-		ID:         t.ID.String(),
-		Name:       t.Name,
-		Slug:       t.Slug,
-		Plan:       t.Plan,
-		PlanStatus: t.PlanStatus,
-		CreatedAt:  t.CreatedAt,
-	}
-}
-
-func cacheSessionToResponse(s *cache.Session) *SessionResponse {
-	return &SessionResponse{
-		ID:           s.ID,
-		UserAgent:    s.UserAgent,
-		IPAddress:    s.IPAddress,
-		CreatedAt:    s.CreatedAt,
-		ExpiresAt:    s.ExpiresAt,
-		LastActiveAt: s.LastActiveAt,
-	}
-}
-
-func dbSessionToResponse(s db.Session) *SessionResponse {
-	r := &SessionResponse{
-		ID:           s.ID.String(),
-		CreatedAt:    s.CreatedAt,
-		ExpiresAt:    s.ExpiresAt,
-		LastActiveAt: s.LastUsedAt,
-	}
-	if s.UserAgent != nil {
-		r.UserAgent = *s.UserAgent
-	}
-	if s.IpAddress != nil {
-		r.IPAddress = s.IpAddress.String()
-	}
-	return r
-}
-
 // =============================================================================
 // Email delivery — MailHog SMTP (no auth)
 // =============================================================================
 
 // sendVerificationEmail generates a one-time token, stores it in Redis,
-// and delivers an email via MailHog.
-func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email string) {
+// and delivers an email via MailHog. An error is returned if delivery fails
+// so callers (such as registration) can rollback any database changes.
+func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email string) error {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		fmt.Printf("[email] ERROR generating verify token for %s: %v\n", email, err)
-		return
+		return err
 	}
 	tokenStr := hex.EncodeToString(tokenBytes)
 
@@ -166,7 +80,7 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email s
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {
 		fmt.Printf("[email] ERROR storing verify token for %s: %v\n", email, err)
-		return
+		return err
 	}
 
 	verifyURL := fmt.Sprintf(
@@ -186,9 +100,10 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email s
 	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
 	if err := smtp.SendMail(addr, nil, s.config.SMTPFrom, []string{email}, []byte(body)); err != nil {
 		fmt.Printf("[email] ERROR sending verify email to %s via %s: %v\n", email, addr, err)
-		return
+		return err
 	}
 	fmt.Printf("[email] Sent verify email to %s (via MailHog %s)\n", email, addr)
+	return nil
 }
 
 // sendPasswordResetEmail sends the reset link via MailHog.

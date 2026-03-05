@@ -430,6 +430,24 @@ func (q *Queries) ListUsersByTenant(ctx context.Context, tenantID uuid.UUID) ([]
 	return items, nil
 }
 
+const unverifyUserEmail = `-- name: UnverifyUserEmail :exec
+UPDATE users
+SET
+    email_verified = false,
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $2
+`
+
+type UnverifyUserEmailParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+}
+
+func (q *Queries) UnverifyUserEmail(ctx context.Context, arg UnverifyUserEmailParams) error {
+	_, err := q.db.Exec(ctx, unverifyUserEmail, arg.ID, arg.TenantID)
+	return err
+}
+
 const updateTenantPlan = `-- name: UpdateTenantPlan :one
 UPDATE tenants
 SET
@@ -615,25 +633,25 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE users
 SET
-    full_name = COALESCE($2, full_name),
-    email = COALESCE($3, email),
+    full_name = COALESCE($1, full_name),
+    email = COALESCE($2, email),
     updated_at = now()
-WHERE id = $1 AND tenant_id = $4
+WHERE id = $3 AND tenant_id = $4
 RETURNING id, tenant_id, email, password_hash, full_name, email_verified, is_active, last_login_at, created_at, updated_at
 `
 
 type UpdateUserProfileParams struct {
-	ID       uuid.UUID `db:"id" json:"id"`
 	FullName *string   `db:"full_name" json:"full_name"`
-	Email    string    `db:"email" json:"email"`
+	Email    *string   `db:"email" json:"email"`
+	ID       uuid.UUID `db:"id" json:"id"`
 	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
 }
 
 func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateUserProfile,
-		arg.ID,
 		arg.FullName,
 		arg.Email,
+		arg.ID,
 		arg.TenantID,
 	)
 	var i User

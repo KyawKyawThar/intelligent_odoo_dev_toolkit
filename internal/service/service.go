@@ -2,44 +2,51 @@ package service
 
 import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
-	"Intelligent_Dev_ToolKit_Odoo/internal/api"
+
 	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
+
 	"Intelligent_Dev_ToolKit_Odoo/internal/token"
-	"net/http"
+
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Services contains all the services for the application.
 type Services struct {
-	Auth *AuthService
+	Auth AuthServicer
+
+	// Future services:
+	// Environment EnvironmentServicer
+	// Profiler    ProfilerServicer
+	// Alert       AlertServicer
+	// Audit       AuditServicer
 }
 
-func NewServices(store db.Store, cache *cache.RedisClient, tokenMaker token.Maker, cfg *AuthConfig) *Services {
-	return &Services{
-		Auth: NewAuthService(store, cache, tokenMaker, cfg),
-	}
+type Config struct {
+	Auth AuthConfig
+	// Future configs can be added here
 }
 
+// =============================================================================
+// Auth Configuration
+// =============================================================================
+type AuthService struct {
+	store      db.Store
+	cache      *cache.RedisClient
+	tokenMaker token.Maker
+	config     *AuthConfig
+}
 type AuthConfig struct {
 	AccessTokenDuration  time.Duration
 	RefreshTokenDuration time.Duration
 	PasswordMinLength    int
 	BcryptCost           int
 
-	// MailHog / SMTP — no auth required for MailHog
-	SMTPHost   string // e.g. "localhost"
-	SMTPPort   int    // MailHog default: 1025
-	SMTPFrom   string // e.g. "noreply@odoodevtools.com"
-	AppBaseURL string // e.g. "http://localhost:8080" — used to build verify/reset links
-}
-
-type AuthService struct {
-	store      db.Store
-	cache      *cache.RedisClient
-	tokenMaker token.Maker
-	config     *AuthConfig
+	// MailHog / SMTP
+	SMTPHost   string
+	SMTPPort   int
+	SMTPFrom   string
+	AppBaseURL string
 }
 
 func DefaultAuthConfig() *AuthConfig {
@@ -55,6 +62,14 @@ func DefaultAuthConfig() *AuthConfig {
 		AppBaseURL: "http://localhost:8080",
 	}
 }
+
+// DefaultConfig returns sensible defaults for all services.
+func DefaultConfig() *Config {
+	return &Config{
+		Auth: *DefaultAuthConfig(),
+	}
+}
+
 func NewAuthService(store db.Store, cache *cache.RedisClient, tokenMaker token.Maker, cfg *AuthConfig) *AuthService {
 	if cfg == nil {
 		cfg = DefaultAuthConfig()
@@ -67,18 +82,16 @@ func NewAuthService(store db.Store, cache *cache.RedisClient, tokenMaker token.M
 	}
 }
 
-// Helper for not-yet-implemented handlers
-func (s *AuthService) NotImplemented(w http.ResponseWriter, r *http.Request) {
-	api.HandleError(w, r, api.NewAPIError(
-		api.ErrCodeInternal,
-		"This endpoint is not yet implemented",
-		http.StatusNotImplemented,
-	))
-}
-func (s *AuthService) ServiceVersion(w http.ResponseWriter, r *http.Request) {
-	api.WriteJSON(w, http.StatusOK, map[string]string{
-		"version":     "1.0.0",
-		"api_version": "v1",
-		"go_version":  "1.21",
-	})
+// NewServices creates all services with their dependencies.
+func NewServices(store db.Store, cache *cache.RedisClient, tokenMaker token.Maker, cfg *Config) *Services {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
+
+	// Create the base auth service (implements multiple interfaces)
+	authSvc := NewAuthService(store, cache, tokenMaker, &cfg.Auth)
+
+	return &Services{
+		Auth: authSvc,
+	}
 }

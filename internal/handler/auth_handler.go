@@ -2,9 +2,22 @@ package handler
 
 import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
+	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
 	"net/http"
 )
+
+type AuthHandler struct {
+	*BaseHandler
+	svc *service.AuthService
+}
+
+func NewAuthHandler(authService *service.AuthService, base *BaseHandler) *AuthHandler {
+	return &AuthHandler{
+		BaseHandler: base,
+		svc:         authService,
+	}
+}
 
 // ---------------------------------------------------------------------------
 // POST /api/v1/auth/register
@@ -13,8 +26,19 @@ import (
 // HandleRegister creates a new tenant + owner user in a single transaction,
 // issues an access + refresh token pair, and triggers a verification email
 // via MailHog.
+// @Summary      Register a new user
+// @Description  Creates a new tenant and owner user, and returns an access and refresh token.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.RegisterRequest true "User registration details"
+// @Success      201  {object}  dto.LoginResponse
+// @Failure      400  {object}  api.APIError
+// @Failure      409  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/register [post]
 func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
-	var req service.RegisterRequest
+	var req dto.RegisterRequest
 	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
 		h.WriteErr(w, r, apiErr)
 		return
@@ -30,7 +54,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteCreated(w, r, resp)
+	dto.WriteCreated(w, r, resp)
 }
 
 // ---------------------------------------------------------------------------
@@ -39,8 +63,21 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 // HandleLogin authenticates a user by email + password, enforces brute-force
 // protection via Redis, and returns a token pair.
+// @Summary      Login
+// @Description  Authenticates a user by email and password. Enforces brute-force protection via Redis. Returns an access and refresh token pair.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.LoginRequest true "Login credentials"
+// @Success      200  {object}  dto.LoginResponse
+// @Failure      400  {object}  api.APIError
+// @Failure      401  {object}  api.APIError
+// @Failure      429  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Security     none
+// @Router       /auth/login [post]
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	var req service.LoginRequest
+	var req dto.LoginRequest
 	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
 		h.WriteErr(w, r, apiErr)
 		return
@@ -56,7 +93,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteSuccess(w, r, resp)
+	dto.WriteSuccess(w, r, resp)
 }
 
 // ---------------------------------------------------------------------------
@@ -65,8 +102,20 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 // HandleRefreshToken rotates the refresh token (old one is blacklisted in Redis)
 // and issues a new access + refresh pair.
+// @Summary      Refresh token
+// @Description  Rotates the refresh token (old one is blacklisted in Redis) and issues a new access + refresh pair.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.RefreshTokenRequest true "Refresh token"
+// @Success      200  {object}  dto.RefreshTokenResponse
+// @Failure      400  {object}  api.APIError
+// @Failure      401  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/refresh [post]
+// and issues a new access + refresh pair.
 func (h *AuthHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
-	var req service.RefreshTokenRequest
+	var req dto.RefreshTokenRequest
 	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
 		h.WriteErr(w, r, apiErr)
 		return
@@ -82,7 +131,7 @@ func (h *AuthHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	api.WriteSuccess(w, r, resp)
+	dto.WriteSuccess(w, r, resp)
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +140,17 @@ func (h *AuthHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request)
 
 // HandleLogout invalidates the current session (or all sessions when
 // logout_all=true).  Requires a valid Bearer token in the Authorization header.
+// @Summary      Logout
+// @Description  Invalidates the current session or all sessions when logout_all=true. Requires a valid Bearer token.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body dto.LogoutRequest false "Logout options (optional)"
+// @Success      204
+// @Failure      401  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/logout [post]
 func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	BearerToken := h.BearerToken(r)
 	if BearerToken == "" {
@@ -99,7 +159,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Body is optional — default to single-token logout
-	var req service.LogoutRequest
+	var req dto.LogoutRequest
 	_ = h.DecodeJSON(r, &req) // intentionally ignoring parse errors
 
 	if err := h.svc.Logout(r.Context(), BearerToken, &req); err != nil {
@@ -107,7 +167,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteNoContent(w)
+	dto.WriteNoContent(w)
 }
 
 // ---------------------------------------------------------------------------
@@ -117,8 +177,17 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 // HandleForgotPassword always returns HTTP 200 regardless of whether the
 // email is registered (prevents user enumeration). An email is sent via
 // MailHog when the account exists.
+// @Summary      Forgot password
+// @Description  Always returns HTTP 200 regardless of whether the email is registered (prevents user enumeration). Sends a reset link via MailHog when the account exists.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.ForgotPasswordRequest true "Email address"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  api.APIError
+// @Router       /auth/forgot-password [post]
 func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
-	var req service.ForgotPasswordRequest
+	var req dto.ForgotPasswordRequest
 	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
 		h.WriteErr(w, r, apiErr)
 		return
@@ -131,7 +200,7 @@ func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Reques
 	// Intentionally ignore the error — security requirement
 	_ = h.svc.ForgotPassword(r.Context(), &req)
 
-	api.WriteSuccess(w, r, map[string]any{
+	dto.WriteSuccess(w, r, map[string]any{
 		"message": "If that email address is registered you will receive a reset link shortly.",
 	})
 }
@@ -142,8 +211,18 @@ func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Reques
 
 // HandleResetPassword consumes the one-time Redis token and updates the
 // user's password.  All existing sessions are revoked on success.
+// @Summary      Reset password
+// @Description  Consumes the one-time Redis token and updates the user's password. All existing sessions are revoked on success.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.ResetPasswordRequest true "Reset token and new password"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/reset-password [post]
 func (h *AuthHandler) HandleResetPassword(w http.ResponseWriter, r *http.Request) {
-	var req service.ResetPasswordRequest
+	var req dto.ResetPasswordRequest
 	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
 		h.WriteErr(w, r, apiErr)
 		return
@@ -158,7 +237,7 @@ func (h *AuthHandler) HandleResetPassword(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	api.WriteSuccess(w, r, map[string]any{
+	dto.WriteSuccess(w, r, map[string]any{
 		"message": "Password has been reset. Please log in with your new password.",
 	})
 }
@@ -170,6 +249,18 @@ func (h *AuthHandler) HandleResetPassword(w http.ResponseWriter, r *http.Request
 // HandleChangePassword lets a logged-in user change their own password.
 // Requires the current password for verification.  All sessions are revoked
 // on success (forces re-login on all devices).
+// @Summary      Change password
+// @Description  Lets a logged-in user change their own password. Requires the current password for verification. All sessions are revoked on success.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body dto.ChangePasswordRequest true "Current and new password"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  api.APIError
+// @Failure      401  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/change-password [post]
 func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
 	if !ok {
@@ -180,7 +271,7 @@ func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req service.ChangePasswordRequest
+	var req dto.ChangePasswordRequest
 	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
 		h.WriteErr(w, r, apiErr)
 		return
@@ -195,7 +286,7 @@ func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.WriteSuccess(w, r, map[string]any{
+	dto.WriteSuccess(w, r, map[string]any{
 		"message": "Password changed successfully. Please log in again.",
 	})
 }
@@ -206,8 +297,18 @@ func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Reques
 
 // HandleVerifyEmail consumes the one-time Redis verification token and marks
 // the user's email as verified in the database.
+// @Summary      Verify email
+// @Description  Consumes the one-time Redis verification token and marks the user's email as verified in the database.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.VerifyEmailRequest true "Verification token"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/verify-email [post]
 func (h *AuthHandler) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) {
-	var req service.VerifyEmailRequest
+	var req dto.VerifyEmailRequest
 	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
 		h.WriteErr(w, r, apiErr)
 		return
@@ -222,7 +323,7 @@ func (h *AuthHandler) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	api.WriteSuccess(w, r, map[string]any{
+	dto.WriteSuccess(w, r, map[string]any{
 		"message": "Email verified successfully.",
 	})
 }
@@ -233,6 +334,16 @@ func (h *AuthHandler) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) 
 
 // HandleResendVerification sends a fresh verification email via MailHog.
 // Returns 409 if the email is already verified.
+// @Summary      Resend verification email
+// @Description  Sends a fresh verification email via MailHog. Returns 409 if the email is already verified.
+// @Tags         Auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]string
+// @Failure      401  {object}  api.APIError
+// @Failure      409  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/resend-verification [post]
 func (h *AuthHandler) HandleResendVerification(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
 	if !ok {
@@ -248,7 +359,7 @@ func (h *AuthHandler) HandleResendVerification(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	api.WriteSuccess(w, r, map[string]any{
+	dto.WriteSuccess(w, r, map[string]any{
 		"message": "Verification email sent.",
 	})
 }
@@ -258,6 +369,16 @@ func (h *AuthHandler) HandleResendVerification(w http.ResponseWriter, r *http.Re
 // ---------------------------------------------------------------------------
 
 // HandleGetCurrentUser returns the profile of the authenticated user.
+// @Summary      Get current user
+// @Description  Returns the profile of the authenticated user.
+// @Tags         Auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  dto.UserResponse
+// @Failure      401  {object}  api.APIError
+// @Failure      404  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/me [get]
 func (h *AuthHandler) HandleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
 	if !ok {
@@ -274,7 +395,7 @@ func (h *AuthHandler) HandleGetCurrentUser(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.WriteSuccess(w, r, user)
+	dto.WriteSuccess(w, r, user)
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +404,19 @@ func (h *AuthHandler) HandleGetCurrentUser(w http.ResponseWriter, r *http.Reques
 
 // HandleUpdateCurrentUser updates full_name and/or email for the authenticated
 // user.  If the email is changed a new verification email is sent via MailHog.
+// @Summary      Update current user
+// @Description  Updates full_name and/or email for the authenticated user. If the email is changed a new verification email is sent via MailHog.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body dto.UpdateUserRequest true "Fields to update"
+// @Success      200  {object}  dto.UserResponse
+// @Failure      400  {object}  api.APIError
+// @Failure      401  {object}  api.APIError
+// @Failure      409  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/me [patch]
 func (h *AuthHandler) HandleUpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
 	if !ok {
@@ -293,7 +427,7 @@ func (h *AuthHandler) HandleUpdateCurrentUser(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var req service.UpdateUserRequest
+	var req dto.UpdateUserRequest
 	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
 		h.WriteErr(w, r, apiErr)
 		return
@@ -309,7 +443,7 @@ func (h *AuthHandler) HandleUpdateCurrentUser(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	api.WriteSuccess(w, r, user)
+	dto.WriteSuccess(w, r, user)
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +452,15 @@ func (h *AuthHandler) HandleUpdateCurrentUser(w http.ResponseWriter, r *http.Req
 
 // HandleGetSessions returns all active sessions for the authenticated user.
 // Redis is checked first; the DB is used as a fallback.
+// @Summary      Get active sessions
+// @Description  Returns all active sessions for the authenticated user. Redis is checked first; the DB is used as a fallback.
+// @Tags         Auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string][]dto.SessionResponse
+// @Failure      401  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/sessions [get]
 func (h *AuthHandler) HandleGetSessions(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
 	if !ok {
@@ -330,7 +473,7 @@ func (h *AuthHandler) HandleGetSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	api.WriteSuccess(w, r, map[string]any{"sessions": sessions})
+	dto.WriteSuccess(w, r, map[string]any{"sessions": sessions})
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +482,18 @@ func (h *AuthHandler) HandleGetSessions(w http.ResponseWriter, r *http.Request) 
 
 // HandleRevokeSession invalidates a specific session by ID.
 // The session must belong to the authenticated user.
+// @Summary      Revoke session
+// @Description  Invalidates a specific session by ID. The session must belong to the authenticated user.
+// @Tags         Auth
+// @Produce      json
+// @Security     BearerAuth
+// @Param        session_id path string true "Session ID to revoke"
+// @Success      204
+// @Failure      400  {object}  api.APIError
+// @Failure      401  {object}  api.APIError
+// @Failure      404  {object}  api.APIError
+// @Failure      500  {object}  api.APIError
+// @Router       /auth/sessions/{session_id} [delete]
 func (h *AuthHandler) HandleRevokeSession(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
 	if !ok {
@@ -356,5 +511,5 @@ func (h *AuthHandler) HandleRevokeSession(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	api.WriteNoContent(w)
+	dto.WriteNoContent(w)
 }

@@ -101,10 +101,14 @@ WHERE id = $1 AND tenant_id = $3;
 -- name: UpdateUserProfile :one
 UPDATE users
 SET
-    full_name = COALESCE($2, full_name),
-    email = COALESCE($3, email),
+    full_name = COALESCE(sqlc.narg('full_name'), full_name),
+    email = COALESCE(sqlc.narg('email'), email),
+    email_verified = CASE 
+        WHEN sqlc.narg('email') IS NOT NULL AND sqlc.narg('email') != email THEN false 
+        ELSE email_verified 
+    END,
     updated_at = now()
-WHERE id = $1 AND tenant_id = $4
+WHERE id = @id AND tenant_id = @tenant_id
 RETURNING *;
 
 -- name: UpdateUserLastLogin :exec
@@ -150,5 +154,12 @@ WHERE id = $1 AND tenant_id = $2;
 UPDATE users
 SET
     email_verified = true,
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $2;
+
+-- name: UnverifyUserEmail :exec
+UPDATE users
+SET
+    email_verified = false,
     updated_at = now()
 WHERE id = $1 AND tenant_id = $2;

@@ -2,8 +2,8 @@ package server
 
 import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
+	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	mw "Intelligent_Dev_ToolKit_Odoo/internal/middleware"
-	"Intelligent_Dev_ToolKit_Odoo/internal/service"
 	"context"
 	"fmt"
 	"net/http"
@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func (s *Server) setupRoutes() {
@@ -71,12 +72,25 @@ func (s *Server) setupRoutes() {
 	r.Get("/api/v1/ready", s.handleReady)
 	r.Get("/api/v1/not_implement", s.handler.Auth.HandleNotImplement)
 
+	r.Group(func(r chi.Router) {
+		r.Use(mw.SwaggerCSP)
+		r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/docs/", http.StatusMovedPermanently)
+		})
+		r.Get("/docs/*", httpSwagger.Handler(
+			httpSwagger.URL("/docs/doc.json"),
+			httpSwagger.DeepLinking(true),
+			httpSwagger.DocExpansion("list"),
+		))
+	})
+
 	// Root
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		api.WriteJSON(w, http.StatusOK, map[string]string{
+		dto.WriteJSON(w, http.StatusOK, map[string]string{
 			"service": "OdooDevTools API",
 			"version": "1.0.0",
 			"status":  "running",
+			"docs":    "/docs",
 		})
 	})
 	r.Route("/api/v1", func(r chi.Router) {
@@ -127,27 +141,25 @@ func (s *Server) setupRoutes() {
 		r.Use(mw.TieredRateLimit(mw.DefaultPlanLimits))
 
 		// Authenticated Auth endpoints
-		r.Route("/auth", func(r chi.Router) {
-			if s.handler.Auth != nil {
-				r.Post("/logout", s.handler.Auth.HandleLogout)
-				r.Get("/me", s.handler.Auth.HandleGetCurrentUser)
-				r.Patch("/me", s.handler.Auth.HandleUpdateCurrentUser)
-				r.Post("/change-password", s.handler.Auth.HandleChangePassword)
-				r.Get("/sessions", s.handler.Auth.HandleGetSessions)
-				r.Delete("/sessions/{session_id}", s.handler.Auth.HandleRevokeSession)
-				r.Post("/resend-verification", s.handler.Auth.HandleResendVerification)
-			} else {
-				r.Post("/logout", s.handleLogout)
-				r.Get("/me", s.handleGetCurrentUser)
-				r.Patch("/me", s.handleUpdateCurrentUser)
-				r.Post("/change-password", s.handleChangePassword)
-			}
-		})
+		if s.handler.Auth != nil {
+			r.Post("/api/v1/auth/logout", s.handler.Auth.HandleLogout)
+			r.Get("/api/v1/auth/me", s.handler.Auth.HandleGetCurrentUser)
+			r.Patch("/api/v1/auth/me", s.handler.Auth.HandleUpdateCurrentUser)
+			r.Post("/api/v1/auth/change-password", s.handler.Auth.HandleChangePassword)
+			r.Get("/api/v1/auth/sessions", s.handler.Auth.HandleGetSessions)
+			r.Delete("/api/v1/auth/sessions/{session_id}", s.handler.Auth.HandleRevokeSession)
+			r.Post("/api/v1/auth/resend-verification", s.handler.Auth.HandleResendVerification)
+		} else {
+			r.Post("/api/v1/auth/logout", s.handleLogout)
+			r.Get("/api/v1/auth/me", s.handleGetCurrentUser)
+			r.Patch("/api/v1/auth/me", s.handleUpdateCurrentUser)
+			r.Post("/api/v1/auth/change-password", s.handleChangePassword)
+		}
 	})
 	s.router = r
 }
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	api.WriteJSON(w, http.StatusOK, map[string]string{
+	dto.WriteJSON(w, http.StatusOK, map[string]string{
 		"status": "healthy",
 	})
 }
@@ -163,7 +175,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	// ------------------------------------------------------------------
 	if err := s.store.Ping(ctx); err != nil {
 		checks["database"] = "unhealthy: " + err.Error()
-		api.WriteReady(w, false, checks)
+		dto.WriteReady(w, false, checks)
 		return
 	}
 	checks["database"] = "healthy"
@@ -174,7 +186,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if s.cache != nil {
 		if err := s.cache.Client().Ping(ctx).Err(); err != nil {
 			checks["cache"] = "unhealthy: " + err.Error()
-			api.WriteReady(w, false, checks)
+			dto.WriteReady(w, false, checks)
 			return
 		}
 		checks["cache"] = "healthy"
@@ -194,17 +206,17 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 			} else {
 				checks["agent_cloud"] += fmt.Sprintf(" status=%d", resp.StatusCode)
 			}
-			api.WriteReady(w, false, checks)
+			dto.WriteReady(w, false, checks)
 			return
 		} else {
 			checks["agent_cloud"] = "healthy"
 		}
 	}
 
-	api.WriteReady(w, true, checks)
+	dto.WriteReady(w, true, checks)
 }
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
-	api.WriteJSON(w, http.StatusOK, map[string]string{
+	dto.WriteJSON(w, http.StatusOK, map[string]string{
 		"version":     "1.0.0",
 		"api_version": "v1",
 		"go_version":  "1.24.4",
@@ -213,7 +225,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 
-	var req service.RegisterRequest
+	var req dto.RegisterRequest
 	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
 		s.handler.Auth.WriteErr(w, r, apiErr)
 	}
@@ -230,11 +242,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteCreated(w, r, resp)
+	dto.WriteCreated(w, r, resp)
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	var req service.LoginRequest
+	var req dto.LoginRequest
 	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
 		s.handler.Auth.WriteErr(w, r, apiErr)
 		return
@@ -250,12 +262,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteSuccess(w, r, resp)
+	dto.WriteSuccess(w, r, resp)
 }
 
 func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 
-	var req service.RefreshTokenRequest
+	var req dto.RefreshTokenRequest
 	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
 		s.handler.Auth.WriteErr(w, r, apiErr)
 		return
@@ -271,11 +283,11 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteSuccess(w, r, resp)
+	dto.WriteSuccess(w, r, resp)
 }
 
 func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
-	var req service.ForgotPasswordRequest
+	var req dto.ForgotPasswordRequest
 	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
 		s.handler.Auth.WriteErr(w, r, apiErr)
 		return
@@ -288,14 +300,14 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	// Intentionally ignore the error — security requirement
 	_ = s.services.Auth.ForgotPassword(r.Context(), &req)
 
-	api.WriteSuccess(w, r, map[string]any{
+	dto.WriteSuccess(w, r, map[string]any{
 		"message": "If that email address is registered you will receive a reset link shortly.",
 	})
 }
 
 func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 
-	var req service.ResetPasswordRequest
+	var req dto.ResetPasswordRequest
 	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
 		s.handler.Auth.WriteErr(w, r, apiErr)
 		return
@@ -310,7 +322,7 @@ func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteSuccess(w, r, map[string]any{
+	dto.WriteSuccess(w, r, map[string]any{
 		"message": "Password has been reset. Please log in with your new password.",
 	})
 }
@@ -323,7 +335,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Body is optional — default to single-token logout
-	var req service.LogoutRequest
+	var req dto.LogoutRequest
 	_ = s.handler.Auth.DecodeJSON(r, &req) // intentionally ignoring parse errors
 
 	if err := s.services.Auth.Logout(r.Context(), BearerToken, &req); err != nil {
@@ -331,7 +343,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteNoContent(w)
+	dto.WriteNoContent(w)
 }
 
 func (s *Server) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
@@ -350,7 +362,7 @@ func (s *Server) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteSuccess(w, r, user)
+	dto.WriteSuccess(w, r, user)
 }
 func (s *Server) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
 	userID, ok := s.handler.Auth.MustUserID(w, r)
@@ -362,7 +374,7 @@ func (s *Server) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var req service.UpdateUserRequest
+	var req dto.UpdateUserRequest
 	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
 		s.handler.Auth.WriteErr(w, r, apiErr)
 		return
@@ -378,7 +390,7 @@ func (s *Server) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	api.WriteSuccess(w, r, user)
+	dto.WriteSuccess(w, r, user)
 }
 func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
@@ -391,7 +403,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req service.ChangePasswordRequest
+	var req dto.ChangePasswordRequest
 	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
 		s.handler.Auth.WriteErr(w, r, apiErr)
 		return
@@ -406,7 +418,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.WriteSuccess(w, r, map[string]any{
+	dto.WriteSuccess(w, r, map[string]any{
 		"message": "Password changed successfully. Please log in again.",
 	})
 }

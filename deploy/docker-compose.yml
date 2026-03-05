@@ -44,13 +44,14 @@ services:
       timeout: 5s
       retries: 5
 
-  mailhod:
+  mailhog:
     image: mailhog/mailhog:latest
     platform: linux/amd64
     ports:
       - "1025:1025"
       - "8025:8025"
     restart: always
+    networks: [backend]
 
   # # ── MinIO (S3-compatible, local dev) ────────
   # minio:

@@ -4,6 +4,7 @@ import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
 	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
+	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/token"
 	"Intelligent_Dev_ToolKit_Odoo/utils"
 	"context"
@@ -17,124 +18,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// =============================================================================
-// Request / Response Types
-// =============================================================================
-
-type RegisterRequest struct {
-	Email      string `json:"email"       validate:"required,email"`
-	Password   string `json:"password"    validate:"required,min=8"`
-	TenantName string `json:"tenant_name" validate:"required,min=2,max=100"`
-	TenantSlug string `json:"tenant_slug" validate:"required,min=2,max=50,slug"`
-	FullName   string `json:"full_name"   validate:"omitempty,max=100"`
-}
-
-type RegisterResponse struct {
-	User         *UserResponse   `json:"user"`
-	Tenant       *TenantResponse `json:"tenant"`
-	AccessToken  string          `json:"access_token"`
-	RefreshToken string          `json:"refresh_token"`
-	ExpiresIn    int64           `json:"expires_in"`
-	TokenType    string          `json:"token_type"`
-}
-
-type LoginRequest struct {
-	Email    string `json:"email"    validate:"required,email"`
-	Password string `json:"password" validate:"required"`
-}
-
-type LoginResponse struct {
-	AccessToken  string        `json:"access_token"`
-	RefreshToken string        `json:"refresh_token"`
-	ExpiresIn    int64         `json:"expires_in"`
-	TokenType    string        `json:"token_type"`
-	User         *UserResponse `json:"user"`
-}
-
-type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token" validate:"required"`
-}
-
-type RefreshTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"`
-	TokenType    string `json:"token_type"`
-}
-
-type ForgotPasswordRequest struct {
-	Email string `json:"email" validate:"required,email"`
-}
-
-type ResetPasswordRequest struct {
-	Token       string `json:"token"        validate:"required"`
-	NewPassword string `json:"new_password" validate:"required,min=8"`
-}
-
-type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password" validate:"required"`
-	NewPassword     string `json:"new_password"     validate:"required,min=8"`
-}
-
-type UpdateUserRequest struct {
-	Email    *string `json:"email,omitempty" validate:"omitempty,email"`
-	FullName *string `json:"full_name,omitempty" validate:"omitempty,max=100"`
-}
-
-type VerifyEmailRequest struct {
-	Token string `json:"token" validate:"required"`
-}
-
-type UserResponse struct {
-	ID            string     `json:"id"`
-	Email         string     `json:"email"`
-	FullName      *string    `json:"full_name"`
-	TenantID      string     `json:"tenant_id"`
-	EmailVerified bool       `json:"email_verified"`
-	IsActive      bool       `json:"is_active"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	LastLoginAt   *time.Time `json:"last_login_at,omitempty"`
-}
-
-type UserGlobalRowResponse struct {
-	ID            uuid.UUID  `db:"id" json:"id"`
-	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
-	Email         string     `db:"email" json:"email"`
-	PasswordHash  string     `db:"password_hash" json:"password_hash"`
-	FullName      *string    `db:"full_name" json:"full_name"`
-	EmailVerified bool       `db:"email_verified" json:"email_verified"`
-	IsActive      bool       `db:"is_active" json:"is_active"`
-	LastLoginAt   *time.Time `db:"last_login_at" json:"last_login_at"`
-	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
-	TenantSlug    string     `db:"tenant_slug" json:"tenant_slug"`
-	TenantPlan    string     `db:"tenant_plan" json:"tenant_plan"`
-}
-
-type TenantResponse struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Slug       string    `json:"slug"`
-	Plan       string    `json:"plan"`
-	PlanStatus string    `json:"plan_status"`
-	CreatedAt  time.Time `json:"created_at"`
-}
-type LogoutRequest struct {
-	SessionID string `json:"session_id,omitempty"` // specific session; empty = current token only
-	LogoutAll bool   `json:"logout_all"`           // true = revoke all sessions
-}
-
-type SessionResponse struct {
-	ID           string    `json:"id"`
-	UserAgent    string    `json:"user_agent,omitempty"`
-	IPAddress    string    `json:"ip_address,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	LastActiveAt time.Time `json:"last_active_at"`
-}
-
-func (s *AuthService) Register(ctx context.Context, req *RegisterRequest, ipAddress, userAgent string) (*RegisterResponse, error) {
+func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, ipAddress, userAgent string) (*dto.RegisterResponse, error) {
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	slug := strings.ToLower(strings.TrimSpace(req.TenantSlug))
@@ -173,6 +57,12 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest, ipAddr
 		return nil, api.FromPgError(err)
 	}
 
+	// Verify email can be delivered before proceeding further.
+	if err := s.sendVerificationEmail(ctx, result.User.ID.String(), email); err != nil {
+		_ = s.store.DeleteTenant(ctx, result.Tenant.ID)
+		return nil, api.ErrInternal(fmt.Errorf("send verification email: %w", err))
+	}
+
 	// Issue tokens
 	accessToken, _, err := s.tokenMaker.CreateToken(result.User.ID.String(), s.config.AccessTokenDuration)
 	if err != nil {
@@ -196,12 +86,9 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest, ipAddr
 		return nil, err
 	}
 
-	// Send verification email via MailHog (async)
-	go s.sendVerificationEmail(context.Background(), result.User.ID.String(), email)
-
-	return &RegisterResponse{
-		User:         toUserResponse(result.User),
-		Tenant:       toTenantResponse(result.Tenant),
+	return &dto.RegisterResponse{
+		User:         dto.ToUserResponse(result.User),
+		Tenant:       dto.ToTenantResponse(result.Tenant),
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(s.config.AccessTokenDuration.Seconds()),
@@ -211,9 +98,9 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest, ipAddr
 
 func (s *AuthService) Login(
 	ctx context.Context,
-	req *LoginRequest,
+	req *dto.LoginRequest,
 	ipAddress, userAgent string,
-) (*LoginResponse, error) {
+) (*dto.LoginResponse, error) {
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 
 	// Brute-force / lockout check
@@ -235,6 +122,9 @@ func (s *AuthService) Login(
 	}
 	if !user.IsActive {
 		return nil, api.NewAPIError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
+	}
+	if !user.EmailVerified {
+		return nil, api.NewAPIError(api.ErrCodeForbidden, "Please verify your email address before logging in", http.StatusForbidden)
 	}
 	if err := utils.CheckPassword(req.Password, user.PasswordHash); err != nil {
 		result, _ := s.cache.RecordLoginAttempt(ctx, email, false)
@@ -273,20 +163,20 @@ func (s *AuthService) Login(
 		return nil, err
 	}
 
-	return &LoginResponse{
+	return &dto.LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(s.config.AccessTokenDuration.Seconds()),
 		TokenType:    "Bearer",
-		User:         toUserResponseFromGlobal(user),
+		User:         dto.ToUserResponseFromGlobal(user),
 	}, nil
 }
 
 func (s *AuthService) RefreshToken(
 	ctx context.Context,
-	req *RefreshTokenRequest,
+	req *dto.RefreshTokenRequest,
 	ipAddress, userAgent string,
-) (*RefreshTokenResponse, error) {
+) (*dto.RefreshTokenResponse, error) {
 	refreshPayload, err := s.tokenMaker.VerifyToken(req.RefreshToken)
 	if err != nil {
 		return nil, api.ErrInvalidToken("Invalid or expired refresh token")
@@ -343,7 +233,7 @@ func (s *AuthService) RefreshToken(
 		LastActiveAt: time.Now().UTC(),
 	})
 
-	return &RefreshTokenResponse{
+	return &dto.RefreshTokenResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshToken,
 		ExpiresIn:    int64(s.config.AccessTokenDuration.Seconds()),
@@ -351,7 +241,7 @@ func (s *AuthService) RefreshToken(
 	}, nil
 }
 
-func (s *AuthService) Logout(ctx context.Context, accessToken string, req *LogoutRequest) error {
+func (s *AuthService) Logout(ctx context.Context, accessToken string, req *dto.LogoutRequest) error {
 	payload, err := s.tokenMaker.VerifyToken(accessToken)
 	if err != nil {
 		return nil // already invalid — treat as success
@@ -385,7 +275,7 @@ func (s *AuthService) Logout(ctx context.Context, accessToken string, req *Logou
 	return nil
 }
 
-func (s *AuthService) ForgotPassword(ctx context.Context, req *ForgotPasswordRequest) error {
+func (s *AuthService) ForgotPassword(ctx context.Context, req *dto.ForgotPasswordRequest) error {
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	// Always succeed to prevent user enumeration
 	user, err := s.store.GetUserByEmailGlobal(ctx, email)
@@ -416,7 +306,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, req *ForgotPasswordReq
 	return nil
 }
 
-func (s *AuthService) ResetPassword(ctx context.Context, req *ResetPasswordRequest) error {
+func (s *AuthService) ResetPassword(ctx context.Context, req *dto.ResetPasswordRequest) error {
 	resetToken, err := s.cache.GetResetToken(ctx, req.Token)
 	if err != nil || resetToken == nil {
 		return api.ErrInvalidToken("Invalid or expired password reset token")
@@ -465,7 +355,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, req *ResetPasswordReque
 func (s *AuthService) ChangePassword(
 	ctx context.Context,
 	userID, tenantID uuid.UUID,
-	req *ChangePasswordRequest,
+	req *dto.ChangePasswordRequest,
 ) error {
 
 	user, err := s.store.GetUserByID(ctx, db.GetUserByIDParams{
@@ -512,7 +402,7 @@ func (s *AuthService) ChangePassword(
 	return nil
 }
 
-func (s *AuthService) VerifyEmail(ctx context.Context, req *VerifyEmailRequest) error {
+func (s *AuthService) VerifyEmail(ctx context.Context, req *dto.VerifyEmailRequest) error {
 	verifyToken, err := s.cache.GetVerifyEmailToken(ctx, req.Token)
 	if err != nil || verifyToken == nil {
 		return api.ErrInvalidToken("Invalid or expired email verification token")
@@ -562,11 +452,14 @@ func (s *AuthService) ResendVerificationEmail(ctx context.Context, userID, tenan
 		return api.NewAPIError(api.ErrCodeConflict, "Email is already verified", http.StatusConflict)
 	}
 
-	go s.sendVerificationEmail(context.Background(), userID.String(), user.Email)
+	// send synchronously so errors bubble up
+	if err := s.sendVerificationEmail(ctx, userID.String(), user.Email); err != nil {
+		return api.ErrInternal(fmt.Errorf("send verification email: %w", err))
+	}
 	return nil
 }
 
-func (s *AuthService) GetCurrentUser(ctx context.Context, userID, tenantID uuid.UUID) (*UserResponse, error) {
+func (s *AuthService) GetCurrentUser(ctx context.Context, userID, tenantID uuid.UUID) (*dto.UserResponse, error) {
 	user, err := s.store.GetUserByID(ctx, db.GetUserByIDParams{
 		ID:       userID,
 		TenantID: tenantID,
@@ -577,27 +470,47 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID, tenantID uuid.
 		}
 		return nil, api.FromPgError(err)
 	}
-	return toUserResponse(user), nil
+	return dto.ToUserResponse(user), nil
 }
 
 func (s *AuthService) UpdateCurrentUser(
 	ctx context.Context,
 	userID, tenantID uuid.UUID,
-	req *UpdateUserRequest,
-) (*UserResponse, error) {
+	req *dto.UpdateUserRequest,
+) (*dto.UserResponse, error) {
+	// Get the current user state before any updates
+	userBeforeUpdate, err := s.store.GetUserByID(ctx, db.GetUserByIDParams{ID: userID, TenantID: tenantID})
+	if err != nil {
+		if api.IsRecordNotFound(err) {
+			return nil, api.ErrUserNotFound()
+		}
+		return nil, api.FromPgError(err)
+	}
 
 	params := db.UpdateUserProfileParams{
 		ID:       userID,
 		TenantID: tenantID,
 	}
+	emailChanged := false
+	var newEmail string
+
 	if req.FullName != nil {
-		params.FullName = req.FullName
-	}
-	if req.Email != nil {
-		e := strings.ToLower(strings.TrimSpace(*req.Email))
-		params.Email = e
+		fullName := strings.TrimSpace(*req.FullName)
+		if fullName != "" {
+			params.FullName = &fullName
+		}
 	}
 
+	if req.Email != nil {
+		email := strings.ToLower(strings.TrimSpace(*req.Email))
+		if email != "" && email != userBeforeUpdate.Email {
+			params.Email = &email
+			newEmail = email
+			emailChanged = true
+		}
+	}
+
+	// a transaction would be better here
 	user, err := s.store.UpdateUserProfile(ctx, params)
 	if err != nil {
 		if api.IsUniqueViolation(err) {
@@ -609,21 +522,39 @@ func (s *AuthService) UpdateCurrentUser(
 		return nil, api.FromPgError(err)
 	}
 
-	// Email changed → trigger a new verification email
-	if req.Email != nil {
-		go s.sendVerificationEmail(context.Background(), userID.String(), user.Email)
+	if emailChanged {
+		// Email was changed, now un-verify it and send a new verification email.
+		err = s.store.UnverifyUserEmail(ctx, db.UnverifyUserEmailParams{
+			ID:       userID,
+			TenantID: tenantID,
+		})
+		if err != nil {
+			// Attempt to roll back the email change on failure.
+			// This is best-effort and highlights why a transaction would be ideal.
+			_, _ = s.store.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
+				ID:       userID,
+				TenantID: tenantID,
+				Email:    &userBeforeUpdate.Email,
+			})
+			return nil, api.FromPgError(err)
+		}
+		user.EmailVerified = false // Reflect the change in the returned object
+
+		if err := s.sendVerificationEmail(ctx, userID.String(), newEmail); err != nil {
+			return nil, api.ErrInternal(fmt.Errorf("send verification email: %w", err))
+		}
 	}
 
-	return toUserResponse(user), nil
+	return dto.ToUserResponse(user), nil
 }
 
-func (s *AuthService) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*SessionResponse, error) {
+func (s *AuthService) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*dto.SessionResponse, error) {
 	// Fast path: Redis
 	cacheSessions, err := s.cache.GetUserSessions(ctx, userID.String())
 	if err == nil && len(cacheSessions) > 0 {
-		out := make([]*SessionResponse, 0, len(cacheSessions))
+		out := make([]*dto.SessionResponse, 0, len(cacheSessions))
 		for _, cs := range cacheSessions {
-			out = append(out, cacheSessionToResponse(cs))
+			out = append(out, dto.CacheSessionToResponse(cs))
 		}
 		return out, nil
 	}
@@ -634,9 +565,9 @@ func (s *AuthService) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]
 		return nil, api.FromPgError(err)
 	}
 
-	out := make([]*SessionResponse, 0, len(dbSessions))
+	out := make([]*dto.SessionResponse, 0, len(dbSessions))
 	for _, ds := range dbSessions {
-		out = append(out, dbSessionToResponse(ds))
+		out = append(out, dto.DbSessionToResponse(ds))
 	}
 	return out, nil
 }
