@@ -181,7 +181,7 @@ func ContentTypeJSON(next http.Handler) http.Handler {
 			if contentType != "" && len(contentType) >= 16 && contentType[:16] != "application/json" {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnsupportedMediaType)
-				_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+				_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // best-effort error response, nothing to do if encoding fails
 					"error": map[string]any{
 						"code":    "UNSUPPORTED_MEDIA_TYPE",
 						"message": "Content-Type must be application/json",
@@ -220,7 +220,7 @@ func Timeout(timeout time.Duration) func(http.Handler) http.Handler {
 					requestID := GetRequestID(r.Context())
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusGatewayTimeout)
-					_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+					_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // best-effort timeout response, nothing to do if encoding fails
 						"error": map[string]any{
 							"code":       "TIMEOUT",
 							"message":    "Request timed out",
