@@ -187,7 +187,7 @@ func formatFieldError(fe validator.FieldError) string {
 // =============================================================================
 
 // RegisterCustomValidations registers OdooDevTools-specific validation tags
-func RegisterCustomValidations(v *validator.Validate) {
+func RegisterCustomValidations(v *validator.Validate) error {
 	// Use JSON tag names for field names in errors
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
@@ -201,14 +201,16 @@ func RegisterCustomValidations(v *validator.Validate) {
 	})
 
 	// Odoo version validation (14.0, 15.0, 16.0, 17.0, 18.0)
-	v.RegisterValidation("odoo_version", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("odoo_version", func(fl validator.FieldLevel) bool {
 		version := fl.Field().String()
 		validVersions := []string{"14.0", "15.0", "16.0", "17.0", "18.0"}
 		return slices.Contains(validVersions, version)
-	})
+	}); err != nil {
+		return err
+	}
 
 	// Slug validation (lowercase, alphanumeric, hyphens)
-	v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
 		slug := fl.Field().String()
 		if slug == "" {
 			return true
@@ -225,56 +227,73 @@ func RegisterCustomValidations(v *validator.Validate) {
 			return false
 		}
 		return true
-	})
+	}); err != nil {
+		return err
+	}
 
 	// Environment type validation
-	v.RegisterValidation("env_type", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("env_type", func(fl validator.FieldLevel) bool {
 		envType := fl.Field().String()
 		validTypes := []string{"development", "staging", "production"}
 		return slices.Contains(validTypes, envType)
-	})
+	}); err != nil {
+		return err
+	}
 
 	// Error level validation
-	v.RegisterValidation("error_level", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("error_level", func(fl validator.FieldLevel) bool {
 		level := fl.Field().String()
 		validLevels := []string{"debug", "info", "warning", "error", "critical"}
 		return slices.Contains(validLevels, level)
-	})
+	}); err != nil {
+		return err
+	}
 
 	// Error status validation
-	v.RegisterValidation("error_status", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("error_status", func(fl validator.FieldLevel) bool {
 		status := fl.Field().String()
 		validStatuses := []string{"unresolved", "resolved", "ignored"}
 		return slices.Contains(validStatuses, status)
-	})
+	}); err != nil {
+		return err
+	}
 
 	// Channel type validation
-	v.RegisterValidation("channel_type", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("channel_type", func(fl validator.FieldLevel) bool {
 		channelType := fl.Field().String()
 		validTypes := []string{"slack", "email", "webhook", "pagerduty", "discord", "teams"}
 		return slices.Contains(validTypes, channelType)
-	})
+	}); err != nil {
+		return err
+	}
 
 	// User role validation
-	v.RegisterValidation("user_role", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("user_role", func(fl validator.FieldLevel) bool {
 		role := fl.Field().String()
 		validRoles := []string{"owner", "admin", "member"}
 		return slices.Contains(validRoles, role)
-	})
+	}); err != nil {
+		return err
+	}
 
 	// Anonymization strategy validation
-	v.RegisterValidation("anon_strategy", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("anon_strategy", func(fl validator.FieldLevel) bool {
 		strategy := fl.Field().String()
 		validStrategies := []string{"fake_name", "fake_email", "mask", "nullify", "randomize", "hash", "keep"}
 		return slices.Contains(validStrategies, strategy)
-	})
+	}); err != nil {
+		return err
+	}
 
 	// Alert operator validation
-	v.RegisterValidation("alert_operator", func(fl validator.FieldLevel) bool {
+	if err := v.RegisterValidation("alert_operator", func(fl validator.FieldLevel) bool {
 		op := fl.Field().String()
 		validOps := []string{"greater_than", "less_than", "equal_to", "not_equal_to", "greater_than_or_equal", "less_than_or_equal"}
 		return slices.Contains(validOps, op)
-	})
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // =============================================================================

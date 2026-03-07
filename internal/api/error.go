@@ -147,7 +147,11 @@ func (e *APIError) ToResponse() map[string]any {
 }
 
 func (e *APIError) ToJSON() []byte {
-	data, _ := json.Marshal(e.ToResponse())
+	data, err := json.Marshal(e.ToResponse())
+	if err != nil {
+		fmt.Printf("could not marshal error response: %v", err)
+		return []byte(`{"error":{"code":"INTERNAL_ERROR","message":"Failed to serialize error response"}}`)
+	}
 	return data
 }
 
@@ -431,7 +435,9 @@ func WriteError(w http.ResponseWriter, err *APIError) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(err.HTTPStatus)
-	json.NewEncoder(w).Encode(err.ToResponse())
+	if err := json.NewEncoder(w).Encode(err.ToResponse()); err != nil {
+		fmt.Printf("could not write error response: %v", err)
+	}
 }
 
 func WriteErrorWithContext(w http.ResponseWriter, r *http.Request, err *APIError) {
@@ -440,7 +446,7 @@ func WriteErrorWithContext(w http.ResponseWriter, r *http.Request, err *APIError
 		requestID = uuid.New().String()
 	}
 	w.Header().Set("X-Request-ID", requestID)
-	err.WithRequestID(requestID).WithPath(r.Method, r.URL.Path)
+	err = err.WithRequestID(requestID).WithPath(r.Method, r.URL.Path)
 	WriteError(w, err)
 }
 
