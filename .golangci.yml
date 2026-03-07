@@ -1,18 +1,24 @@
-# golangci-lint configuration (v1.64.x)
-# https://golangci-lint.run/usage/configuration/
+# golangci-lint configuration (v2.x)
+# https://golangci-lint.run/docs/configuration/
+version: "2"
 
 run:
-  timeout: 5m
   tests: true
 
+# Formatters (moved from linters in v2)
+formatters:
+  enable:
+  - gofmt
+  - goimports
+
 linters:
+  default: none
   enable:
   # Default linters
   - errcheck
-  - gosimple
   - govet
   - ineffassign
-  - staticcheck
+  - staticcheck # includes gosimple + stylecheck in v2
   - unused
 
   # Additional recommended linters
@@ -29,8 +35,6 @@ linters:
   - goconst
   - gocritic
   - gocyclo
-  - gofmt
-  - goimports
   - gosec
   - misspell
   - nakedret
@@ -42,120 +46,120 @@ linters:
   - predeclared
   - revive
   - sqlclosecheck
-  - stylecheck
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    exclude-functions:
-    - (io.Closer).Close
-    - (net/http.ResponseWriter).Write
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+      - (io.Closer).Close
+      - (net/http.ResponseWriter).Write
 
-  govet:
-    enable-all: true
-    disable:
-    - fieldalignment
+    govet:
+      enable-all: true
+      disable:
+      - fieldalignment
 
-  gocyclo:
-    min-complexity: 15
+    gocyclo:
+      min-complexity: 15
 
-  gocognit:
-    min-complexity: 20
+    gocognit:
+      min-complexity: 20
 
-  dupl:
-    threshold: 100
+    dupl:
+      threshold: 100
 
-  goconst:
-    min-len: 3
-    min-occurrences: 3
+    goconst:
+      min-len: 3
+      min-occurrences: 3
 
-  gocritic:
-    enabled-tags:
-    - diagnostic
-    - experimental
-    - opinionated
-    - performance
-    - style
-    disabled-checks:
-    - hugeParam
-    - rangeValCopy
+    gocritic:
+      enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+      disabled-checks:
+      - hugeParam
+      - rangeValCopy
 
-  gosec:
-    excludes:
-    - G104
-    - G304
+    gosec:
+      excludes:
+      - G104
+      - G304
 
-  misspell:
-    locale: US
+    misspell:
+      locale: US
 
-  nakedret:
-    max-func-lines: 30
+    nakedret:
+      max-func-lines: 30
 
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: true
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: true
 
-  revive:
+    revive:
+      rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unreachable-code
+
+    staticcheck:
+      checks: [ "all", "-ST1000", "-ST1003", "-ST1016" ]
+      dot-import-whitelist:
+      - github.com/onsi/ginkgo/v2
+      - github.com/onsi/gomega
+
+  exclusions:
+    generated: lax
     rules:
-    - name: blank-imports
-    - name: context-as-argument
-    - name: context-keys-type
-    - name: dot-imports
-    - name: error-return
-    - name: error-strings
-    - name: error-naming
-    - name: exported
-    - name: if-return
-    - name: increment-decrement
-    - name: var-naming
-    - name: var-declaration
-    - name: package-comments
-    - name: range
-    - name: receiver-naming
-    - name: time-naming
-    - name: unexported-return
-    - name: indent-error-flow
-    - name: errorf
-    - name: empty-block
-    - name: superfluous-else
-    - name: unreachable-code
+    - path: _test\.go
+      linters:
+      - dupl
+      - gocyclo
+      - gocognit
+      - gosec
+      - errcheck
+      - goconst
 
-  stylecheck:
-    checks: [ "all", "-ST1000", "-ST1003", "-ST1016" ]
-    dot-import-whitelist:
-    - github.com/onsi/ginkgo/v2
-    - github.com/onsi/gomega
+    - path: db/sqlc/
+      linters:
+      - dupl
+      - gocritic
+      - staticcheck
+      - revive
+
+    - linters:
+      - lll
+      source: "^//go:"
 
 issues:
-  exclude-rules:
-  - path: _test\.go
-    linters:
-    - dupl
-    - gocyclo
-    - gocognit
-    - gosec
-    - errcheck
-    - goconst
-
-  - path: db/sqlc/
-    linters:
-    - dupl
-    - gocritic
-    - stylecheck
-    - revive
-
-  - linters:
-    - lll
-    source: "^//go:"
-
   max-issues-per-linter: 50
   max-same-issues: 10
-  new: false
 
 severity:
-  default-severity: warning
+  default: warning
   rules:
   - linters:
     - gosec
