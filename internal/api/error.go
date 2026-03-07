@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
@@ -37,7 +38,7 @@ const (
 	ErrCodeAgentNotFound             ErrorCode = "AGENT_NOT_FOUND"
 	ErrCodeQuotaExceeded             ErrorCode = "QUOTA_EXCEEDED"
 	ErrCodePlanLimitReached          ErrorCode = "PLAN_LIMIT_REACHED"
-	ErrCodeInvalidAPIKey             ErrorCode = "INVALID_API_KEY"
+	ErrCodeInvalidAPIKey             ErrorCode = "INVALID_API_KEY" //nolint:gosec // not a credential
 	ErrCodeExpiredAPIKey             ErrorCode = "EXPIRED_API_KEY"
 	ErrCodeInvalidToken              ErrorCode = "INVALID_TOKEN"
 	ErrCodeExpiredToken              ErrorCode = "EXPIRED_TOKEN"
@@ -459,7 +460,8 @@ func ToAPIError(err error) *APIError {
 	if err == nil {
 		return nil
 	}
-	if apiErr, ok := err.(*APIError); ok {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
 		return apiErr
 	}
 	return ErrInternal(err)

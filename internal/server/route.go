@@ -2,6 +2,7 @@ package server
 
 import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
+	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	mw "Intelligent_Dev_ToolKit_Odoo/internal/middleware"
 	"context"
@@ -24,7 +25,7 @@ func (s *Server) setupRoutes() {
 
 	// Create logger
 	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
-	if s.config.Environment == "development" {
+	if s.config.Environment == config.EnvironmentDevelopment {
 		logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
 	}
 	s.logger = &logger
@@ -43,14 +44,14 @@ func (s *Server) setupRoutes() {
 	r.Use(mw.Recoverer(&logger))
 
 	// 4. Request Logging - Log all requests
-	if s.config.Environment == "development" {
+	if s.config.Environment == config.EnvironmentDevelopment {
 		r.Use(middleware.Logger) // Chi's built-in logger (pretty)
 	} else {
 		r.Use(mw.RequestLogger(&logger)) // Structured JSON logging
 	}
 
 	// 5. CORS - Handle Cross-Origin requests
-	if s.config.Environment == "development" {
+	if s.config.Environment == config.EnvironmentDevelopment {
 		r.Use(mw.SimpleCORS) // Allow all origins in development
 	} else {
 		corsConfig := mw.ProductionCORSConfig(s.config.AllowedOrigins)
@@ -162,7 +163,7 @@ func (s *Server) setupRoutes() {
 }
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	dto.WriteJSON(w, http.StatusOK, map[string]string{
-		"status": "healthy",
+		"status": config.StatusHealthy,
 	})
 }
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
@@ -176,22 +177,22 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	// database
 	// ------------------------------------------------------------------
 	if err := s.store.Ping(ctx); err != nil {
-		checks["database"] = "unhealthy: " + err.Error()
+		checks["database"] = config.StatusUnhealthy + ": " + err.Error()
 		dto.WriteReady(w, false, checks)
 		return
 	}
-	checks["database"] = "healthy"
+	checks["database"] = config.StatusHealthy
 
 	// ------------------------------------------------------------------
 	// cache (redis) – optional component
 	// ------------------------------------------------------------------
 	if s.cache != nil {
 		if err := s.cache.Client.Ping(ctx).Err(); err != nil {
-			checks["cache"] = "unhealthy: " + err.Error()
+			checks["cache"] = config.StatusUnhealthy + ": " + err.Error()
 			dto.WriteReady(w, false, checks)
 			return
 		}
-		checks["cache"] = "healthy"
+		checks["cache"] = config.StatusHealthy
 	}
 
 	// ------------------------------------------------------------------
@@ -202,13 +203,13 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if u := s.config.AgentCloudURL; u != "" {
 		parsedURL, err := url.Parse(u)
 		if err != nil {
-			checks["agent_cloud"] = "unhealthy: invalid URL: " + err.Error()
+			checks["agent_cloud"] = config.StatusUnhealthy + ": invalid URL: " + err.Error()
 			dto.WriteReady(w, false, checks)
 			return
 		}
 
 		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-			checks["agent_cloud"] = "unhealthy: invalid URL scheme"
+			checks["agent_cloud"] = config.StatusUnhealthy + ": invalid URL scheme"
 			dto.WriteReady(w, false, checks)
 			return
 		}
@@ -216,7 +217,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		//gosec:G107
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 		if err != nil {
-			checks["agent_cloud"] = "unhealthy: " + err.Error()
+			checks["agent_cloud"] = config.StatusUnhealthy + ": " + err.Error()
 			dto.WriteReady(w, false, checks)
 			return
 		}
@@ -230,7 +231,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 		if resp, err := client.Do(req); err != nil || resp.StatusCode >= 400 {
-			checks["agent_cloud"] = "unhealthy"
+			checks["agent_cloud"] = config.StatusUnhealthy
 			if err != nil {
 				checks["agent_cloud"] += ": " + err.Error()
 			} else {
@@ -239,7 +240,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 			dto.WriteReady(w, false, checks)
 			return
 		} else {
-			checks["agent_cloud"] = "healthy"
+			checks["agent_cloud"] = config.StatusHealthy
 			resp.Body.Close()
 		}
 	}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"errors"
 	"fmt"
 	"net/url"
@@ -120,7 +121,7 @@ func toSnakeCase(s string) string {
 var customTagMessages = map[string]string{
 	"odoo_version":   "%s must be a valid Odoo version (e.g., 14.0, 15.0, 16.0, 17.0, 18.0)",
 	"odoo_domain":    "%s must be a valid Odoo domain expression",
-	"env_type":       "%s must be one of: development, staging, production",
+	"env_type":       fmt.Sprintf("%%s must be one of: %s, %s, %s", config.EnvironmentDevelopment, config.EnvironmentStaging, config.EnvironmentProduction),
 	"alert_operator": "%s must be one of: greater_than, less_than, equal_to, not_equal_to",
 	"error_level":    "%s must be one of: debug, info, warning, error, critical",
 	"error_status":   "%s must be one of: unresolved, resolved, ignored",
@@ -256,7 +257,7 @@ func RegisterCustomValidations(v *validator.Validate) error {
 	// Environment type validation
 	if err := v.RegisterValidation("env_type", func(fl validator.FieldLevel) bool {
 		envType := fl.Field().String()
-		validTypes := []string{"development", "staging", "production"}
+		validTypes := []string{config.EnvironmentDevelopment, config.EnvironmentStaging, config.EnvironmentProduction}
 		return slices.Contains(validTypes, envType)
 	}); err != nil {
 		return err

@@ -9,6 +9,17 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	EnvironmentDevelopment = "development"
+	EnvironmentStaging     = "staging"
+	EnvironmentProduction  = "production"
+)
+
+const (
+	StatusHealthy   = "healthy"
+	StatusUnhealthy = "unhealthy"
+)
+
 type Config struct {
 	// ── App ──────────────────────────────────────────────────────
 	Environment string `mapstructure:"APP_ENV"` // development | staging | production
@@ -121,7 +132,7 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.AutomaticEnv()
 
 	// Set defaults
-	viper.SetDefault("ENVIRONMENT", "development")
+	viper.SetDefault("ENVIRONMENT", EnvironmentDevelopment)
 	viper.SetDefault("SERVER_HOST", "0.0.0.0")
 	viper.SetDefault("SERVER_PORT", "8080")
 	viper.SetDefault("ACCESS_TOKEN_DURATION", "15m")
@@ -172,10 +183,10 @@ func parseOrigins(s string) []string {
 
 // IsDevelopment returns true if running in development mode.
 func (c *Config) IsDevelopment() bool {
-	return c.Environment == "development"
+	return c.Environment == EnvironmentDevelopment
 }
 
 // IsProduction returns true if running in production mode.
 func (c *Config) IsProduction() bool {
-	return c.Environment == "production"
+	return c.Environment == EnvironmentProduction
 }

@@ -200,7 +200,7 @@ func (r *RedisClient) Get(ctx context.Context, key string, dest any) error {
 
 func (r *RedisClient) GetString(ctx context.Context, key string) (string, error) {
 	result, err := r.Client.Get(ctx, r.Key(key)).Result()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return "", ErrKeyNotFound
 	}
 	return result, err

@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -176,11 +177,11 @@ type HealthResponse struct {
 }
 
 func WriteHealth(w http.ResponseWriter, healthy bool, checks map[string]string, version string) {
-	status := "healthy"
+	status := config.StatusHealthy
 	httpStatus := http.StatusOK
 
 	if !healthy {
-		status = "unhealthy"
+		status = config.StatusUnhealthy
 		httpStatus = http.StatusServiceUnavailable
 	}
 

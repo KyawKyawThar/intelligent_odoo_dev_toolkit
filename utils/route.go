@@ -2,12 +2,10 @@ package utils
 
 const (
 	// Authentication & Identity
-	AuthRegister       = "/auth/register"
-	AuthLogin          = "/auth/login"
-	AuthRefresh        = "/auth/refresh"
-	AuthLogout         = "/auth/logout"
-	//gosec:G101
-	AuthForgotPassword = "/auth/forgot-password"
-	//gosec:G101
-	AuthResetPassword  = "/auth/reset-password"
+	AuthRegister = "/auth/register"
+	AuthLogin    = "/auth/login"
+	AuthRefresh  = "/auth/refresh"
+	AuthLogout   = "/auth/logout"
+	AuthForgotPassword = "/auth/forgot-password" //nolint:gosec // not a credential
+	AuthResetPassword = "/auth/reset-password" //nolint:gosec // not a credential
 )

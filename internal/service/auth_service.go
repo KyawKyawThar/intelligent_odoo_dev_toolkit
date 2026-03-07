@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -138,8 +139,8 @@ func (s *AuthService) Login(
 		return nil, api.ErrInvalidCredentials()
 	}
 	// Clear lockout on success
-	s.cache.RecordLoginAttempt(ctx, email, true)                  //nolint:errcheck
-	go s.store.UpdateUserLastLogin(context.Background(), user.ID) //nolint:errcheck
+	s.cache.RecordLoginAttempt(ctx, email, true)                        //nolint:errcheck
+	go s.store.UpdateUserLastLogin(context.WithoutCancel(ctx), user.ID) //nolint:errcheck
 
 	// Issue tokens
 	accessToken, _, err := s.tokenMaker.CreateToken(user.ID.String(), s.config.AccessTokenDuration)
@@ -244,7 +245,10 @@ func (s *AuthService) RefreshToken(
 func (s *AuthService) Logout(ctx context.Context, accessToken string, req *dto.LogoutRequest) error {
 	payload, err := s.tokenMaker.VerifyToken(accessToken)
 	if err != nil {
-		return nil // already invalid — treat as success
+		if errors.Is(err, token.ErrInvalidToken) || errors.Is(err, token.ErrTokenExpired) {
+			return nil // Already invalid, treat as success
+		}
+		return api.ErrInternal(fmt.Errorf("verify token: %w", err))
 	}
 	userID := payload.Username
 
@@ -280,7 +284,10 @@ func (s *AuthService) ForgotPassword(ctx context.Context, req *dto.ForgotPasswor
 	// Always succeed to prevent user enumeration
 	user, err := s.store.GetUserByEmailGlobal(ctx, email)
 	if err != nil {
-		return nil
+		if api.IsRecordNotFound(err) {
+			return nil
+		}
+		return api.FromPgError(err)
 	}
 
 	tokenBytes := make([]byte, 32)
@@ -301,7 +308,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, req *dto.ForgotPasswor
 	}
 
 	// Send via MailHog (async — never block the HTTP response)
-	go s.sendPasswordResetEmail(context.Background(), email, tokenStr)
+	go s.sendPasswordResetEmail(context.WithoutCancel(ctx), email, tokenStr)
 
 	return nil
 }

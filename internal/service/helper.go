@@ -9,8 +9,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/smtp"
-
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // persistSession writes a session to both PostgreSQL and Redis.
@@ -24,7 +25,7 @@ func (s *AuthService) persistSession(
 		return api.FromPgError(err)
 	}
 
-	_ = s.cache.CreateSession(ctx, &cache.Session{
+	_ = s.cache.CreateSession(ctx, &cache.Session{ //nolint:errcheck // fire-and-forget cache op.
 		ID:           dbSession.ID.String(),
 		UserID:       params.UserID.String(),
 		TenantID:     params.TenantID.String(),
@@ -49,7 +50,7 @@ func (s *AuthService) persistSession(
 func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email string) error {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
-		fmt.Printf("[email] ERROR generating verify token for %s: %v\n", email, err)
+		log.Error().Err(err).Str("email", email).Msg("failed to generate verify token")
 		return err
 	}
 	tokenStr := hex.EncodeToString(tokenBytes)
@@ -60,7 +61,7 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email s
 		Token:     tokenStr,
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {
-		fmt.Printf("[email] ERROR storing verify token for %s: %v\n", email, err)
+		log.Error().Err(err).Str("email", email).Msg("failed to store verify token")
 		return err
 	}
 
@@ -81,10 +82,10 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email s
 	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
 	//gosec:G107
 	if err := smtp.SendMail(addr, nil, s.config.SMTPFrom, []string{email}, []byte(body)); err != nil {
-		fmt.Printf("[email] ERROR sending verify email to %s via %s: %v\n", email, addr, err)
+		log.Error().Err(err).Str("email", email).Str("addr", addr).Msg("failed to send verify email")
 		return err
 	}
-	fmt.Printf("[email] Sent verify email to %s (via MailHog %s)\n", email, addr)
+	log.Info().Str("email", email).Str("addr", addr).Msg("sent verify email")
 	return nil
 }
 
@@ -107,8 +108,8 @@ func (s *AuthService) sendPasswordResetEmail(_ context.Context, email, resetToke
 	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
 	//gosec:G107
 	if err := smtp.SendMail(addr, nil, s.config.SMTPFrom, []string{email}, []byte(body)); err != nil {
-		fmt.Printf("[email] ERROR sending reset email to %s via %s: %v\n", email, addr, err)
+		log.Error().Err(err).Str("email", email).Str("addr", addr).Msg("failed to send reset email")
 		return
 	}
-	fmt.Printf("[email] Sent password reset email to %s (via MailHog %s)\n", email, addr)
+	log.Info().Str("email", email).Str("addr", addr).Msg("sent password reset email")
 }

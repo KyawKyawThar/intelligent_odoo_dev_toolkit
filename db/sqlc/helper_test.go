@@ -1,6 +1,7 @@
 package db
 
 import (
+	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"Intelligent_Dev_ToolKit_Odoo/utils"
 	"context"
 	"encoding/json"
@@ -48,7 +49,7 @@ func createRandomEnviroment(t *testing.T, tenantID uuid.UUID) Environment {
 		Name:         fmt.Sprintf("env-%s", utils.RandomString(7)),
 		OdooUrl:      fmt.Sprintf("http://%s.odoo.com", utils.RandomString(7)),
 		DbName:       fmt.Sprintf("db_%s", utils.RandomString(7)),
-		EnvType:      "development",
+		EnvType:      config.EnvironmentDevelopment,
 		FeatureFlags: json.RawMessage(`{}`),
 	}
 	env, err := testStore.CreateEnvironment(context.Background(), arg)

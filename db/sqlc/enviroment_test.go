@@ -1,6 +1,7 @@
 package db
 
 import (
+	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"Intelligent_Dev_ToolKit_Odoo/utils"
 	"context"
 	"encoding/json"
@@ -37,7 +38,7 @@ func TestCreateEnvironment_AllFields(t *testing.T) {
 		OdooUrl:      "https://prod.odoo.example.com",
 		DbName:       "odoo_prod_all",
 		OdooVersion:  &version,
-		EnvType:      "production",
+		EnvType:      config.EnvironmentProduction,
 		Status:       "connected",
 		FeatureFlags: json.RawMessage(`{"n1_detection":true,"budget_alerts":false}`),
 	})
@@ -65,7 +66,7 @@ func TestCreateEnvironment_MinimalFields(t *testing.T) {
 		Name:         "Staging",
 		OdooUrl:      "https://staging.example.com",
 		DbName:       "odoo_staging_min",
-		EnvType:      "staging",
+		EnvType:      config.EnvironmentStaging,
 		Status:       "disconnected",
 		FeatureFlags: json.RawMessage(`{}`),
 	})
@@ -384,7 +385,7 @@ func TestInsertHeartbeat_AllFields(t *testing.T) {
 		EnvID:        env.ID,
 		AgentID:      "agent_hb_test",
 		AgentVersion: strPtr("1.2.3"),
-		Status:       "healthy",
+		Status:       config.StatusHealthy,
 		Metadata:     json.RawMessage(`{"cpu":45.2,"memory":78.1}`),
 	})
 	require.NoError(t, err)

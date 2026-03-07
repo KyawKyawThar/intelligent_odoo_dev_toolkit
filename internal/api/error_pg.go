@@ -181,7 +181,7 @@ func handlePgError(pgErr *pgconn.PgError) *APIError {
 
 	// --- Operator Intervention ---
 	case PgQueryCanceled:
-		return ErrTimeout("database query was cancelled")
+		return ErrTimeout("database query was canceled")
 
 	case PgAdminShutdown:
 		return ErrDatabaseUnavailable().WithInternal(pgErr)
@@ -206,7 +206,7 @@ func FromPgError(err error) *APIError {
 		return ErrTimeout("database query")
 	}
 	if errors.Is(err, context.Canceled) {
-		return NewAPIError(ErrCodeInternal, "Request was cancelled", 499).WithInternal(err)
+		return NewAPIError(ErrCodeInternal, "Request was canceled", 499).WithInternal(err)
 	}
 
 	// Handle pgconn.PgError
