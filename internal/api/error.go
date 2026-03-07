@@ -43,10 +43,10 @@ const (
 	ErrCodeQuotaExceeded             ErrorCode = "QUOTA_EXCEEDED"
 	ErrCodePlanLimitReached          ErrorCode = "PLAN_LIMIT_REACHED"
 	ErrCodeInvalidAPIKey             ErrorCode = "INVALID_API_KEY" //nolint:gosec // not a credential
-	ErrCodeExpiredAPIKey             ErrorCode = "EXPIRED_API_KEY" //nolint:gosec
+	ErrCodeExpiredAPIKey             ErrorCode = "EXPIRED_API_KEY" //nolint:gosec // not a credential
 	ErrCodeInvalidToken              ErrorCode = "INVALID_TOKEN"
 	ErrCodeExpiredToken              ErrorCode = "EXPIRED_TOKEN"
-	ErrCodeInvalidCredentials        ErrorCode = "INVALID_CREDENTIALS" //nolint:gosec
+	ErrCodeInvalidCredentials        ErrorCode = "INVALID_CREDENTIALS" //nolint:gosec // not a credential
 	ErrCodeEmailAlreadyExists        ErrorCode = "EMAIL_ALREADY_EXISTS"
 	ErrCodeSlugAlreadyExists         ErrorCode = "SLUG_ALREADY_EXISTS"
 	ErrCodeInvalidScope              ErrorCode = "INVALID_SCOPE"

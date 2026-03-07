@@ -276,7 +276,7 @@ type Session struct {
 func (r *RedisClient) CreateSession(ctx context.Context, session *Session) error {
 	// Store session by ID
 	sessionKey := r.Key(sessionPrefix, session.ID)
-	data, err := json.Marshal(session) //nolint:gosec
+	data, err := json.Marshal(session) //nolint:gosec // not a credential
 	if err != nil {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
@@ -329,7 +329,7 @@ func (r *RedisClient) UpdateSessionActivity(ctx context.Context, sessionID strin
 
 	session.LastActiveAt = time.Now().UTC()
 	sessionKey := r.Key(sessionPrefix, sessionID)
-	data, err := json.Marshal(session) //nolint:gosec
+	data, err := json.Marshal(session) //nolint:gosec // not a credential
 	if err != nil {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}

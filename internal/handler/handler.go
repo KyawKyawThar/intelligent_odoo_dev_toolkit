@@ -24,7 +24,7 @@ type Handlers struct {
 	// Alert       *AlertHandler
 	//	APIKey *APIKeyHandler
 	// Tenant *TenantHandler
-	//User   *UserHandler
+	// User   *UserHandler
 }
 
 // NewHandlers creates all handlers with their service dependencies.
