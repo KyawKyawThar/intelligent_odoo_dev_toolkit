@@ -51,40 +51,44 @@ func ParseRedisConfig(urlStr string) (RedisConfig, error) {
 		return RedisConfig{}, fmt.Errorf("empty redis url")
 	}
 
-	cfg := RedisConfig{
-		Port: 6379,
-	}
-
-	// If it looks like a URL with scheme, parse it properly.
 	if strings.HasPrefix(urlStr, "redis://") || strings.HasPrefix(urlStr, "rediss://") {
-		u, err := url.Parse(urlStr)
-		if err != nil {
-			return cfg, fmt.Errorf("invalid redis url: %w", err)
-		}
-
-		cfg.Host = u.Hostname()
-		if p := u.Port(); p != "" {
-			if pi, err := strconv.Atoi(p); err == nil {
-				cfg.Port = pi
-			}
-		}
-
-		if u.User != nil {
-			if pass, ok := u.User.Password(); ok {
-				cfg.Password = pass
-			}
-		}
-
-		if u.Path != "" && u.Path != "/" {
-			dbStr := strings.TrimPrefix(u.Path, "/")
-			if di, err := strconv.Atoi(dbStr); err == nil {
-				cfg.DB = di
-			}
-		}
-		return cfg, nil
+		return parseRedisURL(urlStr)
 	}
 
-	// Fallback: simple host[:port] style
+	return parseSimpleRedisAddr(urlStr)
+}
+
+func parseRedisURL(urlStr string) (RedisConfig, error) {
+	cfg := RedisConfig{Port: 6379}
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid redis url: %w", err)
+	}
+
+	cfg.Host = u.Hostname()
+	if p := u.Port(); p != "" {
+		if pi, err := strconv.Atoi(p); err == nil {
+			cfg.Port = pi
+		}
+	}
+
+	if u.User != nil {
+		if pass, ok := u.User.Password(); ok {
+			cfg.Password = pass
+		}
+	}
+
+	if u.Path != "" && u.Path != "/" {
+		dbStr := strings.TrimPrefix(u.Path, "/")
+		if di, err := strconv.Atoi(dbStr); err == nil {
+			cfg.DB = di
+		}
+	}
+	return cfg, nil
+}
+
+func parseSimpleRedisAddr(urlStr string) (RedisConfig, error) {
+	cfg := RedisConfig{Port: 6379}
 	host := urlStr
 	if parts := strings.Split(urlStr, ":"); len(parts) == 2 {
 		host = parts[0]
@@ -170,7 +174,7 @@ func (r *RedisClient) Set(ctx context.Context, key string, value any, expiration
 func (r *RedisClient) Get(ctx context.Context, key string, dest any) error {
 	data, err := r.client.Get(ctx, r.key(key)).Bytes()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return ErrKeyNotFound
 		}
 		return err
@@ -266,8 +270,8 @@ func (r *RedisClient) GetSession(ctx context.Context, sessionID string) (*Sessio
 	sessionKey := r.key(sessionPrefix, sessionID)
 	data, err := r.client.Get(ctx, sessionKey).Bytes()
 	if err != nil {
-		if err == redis.Nil {
-			return nil, nil // Session not found
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrSessionNotFound // Session not found
 		}
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
@@ -289,7 +293,10 @@ func (r *RedisClient) UpdateSessionActivity(ctx context.Context, sessionID strin
 
 	session.LastActiveAt = time.Now().UTC()
 	sessionKey := r.key(sessionPrefix, sessionID)
-	data, _ := json.Marshal(session)
+	data, err := json.Marshal(session)
+	if err != nil {
+		return fmt.Errorf("failed to marshal session: %w", err)
+	}
 
 	ttl := time.Until(session.ExpiresAt)
 	return r.client.Set(ctx, sessionKey, data, ttl).Err()
@@ -410,8 +417,8 @@ func (r *RedisClient) GetResetToken(ctx context.Context, token string) (*ResetTo
 	key := r.key(resetTokenPrefix, token)
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
-			return nil, nil
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrTokenNotFound
 		}
 		return nil, err
 	}
@@ -460,8 +467,8 @@ func (r *RedisClient) GetVerifyEmailToken(ctx context.Context, token string) (*V
 	key := r.key(verifyEmailPrefix, token)
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
-			return nil, nil
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrTokenNotFound
 		}
 		return nil, err
 	}
@@ -601,7 +608,7 @@ func (r *RedisClient) IsLoginLocked(ctx context.Context, identifier string) (boo
 	lockoutKey := r.key(loginAttemptPrefix, "lockout", identifier)
 	timestamp, err := r.client.Get(ctx, lockoutKey).Int64()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return false, nil, nil
 		}
 		return false, nil, err
@@ -645,8 +652,8 @@ func (r *RedisClient) GetFeatureFlags(ctx context.Context, tenantID, envID strin
 	key := r.key(featureFlagPrefix, tenantID, envID)
 	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
-		if err == redis.Nil {
-			return nil, nil
+		if errors.Is(err, redis.Nil) {
+			return nil, ErrTokenNotFound
 		}
 		return nil, err
 	}

@@ -147,9 +147,9 @@ func TestGetErrorGroupByID_WrongEnv(t *testing.T) {
 	require.Error(t, err)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  GetErrorGroupBySignature
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestGetErrorGroupBySignature_Found(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -212,9 +212,9 @@ func TestListErrorGroups_Empty(t *testing.T) {
 	require.Empty(t, groups)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  CountErrorGroupsByEnv
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestCountErrorGroupsByEnv(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -229,9 +229,9 @@ func TestCountErrorGroupsByEnv(t *testing.T) {
 	require.Equal(t, int64(3), count)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  ListErrorGroupsByStatus / CountErrorGroupsByStatus
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestListErrorGroupsByStatus(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -274,9 +274,9 @@ func TestCountErrorGroupsByStatus(t *testing.T) {
 	require.Equal(t, int64(2), count)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  ListErrorGroupsByType
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestListErrorGroupsByType(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -310,11 +310,11 @@ func TestListErrorGroupsByType(t *testing.T) {
 	require.Len(t, accessErrors, 1)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //
 //	SearchErrorGroups
 //
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 func TestSearchErrorGroups_ByMessage(t *testing.T) {
 	reg := createRegisteredTenant(t)
 	env := createTestEnvironment(t, reg.Tenant.ID, "production")
@@ -372,9 +372,9 @@ func TestSearchErrorGroups_NoMatch(t *testing.T) {
 	require.Empty(t, results)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  AcknowledgeErrorGroup
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestAcknowledgeErrorGroup(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -402,9 +402,9 @@ func TestAcknowledgeErrorGroup_WrongEnv(t *testing.T) {
 	require.Error(t, err)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  ResolveErrorGroup
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestResolveErrorGroup(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -423,9 +423,9 @@ func TestResolveErrorGroup(t *testing.T) {
 	require.NotNil(t, resolved.ResolvedAt)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  ReopenErrorGroup
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestReopenErrorGroup(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -449,9 +449,9 @@ func TestReopenErrorGroup(t *testing.T) {
 	require.Nil(t, reopened.ResolvedAt)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  Full lifecycle: open → acknowledged → resolved → reopened
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestErrorGroupLifecycle(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -484,9 +484,9 @@ func TestErrorGroupLifecycle(t *testing.T) {
 	require.Nil(t, reopened.ResolvedAt)
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  AppendAffectedUsers
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestAppendAffectedUsers_MergesAndDeduplicates(t *testing.T) {
 	reg := createRegisteredTenant(t)
@@ -515,9 +515,9 @@ func TestAppendAffectedUsers_MergesAndDeduplicates(t *testing.T) {
 	}
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 //  DeleteOldErrorGroups
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════.
 
 func TestDeleteOldErrorGroups_OnlyDeletesNonOpen(t *testing.T) {
 	reg := createRegisteredTenant(t)

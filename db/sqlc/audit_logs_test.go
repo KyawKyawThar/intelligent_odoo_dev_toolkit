@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//lint:ignore U1000 unused
 func createTestAuditLog(t *testing.T, tenantID uuid.UUID, userID *uuid.UUID, action string) AuditLog {
 	t.Helper()
 	resource := "test_resource"
@@ -25,6 +26,7 @@ func createTestAuditLog(t *testing.T, tenantID uuid.UUID, userID *uuid.UUID, act
 	})
 	require.NoError(t, err)
 	require.NotZero(t, log.ID)
+	_ = log
 	return log
 }
 

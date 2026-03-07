@@ -26,7 +26,6 @@ type IngestErrorBatchParams struct {
 }
 
 func (store *SQLStore) IngestErrorBatchTx(ctx context.Context, arg IngestErrorBatchParams) error {
-
 	return store.execTx(ctx, func(q *Queries) error {
 		affectedUsers := arg.AffectedUIDs
 		if affectedUsers == nil {
@@ -35,21 +34,20 @@ func (store *SQLStore) IngestErrorBatchTx(ctx context.Context, arg IngestErrorBa
 
 		// 1. Upsert error group
 		eg, err := q.UpsertErrorGroup(ctx, UpsertErrorGroupParams{
-			EnvID:     arg.EnvID,
-			Signature: arg.Signature,
-			ErrorType: arg.ErrorType,
-			Message:   arg.Message,
-			Module:    arg.Module,
-			Model:     arg.Model,
-
+			EnvID:         arg.EnvID,
+			Signature:     arg.Signature,
+			ErrorType:     arg.ErrorType,
+			Message:       arg.Message,
+			Module:        arg.Module,
+			Model:         arg.Model,
 			FirstSeen:     arg.Timestamp,
 			AffectedUsers: affectedUsers,
 			RawTraceRef:   arg.RawTraceRef,
 		})
-
 		if err != nil {
 			return fmt.Errorf("upsert error group: %w", err)
 		}
+
 		// 2. Merge affected user IDs
 		if len(arg.AffectedUIDs) > 0 {
 			if err := q.AppendAffectedUsers(ctx, AppendAffectedUsersParams{
@@ -59,43 +57,53 @@ func (store *SQLStore) IngestErrorBatchTx(ctx context.Context, arg IngestErrorBa
 				return fmt.Errorf("append affected users: %w", err)
 			}
 		}
-		// 3. Check if we crossed the spike threshold → create alert
 
-		if arg.SpikeThreshold > 0 && eg.OccurrenceCount >= int32(arg.SpikeThreshold) {
-			// Only alert once per threshold crossing (check previous count)
-
-			preCount := eg.OccurrenceCount - 1
-
-			if preCount < int32(arg.SpikeThreshold) {
-
-				metadata, _ := json.Marshal(map[string]any{
-					"signature":        arg.Signature,
-					"error_type":       arg.ErrorType,
-					"occurrence_count": eg.OccurrenceCount,
-					"model":            arg.Model,
-					"module":           arg.Module})
-
-				sigShort := arg.Signature
-				if len(sigShort) > 8 {
-					sigShort = sigShort[:8]
-				}
-
-				_, err := q.CreateAlert(ctx, CreateAlertParams{
-					EnvID:    arg.EnvID,
-					Type:     "error_spike",
-					Severity: "warning",
-					Message:  fmt.Sprintf("%s: %d occurrences of %s", arg.ErrorType, eg.OccurrenceCount, sigShort),
-					Metadata: json.RawMessage(metadata),
-				})
-
-				if err != nil {
-					return fmt.Errorf("create spike alert: %w", err)
-
-				}
-			}
-
+		// 3. Check for spike alert
+		if err := store.checkForSpikeAlert(ctx, q, eg, arg); err != nil {
+			return err
 		}
 
 		return nil
 	})
+}
+
+func (store *SQLStore) checkForSpikeAlert(ctx context.Context, q *Queries, eg ErrorGroup, arg IngestErrorBatchParams) error {
+	if arg.SpikeThreshold <= 0 || eg.OccurrenceCount < int32(arg.SpikeThreshold) {
+		return nil
+	}
+
+	// Only alert once per threshold crossing
+	preCount := eg.OccurrenceCount - 1
+	if preCount >= int32(arg.SpikeThreshold) {
+		return nil
+	}
+
+	metadata, err := json.Marshal(map[string]any{
+		"signature":        arg.Signature,
+		"error_type":       arg.ErrorType,
+		"occurrence_count": eg.OccurrenceCount,
+		"model":            arg.Model,
+		"module":           arg.Module,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal alert metadata: %w", err)
+	}
+
+	sigShort := arg.Signature
+	if len(sigShort) > 8 {
+		sigShort = sigShort[:8]
+	}
+
+	_, err = q.CreateAlert(ctx, CreateAlertParams{
+		EnvID:    arg.EnvID,
+		Type:     "error_spike",
+		Severity: "warning",
+		Message:  fmt.Sprintf("%s: %d occurrences of %s", arg.ErrorType, eg.OccurrenceCount, sigShort),
+		Metadata: json.RawMessage(metadata),
+	})
+	if err != nil {
+		return fmt.Errorf("create spike alert: %w", err)
+	}
+
+	return nil
 }

@@ -392,7 +392,7 @@ func TestRedisClient_CreateExpiredSession(t *testing.T) {
 	}
 
 	err := rc.CreateSession(ctx, session)
-	fmt.Println("error is:", err)
+	t.Log("error is:", err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "expired")
 }
@@ -694,7 +694,7 @@ func TestRedisClient_SubscribeMultipleChannels(t *testing.T) {
 	// Subscribe to multiple channels
 	pubsub := rc.Subscribe(ctx, "channel1", "channel2", "channel3")
 	require.NotNil(t, pubsub)
-	defer pubsub.Close()
+	pubsub.Close()
 }
 func TestRedisClient_PubSubIntegration(t *testing.T) {
 	rc, mr := setupTestRedis(t)

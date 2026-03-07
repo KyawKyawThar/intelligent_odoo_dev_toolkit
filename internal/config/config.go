@@ -2,6 +2,7 @@ package config
 
 import (
 	"Intelligent_Dev_ToolKit_Odoo/utils"
+	"errors"
 	"strings"
 	"time"
 
@@ -133,15 +134,15 @@ func LoadConfig(path string) (config Config, err error) {
 
 	err = viper.ReadInConfig()
 	if err != nil {
-		// Config file not found is OK, we'll use env vars
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) {
+			return config, err
 		}
 	}
 
 	err = viper.Unmarshal(&config)
 	if err != nil {
-		return
+		return config, err
 	}
 
 	// Parse ALLOWED_ORIGINS from comma-separated string
@@ -149,10 +150,10 @@ func LoadConfig(path string) (config Config, err error) {
 	if originsStr != "" {
 		config.AllowedOrigins = parseOrigins(originsStr)
 	}
-	return
+	return config, nil
 }
 
-// parseOrigins parses a comma-separated string of origins
+// parseOrigins parses a comma-separated string of origins.
 func parseOrigins(s string) []string {
 	if s == "*" {
 		return []string{"*"}
@@ -169,12 +170,12 @@ func parseOrigins(s string) []string {
 	return result
 }
 
-// IsDevelopment returns true if running in development mode
+// IsDevelopment returns true if running in development mode.
 func (c *Config) IsDevelopment() bool {
 	return c.Environment == "development"
 }
 
-// IsProduction returns true if running in production mode
+// IsProduction returns true if running in production mode.
 func (c *Config) IsProduction() bool {
 	return c.Environment == "production"
 }

@@ -191,7 +191,7 @@ func ToUserResponseFromGlobal(u db.GetUserByEmailGlobalRow) *UserResponse {
 	}
 }
 
-// UserGlobalRowResponse
+// UserGlobalRowResponse.
 func ToUserGlobalRowResponse(u db.GetUserByEmailGlobalRow) *UserGlobalRowResponse {
 	return &UserGlobalRowResponse{
 		ID:            u.ID,

@@ -12,6 +12,7 @@ import (
 
 func int32Ptr(v int32) *int32 { return &v }
 
+//lint:ignore U1000 unused
 func createTestORMStat(t *testing.T, envID uuid.UUID, model, method string, n1 bool) OrmStat {
 	t.Helper()
 	sampleSQL := "SELECT * FROM " + model

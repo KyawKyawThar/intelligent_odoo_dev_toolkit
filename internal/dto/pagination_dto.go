@@ -9,9 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// =============================================================================
-// Response Types
-// =============================================================================
+// =============================================================================.
+// Response Types.
+// =============================================================================.
 type Response struct {
 	Success   bool   `json:"success"`
 	Data      any    `json:"data,omitempty"`
@@ -19,7 +19,7 @@ type Response struct {
 	RequestID string `json:"request_id,omitempty"`
 }
 
-// Meta contains pagination and timing metadata
+// Meta contains pagination and timing metadata.
 type Meta struct {
 	Page       int    `json:"page,omitempty"`
 	PerPage    int    `json:"per_page,omitempty"`
@@ -30,7 +30,7 @@ type Meta struct {
 	Took       string `json:"took,omitempty"`
 }
 
-// ListResponse represents a paginated list response
+// ListResponse represents a paginated list response.
 type ListResponse struct {
 	Data       any   `json:"data"`
 	Pagination *Meta `json:"pagination,omitempty"`
@@ -89,9 +89,9 @@ func (p *Pagination) ToMeta() *Meta {
 	}
 }
 
-// =============================================================================
-// JSON Response Helpers
-// =============================================================================
+// =============================================================================.
+// JSON Response Helpers.
+// =============================================================================.
 func setCommonHeaders(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -102,7 +102,9 @@ func WriteJSON(w http.ResponseWriter, status int, data any) {
 	w.WriteHeader(status)
 
 	if data != nil {
-		json.NewEncoder(w).Encode(data)
+		if err := json.NewEncoder(w).Encode(data); err != nil {
+			// TODO: log error
+		}
 	}
 }
 
@@ -115,7 +117,9 @@ func WriteList(w http.ResponseWriter, r *http.Request, data any, pagination *Pag
 	setCommonHeaders(w)
 	w.Header().Set("X-Request-ID", getOrCreateRequestID(r))
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		// TODO: log error
+	}
 }
 
 func WriteSuccess(w http.ResponseWriter, r *http.Request, data any) {

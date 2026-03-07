@@ -344,7 +344,7 @@ func TestGetBillingEventByStripeID_NotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
-// Idempotency: same stripe_event_id should fail (unique constraint)
+// Idempotency: same stripe_event_id should fail (unique constraint).
 func TestCreateBillingEvent_DuplicateStripeID_Fails(t *testing.T) {
 	stripeID := "evt_dup_" + utils.RandomString(8)
 

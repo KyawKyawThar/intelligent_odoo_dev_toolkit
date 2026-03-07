@@ -1,42 +1,39 @@
 package utils
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
-	"time"
+	"math/big"
 
 	"github.com/google/uuid"
 )
-
-func init() {
-	t := time.Now().Unix()
-	rand.New(rand.NewSource(t))
-}
 
 const alphabet = "abcdefghijklmnopqrstuvwxyz"
 
 func RandomString(maxLength int) string {
 	b := make([]byte, maxLength)
-	//fmt.Printf("before: %s\n", string(b))
-	for i := range b {
-		b[i] = alphabet[rand.Intn(len(alphabet))]
+	_, err := rand.Read(b)
+	if err != nil {
+		panic(err)
 	}
-	//fmt.Printf("%s\n", string(b))
+
+	for i := range b {
+		b[i] = alphabet[b[i]%byte(len(alphabet))]
+	}
 
 	return string(b)
 }
 
 func RandomInteger(min, max int64) int64 {
-
 	if min > max {
 		panic("min cannot be greater than max")
 	}
 
-	// Generate a random number within the range [0, max-min]
-	randomNumber := rand.Int63n(max - min + 1)
-
-	// Add the minimum value to shift the range
-	return randomNumber + min
+	n, err := rand.Int(rand.Reader, big.NewInt(max-min+1))
+	if err != nil {
+		panic(err)
+	}
+	return n.Int64() + min
 }
 
 func RandomOwner() string {

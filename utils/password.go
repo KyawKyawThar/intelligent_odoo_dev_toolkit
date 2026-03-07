@@ -12,7 +12,7 @@ func HashPassword(password string) (string, error) {
 	hashPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
 	if err != nil {
-		return "", fmt.Errorf("failed to hash password %s\n", err)
+		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	return string(hashPassword), nil

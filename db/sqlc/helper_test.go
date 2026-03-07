@@ -40,30 +40,6 @@ func createRandomTenant(t *testing.T) Tenant {
 
 }
 
-// ─── User ───
-func createRandomUser(t *testing.T, tenantID uuid.UUID) User {
-
-	fullName := utils.RandomOwner()
-	hashPassword, err := utils.HashPassword("$2a$10$")
-	require.NoError(t, err)
-
-	arg := CreateUserParams{
-		TenantID:      tenantID,
-		Email:         utils.RandomEmail(),
-		PasswordHash:  hashPassword,
-		FullName:      &fullName,
-		EmailVerified: true,
-		IsActive:      true,
-	}
-
-	user, err := testStore.CreateUser(context.Background(), arg)
-	require.NoError(t, err)
-	require.NotEmpty(t, user)
-	require.Equal(t, arg.Email, user.Email)
-	require.Equal(t, tenantID, user.TenantID)
-	return user
-}
-
 // ─── Environment ───
 
 func createRandomEnviroment(t *testing.T, tenantID uuid.UUID) Environment {
@@ -81,41 +57,4 @@ func createRandomEnviroment(t *testing.T, tenantID uuid.UUID) Environment {
 	require.Equal(t, tenantID, env.TenantID)
 
 	return env
-}
-
-// ─── Notification Channel ───
-func createRandomChannel(t *testing.T, tennantID uuid.UUID) NotificationChannel {
-	arg := CreateNotificationChannelParams{
-		TenantID: tennantID,
-		Name:     utils.RandomOwner(),
-		Type:     "slack",
-		Config:   json.RawMessage(`{"url":"https://hooks.slack.com/test"}`),
-	}
-
-	ch, err := testStore.CreateNotificationChannel(context.Background(), arg)
-	require.NoError(t, err)
-	require.NotEmpty(t, ch)
-	return ch
-
-}
-
-// ─── Anonymization Profile ───
-
-func createRandomAnonPrfile(t *testing.T, tenantID, sourceEnv, targetEnv uuid.UUID) AnonProfile {
-
-	arg := CreateAnonProfileParams{
-		TenantID:  tenantID,
-		Name:      utils.RandomOwner(),
-		SourceEnv: &sourceEnv,
-		TargetEnv: &targetEnv,
-		FieldRules: json.RawMessage(`[
-			{"model":"res.partner","field":"name","strategy":"FAKE"},
-			{"model":"res.partner","field":"email","strategy":"MASK"}
-		]`),
-	}
-
-	profile, err := testStore.CreateAnonProfile(context.Background(), arg)
-	require.NoError(t, err)
-	require.NotEmpty(t, profile)
-	return profile
 }
