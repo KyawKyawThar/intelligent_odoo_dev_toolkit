@@ -23,19 +23,26 @@ type Handlers struct {
 	// Profiler    *ProfilerHandler
 	// Alert       *AlertHandler
 	//	APIKey *APIKeyHandler
-	//Tenant *TenantHandler
+	// Tenant *TenantHandler
 	//User   *UserHandler
 }
 
 // NewHandlers creates all handlers with their service dependencies.
 func NewHandlers(services *service.Services) *Handlers {
 	v := validator.New()
-	api.RegisterCustomValidations(v)
+	if err := api.RegisterCustomValidations(v); err != nil {
+		panic(err)
+	}
 
 	base := &BaseHandler{validate: v}
 
+	authSvc, ok := services.Auth.(*service.AuthService)
+	if !ok {
+		panic("invalid auth service type")
+	}
+
 	return &Handlers{
-		Auth: NewAuthHandler(services.Auth.(*service.AuthService), base),
+		Auth: NewAuthHandler(authSvc, base),
 		// APIKey: NewAPIKeyHandler(services.APIKey, base),
 		// Tenant: NewTenantHandler(services.Tenant, base),
 		// User:   NewUserHandler(services.User, base),

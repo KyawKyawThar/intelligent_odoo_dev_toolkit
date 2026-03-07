@@ -10,6 +10,7 @@ import (
 
 const alphabet = "abcdefghijklmnopqrstuvwxyz"
 
+// RandomString generates a random string of a given length.
 func RandomString(maxLength int) string {
 	b := make([]byte, maxLength)
 	_, err := rand.Read(b)
@@ -24,13 +25,12 @@ func RandomString(maxLength int) string {
 	return string(b)
 }
 
+// RandomInteger generates a random integer between min and max.
 func RandomInteger(min, max int64) int64 {
 	if min > max {
 		panic("min cannot be greater than max")
 	}
 
-	//gosec:G404
-	//gosec:G404
 	n, err := rand.Int(rand.Reader, big.NewInt(max-min+1))
 	if err != nil {
 		panic(err)
@@ -38,17 +38,22 @@ func RandomInteger(min, max int64) int64 {
 	return n.Int64() + min
 }
 
+// RandomOwner generates a random owner name.
 func RandomOwner() string {
 	return RandomString(7)
 }
+
+// RandomEmail generates a random email address.
 func RandomEmail() string {
 	return fmt.Sprintf("%s@%s.com", RandomString(8), RandomString(5))
 }
 
+// RandomSlug generates a random slug.
 func RandomSlug() string {
 	return fmt.Sprintf("%s-%s", RandomString(4), RandomString(4))
 }
 
+// RandomUUID generates a random UUID.
 func RandomUUID() uuid.UUID {
 
 	return uuid.New()

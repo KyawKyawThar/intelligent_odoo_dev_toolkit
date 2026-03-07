@@ -3,6 +3,7 @@ package db
 import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"context"
+	"errors"
 	"log"
 	"os"
 	"testing"
@@ -36,7 +37,7 @@ func TestMain(m *testing.M) {
 		log.Fatal("cannot create new migrate instance:", err)
 	}
 
-	if err = migration.Up(); err != nil && err != migrate.ErrNoChange {
+	if err = migration.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		log.Fatal("failed to run migrate up:", err)
 	}
 
@@ -47,7 +48,7 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 
 	// Optional: Drop everything for a clean slate next time
-	if err = migration.Down(); err != nil && err != migrate.ErrNoChange {
+	if err = migration.Down(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		log.Fatal("failed to run migrate down:", err)
 	}
 

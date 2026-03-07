@@ -160,7 +160,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// Body is optional — default to single-token logout
 	var req dto.LogoutRequest
-	_ = h.DecodeJSON(r, &req) // intentionally ignoring parse errors
+	_ = h.DecodeJSON(r, &req) //nolint:errcheck
 
 	if err := h.svc.Logout(r.Context(), BearerToken, &req); err != nil {
 		h.HandleErr(w, r, err)
@@ -198,7 +198,7 @@ func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Intentionally ignore the error — security requirement
-	_ = h.svc.ForgotPassword(r.Context(), &req)
+	_ = h.svc.ForgotPassword(r.Context(), &req) //nolint:errcheck
 
 	dto.WriteSuccess(w, r, map[string]any{
 		"message": "If that email address is registered you will receive a reset link shortly.",

@@ -215,7 +215,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		}
 
 		//gosec:G107
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 		if err != nil {
 			checks["agent_cloud"] = config.StatusUnhealthy + ": " + err.Error()
 			dto.WriteReady(w, false, checks)
@@ -330,7 +330,7 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Intentionally ignore the error — security requirement
-	_ = s.services.Auth.ForgotPassword(r.Context(), &req)
+	_ = s.services.Auth.ForgotPassword(r.Context(), &req) //nolint:errcheck
 
 	dto.WriteSuccess(w, r, map[string]any{
 		"message": "If that email address is registered you will receive a reset link shortly.",
@@ -368,7 +368,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// Body is optional — default to single-token logout
 	var req dto.LogoutRequest
-	_ = s.handler.Auth.DecodeJSON(r, &req) // intentionally ignoring parse errors
+	_ = s.handler.Auth.DecodeJSON(r, &req) //nolint:errcheck // intentionally ignoring parse errors
 
 	if err := s.services.Auth.Logout(r.Context(), BearerToken, &req); err != nil {
 		s.handler.Auth.HandleErr(w, r, err)

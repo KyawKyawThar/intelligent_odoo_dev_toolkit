@@ -102,93 +102,107 @@ var foreignKeyMap = map[string]string{
 // PostgreSQL Error Handler
 // =============================================================================
 
-func handlePgError(pgErr *pgconn.PgError) *APIError {
-	switch pgErr.Code {
-
+var pgErrorCodeMap = map[string]func(*pgconn.PgError) *APIError{
 	// --- Integrity Constraint Violations ---
-	case PgUniqueViolation:
+	PgUniqueViolation: func(pgErr *pgconn.PgError) *APIError {
 		field := extractFieldFromConstraint(pgErr.ConstraintName)
 		return ErrDuplicateResource(extractTableFromConstraint(pgErr.ConstraintName), field).
 			WithInternal(pgErr)
-
-	case PgForeignKeyViolation:
+	},
+	PgForeignKeyViolation: func(pgErr *pgconn.PgError) *APIError {
 		resource := extractResourceFromForeignKey(pgErr.ConstraintName)
 		return ErrInvalidReference(pgErr.ColumnName, resource).
 			WithInternal(pgErr)
-
-	case PgNotNullViolation:
+	},
+	PgNotNullViolation: func(pgErr *pgconn.PgError) *APIError {
 		return ErrMissingRequired(pgErr.ColumnName).
 			WithInternal(pgErr)
-
-	case PgCheckViolation:
+	},
+	PgCheckViolation: func(pgErr *pgconn.PgError) *APIError {
 		return ErrValidation(fmt.Sprintf("Value violates constraint: %s", pgErr.ConstraintName)).
 			WithDetail(pgErr.ColumnName, "violates constraint").
 			WithInternal(pgErr)
-
-	case PgExclusionViolation:
+	},
+	PgExclusionViolation: func(pgErr *pgconn.PgError) *APIError {
 		return ErrConflict("Operation conflicts with an existing record").
 			WithInternal(pgErr)
-
+	},
 	// --- Data Exceptions ---
-	case PgStringTruncation:
+	PgStringTruncation: func(pgErr *pgconn.PgError) *APIError {
 		return ErrValidation(fmt.Sprintf("Value too long for field '%s'", pgErr.ColumnName)).
 			WithDetail(pgErr.ColumnName, "exceeds maximum length").
 			WithInternal(pgErr)
-
-	case PgNumericOutOfRange:
+	},
+	PgNumericOutOfRange: func(pgErr *pgconn.PgError) *APIError {
 		return ErrValidation(fmt.Sprintf("Numeric value out of range for '%s'", pgErr.ColumnName)).
 			WithDetail(pgErr.ColumnName, "value out of range").
 			WithInternal(pgErr)
-
-	case PgInvalidTextRep:
+	},
+	PgInvalidTextRep: func(pgErr *pgconn.PgError) *APIError {
 		return ErrValidation("Invalid value format").
 			WithInternal(pgErr)
-
-	case PgInvalidDatetime:
+	},
+	PgInvalidDatetime: func(pgErr *pgconn.PgError) *APIError {
 		return ErrValidation(fmt.Sprintf("Invalid datetime value for '%s'", pgErr.ColumnName)).
 			WithDetail(pgErr.ColumnName, "invalid datetime").
 			WithInternal(pgErr)
-
+	},
 	// --- Transaction Rollback ---
-	case PgDeadlockDetected:
+	PgDeadlockDetected: func(pgErr *pgconn.PgError) *APIError {
 		return ErrConflict("Request could not be completed due to a conflict. Please retry.").
 			WithInternal(pgErr)
-
-	case PgSerializationFailure:
+	},
+	PgSerializationFailure: func(pgErr *pgconn.PgError) *APIError {
 		return ErrConflict("Concurrent modification detected. Please retry.").
 			WithInternal(pgErr)
-
+	},
 	// --- Connection Exceptions ---
-	case PgConnectionDone, PgConnectionRefused, PgConnectionFailure:
+	PgConnectionDone: func(pgErr *pgconn.PgError) *APIError {
 		return ErrDatabaseUnavailable().WithInternal(pgErr)
-
+	},
+	PgConnectionRefused: func(pgErr *pgconn.PgError) *APIError {
+		return ErrDatabaseUnavailable().WithInternal(pgErr)
+	},
+	PgConnectionFailure: func(pgErr *pgconn.PgError) *APIError {
+		return ErrDatabaseUnavailable().WithInternal(pgErr)
+	},
 	// --- Insufficient Resources ---
-	case PgDiskFull:
+	PgDiskFull: func(pgErr *pgconn.PgError) *APIError {
 		return ErrUnavailable("Database storage full").WithInternal(pgErr)
-
-	case PgOutOfMemory:
+	},
+	PgOutOfMemory: func(pgErr *pgconn.PgError) *APIError {
 		return ErrUnavailable("Database out of memory").WithInternal(pgErr)
-
-	case PgTooManyConnections:
+	},
+	PgTooManyConnections: func(pgErr *pgconn.PgError) *APIError {
 		return ErrUnavailable("Too many database connections").WithInternal(pgErr)
-
+	},
 	// --- Access Errors ---
-	case PgInsufficientPrivilege:
+	PgInsufficientPrivilege: func(pgErr *pgconn.PgError) *APIError {
 		return ErrInternal(fmt.Errorf("database permission denied: %w", pgErr))
-
-	case PgSyntaxError, PgUndefinedColumn, PgUndefinedTable:
+	},
+	PgSyntaxError: func(pgErr *pgconn.PgError) *APIError {
 		return ErrInternal(pgErr)
-
+	},
+	PgUndefinedColumn: func(pgErr *pgconn.PgError) *APIError {
+		return ErrInternal(pgErr)
+	},
+	PgUndefinedTable: func(pgErr *pgconn.PgError) *APIError {
+		return ErrInternal(pgErr)
+	},
 	// --- Operator Intervention ---
-	case PgQueryCanceled:
+	PgQueryCanceled: func(pgErr *pgconn.PgError) *APIError {
 		return ErrTimeout("database query was canceled")
-
-	case PgAdminShutdown:
+	},
+	PgAdminShutdown: func(pgErr *pgconn.PgError) *APIError {
 		return ErrDatabaseUnavailable().WithInternal(pgErr)
+	},
+}
 
-	default:
-		return ErrDatabase(pgErr)
+func handlePgError(pgErr *pgconn.PgError) *APIError {
+	if handler, ok := pgErrorCodeMap[pgErr.Code]; ok {
+		return handler(pgErr)
 	}
+	return ErrDatabase(pgErr)
 }
 
 // FromPgError converts a PostgreSQL error to an API error

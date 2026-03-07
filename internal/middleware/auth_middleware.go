@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -116,7 +117,7 @@ func JWTAuth(tokenMaker token.Maker) func(http.Handler) http.Handler {
 			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 			payload, err := tokenMaker.VerifyToken(tokenString)
 			if err != nil {
-				if err == token.ErrTokenExpired {
+				if errors.Is(err, token.ErrTokenExpired) {
 					api.HandleError(w, r, api.ErrExpiredToken())
 					return
 				}
@@ -174,7 +175,7 @@ func Auth(config AuthConfig) func(http.Handler) http.Handler {
 			// Verify token
 			payload, err := config.TokenMaker.VerifyToken(tokenString)
 			if err != nil {
-				if err == token.ErrTokenExpired {
+				if errors.Is(err, token.ErrTokenExpired) {
 					api.HandleError(w, r, api.ErrExpiredToken())
 					return
 				}
@@ -219,7 +220,8 @@ func APIKeyAuth(validateFunc APIKeyAuthFunc) func(http.Handler) http.Handler {
 			keyInfo, err := validateFunc(r.Context(), apiKey)
 			if err != nil {
 				// Check for specific error types
-				if apiErr, ok := err.(*api.APIError); ok {
+				var apiErr *api.APIError
+				if errors.As(err, &apiErr) {
 					api.HandleError(w, r, apiErr)
 					return
 				}
@@ -298,24 +300,7 @@ func RequireAnyScope(requiredScopes ...string) func(http.Handler) http.Handler {
 				return
 			}
 
-			hasScope := false
-			for _, scope := range scopes {
-				if scope == "*" {
-					hasScope = true
-					break
-				}
-				for _, required := range requiredScopes {
-					if scope == required {
-						hasScope = true
-						break
-					}
-				}
-				if hasScope {
-					break
-				}
-			}
-
-			if !hasScope {
+			if !hasRequiredScope(scopes, requiredScopes) {
 				api.HandleError(w, r, api.ErrInsufficientScope(strings.Join(requiredScopes, " or ")))
 				return
 			}
@@ -323,4 +308,21 @@ func RequireAnyScope(requiredScopes ...string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func hasRequiredScope(availableScopes, requiredScopes []string) bool {
+	requiredSet := make(map[string]struct{}, len(requiredScopes))
+	for _, required := range requiredScopes {
+		requiredSet[required] = struct{}{}
+	}
+
+	for _, scope := range availableScopes {
+		if scope == "*" {
+			return true
+		}
+		if _, ok := requiredSet[scope]; ok {
+			return true
+		}
+	}
+	return false
 }

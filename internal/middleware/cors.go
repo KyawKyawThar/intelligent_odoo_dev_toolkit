@@ -99,7 +99,7 @@ func isOriginAllowed(origin string, allowedOrigins []string) bool {
 			if strings.HasSuffix(origin, suffix) {
 				// Ensure there's something before the suffix (not just ".example.com")
 				prefix := origin[:len(origin)-len(suffix)]
-				if len(prefix) > 0 && strings.Contains(prefix, "://") {
+				if prefix != "" && strings.Contains(prefix, "://") {
 					return true
 				}
 			}

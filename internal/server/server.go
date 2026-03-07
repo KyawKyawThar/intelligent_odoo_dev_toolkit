@@ -59,8 +59,8 @@ func NewServer(store db.Store, cache *cache.RedisClient, config config.Config) (
 	services := service.NewServices(server.store, server.cache, server.tokenMaker, serviceConfig)
 	server.services = services
 
-	handler := handler.NewHandlers(services)
-	server.handler = handler
+	handlers := handler.NewHandlers(services)
+	server.handler = handlers
 
 	server.setupRoutes()
 	return server, nil

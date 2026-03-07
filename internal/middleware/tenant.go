@@ -4,6 +4,7 @@ import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -58,7 +59,8 @@ func TenantResolver(lookupFunc TenantLookupFunc) func(http.Handler) http.Handler
 			// Look up tenant
 			tenantInfo, err := lookupFunc(r.Context(), userID)
 			if err != nil {
-				if apiErr, ok := err.(*api.APIError); ok {
+				var apiErr *api.APIError
+				if errors.As(err, &apiErr) {
 					api.HandleError(w, r, apiErr)
 					return
 				}
@@ -100,7 +102,8 @@ func TenantFromHeader(validateFunc func(ctx context.Context, tenantID string) (*
 			// Validate tenant exists
 			tenantInfo, err := validateFunc(r.Context(), tenantID)
 			if err != nil {
-				if apiErr, ok := err.(*api.APIError); ok {
+				var apiErr *api.APIError
+				if errors.As(err, &apiErr) {
 					api.HandleError(w, r, apiErr)
 					return
 				}

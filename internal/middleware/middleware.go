@@ -137,13 +137,15 @@ func Recoverer(logger *zerolog.Logger) func(http.Handler) http.Handler {
 
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusInternalServerError)
-					json.NewEncoder(w).Encode(map[string]any{
+					if err := json.NewEncoder(w).Encode(map[string]any{
 						"error": map[string]any{
 							"code":       "INTERNAL_ERROR",
 							"message":    "An internal error occurred",
 							"request_id": requestID,
 						},
-					})
+					}); err != nil {
+						logger.Error().Err(err).Msg("failed to write panic response")
+					}
 				}
 			}()
 
@@ -179,7 +181,7 @@ func ContentTypeJSON(next http.Handler) http.Handler {
 			if contentType != "" && len(contentType) >= 16 && contentType[:16] != "application/json" {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnsupportedMediaType)
-				json.NewEncoder(w).Encode(map[string]any{
+				_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
 					"error": map[string]any{
 						"code":    "UNSUPPORTED_MEDIA_TYPE",
 						"message": "Content-Type must be application/json",
@@ -218,7 +220,7 @@ func Timeout(timeout time.Duration) func(http.Handler) http.Handler {
 					requestID := GetRequestID(r.Context())
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusGatewayTimeout)
-					json.NewEncoder(w).Encode(map[string]any{
+					_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
 						"error": map[string]any{
 							"code":       "TIMEOUT",
 							"message":    "Request timed out",

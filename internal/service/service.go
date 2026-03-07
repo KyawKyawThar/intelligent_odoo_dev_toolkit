@@ -70,26 +70,26 @@ func DefaultConfig() *Config {
 	}
 }
 
-func NewAuthService(store db.Store, cache *cache.RedisClient, tokenMaker token.Maker, cfg *AuthConfig) *AuthService {
+func NewAuthService(store db.Store, redisCache *cache.RedisClient, tokenMaker token.Maker, cfg *AuthConfig) *AuthService {
 	if cfg == nil {
 		cfg = DefaultAuthConfig()
 	}
 	return &AuthService{
 		store:      store,
-		cache:      cache,
+		cache:      redisCache,
 		tokenMaker: tokenMaker,
 		config:     cfg,
 	}
 }
 
 // NewServices creates all services with their dependencies.
-func NewServices(store db.Store, cache *cache.RedisClient, tokenMaker token.Maker, cfg *Config) *Services {
+func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token.Maker, cfg *Config) *Services {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
 
 	// Create the base auth service (implements multiple interfaces)
-	authSvc := NewAuthService(store, cache, tokenMaker, &cfg.Auth)
+	authSvc := NewAuthService(store, redisCache, tokenMaker, &cfg.Auth)
 
 	return &Services{
 		Auth: authSvc,

@@ -4,29 +4,11 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"errors"
 	"fmt"
-	"net/url"
-	"reflect"
 
-	"slices"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
-
-// isURL is a custom validation function to check for a valid URL
-func isURL(fl validator.FieldLevel) bool {
-	u, err := url.Parse(fl.Field().String())
-	if err != nil {
-		return false
-	}
-	if u.Scheme == "" {
-		return false
-	}
-	if u.Host == "" {
-		return false
-	}
-	return true
-}
 
 var validationTagMessages = map[string]string{
 	// Required
@@ -201,125 +183,6 @@ func formatFieldError(fe validator.FieldError) string {
 }
 
 // =============================================================================
-// Custom Validator Registration
-// =============================================================================
-
-// RegisterCustomValidations registers OdooDevTools-specific validation tags
-func RegisterCustomValidations(v *validator.Validate) error {
-	// Use JSON tag names for field names in errors
-	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-		if name == "-" {
-			return fld.Name
-		}
-		if name == "" {
-			return toSnakeCase(fld.Name)
-		}
-		return name
-	})
-
-	// Odoo version validation (14.0, 15.0, 16.0, 17.0, 18.0)
-	if err := v.RegisterValidation("odoo_version", func(fl validator.FieldLevel) bool {
-		version := fl.Field().String()
-		validVersions := []string{"14.0", "15.0", "16.0", "17.0", "18.0"}
-		return slices.Contains(validVersions, version)
-	}); err != nil {
-		return err
-	}
-
-	// Slug validation (lowercase, alphanumeric, hyphens)
-	if err := v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
-		slug := fl.Field().String()
-		if slug == "" {
-			return true
-		}
-		for _, r := range slug {
-			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-') {
-				return false
-			}
-		}
-		if strings.HasPrefix(slug, "-") || strings.HasSuffix(slug, "-") {
-			return false
-		}
-		if strings.Contains(slug, "--") {
-			return false
-		}
-		return true
-	}); err != nil {
-		return err
-	}
-
-	// Custom URL validation
-	if err := v.RegisterValidation("url", isURL); err != nil {
-		return err
-	}
-
-	// Environment type validation
-	if err := v.RegisterValidation("env_type", func(fl validator.FieldLevel) bool {
-		envType := fl.Field().String()
-		validTypes := []string{config.EnvironmentDevelopment, config.EnvironmentStaging, config.EnvironmentProduction}
-		return slices.Contains(validTypes, envType)
-	}); err != nil {
-		return err
-	}
-
-	// Error level validation
-	if err := v.RegisterValidation("error_level", func(fl validator.FieldLevel) bool {
-		level := fl.Field().String()
-		validLevels := []string{"debug", "info", "warning", "error", "critical"}
-		return slices.Contains(validLevels, level)
-	}); err != nil {
-		return err
-	}
-
-	// Error status validation
-	if err := v.RegisterValidation("error_status", func(fl validator.FieldLevel) bool {
-		status := fl.Field().String()
-		validStatuses := []string{"unresolved", "resolved", "ignored"}
-		return slices.Contains(validStatuses, status)
-	}); err != nil {
-		return err
-	}
-
-	// Channel type validation
-	if err := v.RegisterValidation("channel_type", func(fl validator.FieldLevel) bool {
-		channelType := fl.Field().String()
-		validTypes := []string{"slack", "email", "webhook", "pagerduty", "discord", "teams"}
-		return slices.Contains(validTypes, channelType)
-	}); err != nil {
-		return err
-	}
-
-	// User role validation
-	if err := v.RegisterValidation("user_role", func(fl validator.FieldLevel) bool {
-		role := fl.Field().String()
-		validRoles := []string{"owner", "admin", "member"}
-		return slices.Contains(validRoles, role)
-	}); err != nil {
-		return err
-	}
-
-	// Anonymization strategy validation
-	if err := v.RegisterValidation("anon_strategy", func(fl validator.FieldLevel) bool {
-		strategy := fl.Field().String()
-		validStrategies := []string{"fake_name", "fake_email", "mask", "nullify", "randomize", "hash", "keep"}
-		return slices.Contains(validStrategies, strategy)
-	}); err != nil {
-		return err
-	}
-
-	// Alert operator validation
-	if err := v.RegisterValidation("alert_operator", func(fl validator.FieldLevel) bool {
-		op := fl.Field().String()
-		validOps := []string{"greater_than", "less_than", "equal_to", "not_equal_to", "greater_than_or_equal", "less_than_or_equal"}
-		return slices.Contains(validOps, op)
-	}); err != nil {
-		return err
-	}
-	return nil
-}
-
-// =============================================================================
 // Validation Helper Functions
 // =============================================================================
 
@@ -340,7 +203,7 @@ func formatValidationTag(tag string) string {
 }
 
 // ValidateVar validates a single variable and returns an APIError if validation fails
-func ValidateVar(v *validator.Validate, field any, tag string, fieldName string) *APIError {
+func ValidateVar(v *validator.Validate, field any, tag, fieldName string) *APIError {
 	if err := v.Var(field, tag); err != nil {
 		return ErrValidation(fmt.Sprintf("Invalid %s", fieldName)).
 			WithDetail(fieldName, formatValidationTag(tag)).

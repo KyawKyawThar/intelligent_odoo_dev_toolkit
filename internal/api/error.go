@@ -1,3 +1,5 @@
+// Package api provides functionality for handling API errors, including defining standardized error codes,
+// creating structured error responses, and providing helper functions for common HTTP errors.
 package api
 
 import (
@@ -11,11 +13,13 @@ import (
 	"github.com/google/uuid"
 )
 
+// ErrorCode is a string that represents a specific API error code.
 type ErrorCode string
 
 const (
-	// Client errors (4xx)
-	ErrCodeValidation      ErrorCode = "VALIDATION_ERROR"
+	// ErrCodeValidation indicates a validation error with the request.
+	ErrCodeValidation ErrorCode = "VALIDATION_ERROR"
+	// ErrCodeUnauthorized indicates that the request is not authenticated.
 	ErrCodeUnauthorized    ErrorCode = "UNAUTHORIZED"
 	ErrCodeForbidden       ErrorCode = "FORBIDDEN"
 	ErrCodeNotFound        ErrorCode = "NOT_FOUND"
@@ -25,7 +29,7 @@ const (
 	ErrCodeBadRequest      ErrorCode = "BAD_REQUEST"
 	ErrCodePayloadTooLarge ErrorCode = "PAYLOAD_TOO_LARGE"
 
-	// Server errors (5xx)
+	// ErrCodeInternal indicates an internal server error.
 	ErrCodeInternal    ErrorCode = "INTERNAL_ERROR"
 	ErrCodeUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
 	ErrCodeTimeout     ErrorCode = "TIMEOUT"
@@ -39,10 +43,10 @@ const (
 	ErrCodeQuotaExceeded             ErrorCode = "QUOTA_EXCEEDED"
 	ErrCodePlanLimitReached          ErrorCode = "PLAN_LIMIT_REACHED"
 	ErrCodeInvalidAPIKey             ErrorCode = "INVALID_API_KEY" //nolint:gosec // not a credential
-	ErrCodeExpiredAPIKey             ErrorCode = "EXPIRED_API_KEY"
+	ErrCodeExpiredAPIKey             ErrorCode = "EXPIRED_API_KEY" //nolint:gosec
 	ErrCodeInvalidToken              ErrorCode = "INVALID_TOKEN"
 	ErrCodeExpiredToken              ErrorCode = "EXPIRED_TOKEN"
-	ErrCodeInvalidCredentials        ErrorCode = "INVALID_CREDENTIALS"
+	ErrCodeInvalidCredentials        ErrorCode = "INVALID_CREDENTIALS" //nolint:gosec
 	ErrCodeEmailAlreadyExists        ErrorCode = "EMAIL_ALREADY_EXISTS"
 	ErrCodeSlugAlreadyExists         ErrorCode = "SLUG_ALREADY_EXISTS"
 	ErrCodeInvalidScope              ErrorCode = "INVALID_SCOPE"
