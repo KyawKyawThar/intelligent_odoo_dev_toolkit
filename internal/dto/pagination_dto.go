@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -227,15 +228,28 @@ func GetPaginationFromRequest(r *http.Request) *Pagination {
 	page := 1
 	perPage := 25
 
-	if p := r.URL.Query().Get("page"); p != "" {
-		if parsed := parseInt(p); parsed > 0 {
-			page = parsed
-		}
+	q := r.URL.RawQuery
+	if q == "" {
+		return NewPagination(page, perPage)
 	}
 
-	if pp := r.URL.Query().Get("per_page"); pp != "" {
-		if parsed := parseInt(pp); parsed > 0 {
-			perPage = parsed
+	pairs := strings.Split(q, "&")
+	for _, pair := range pairs {
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := parts[0]
+		value := parts[1]
+		switch key {
+		case "page":
+			if parsed := parseInt(value); parsed > 0 {
+				page = parsed
+			}
+		case "per_page":
+			if parsed := parseInt(value); parsed > 0 {
+				perPage = parsed
+			}
 		}
 	}
 

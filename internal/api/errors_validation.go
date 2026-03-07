@@ -3,12 +3,29 @@ package api
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
+
 	"slices"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
+
+// isURL is a custom validation function to check for a valid URL
+func isURL(fl validator.FieldLevel) bool {
+	u, err := url.Parse(fl.Field().String())
+	if err != nil {
+		return false
+	}
+	if u.Scheme == "" {
+		return false
+	}
+	if u.Host == "" {
+		return false
+	}
+	return true
+}
 
 var validationTagMessages = map[string]string{
 	// Required
@@ -228,6 +245,11 @@ func RegisterCustomValidations(v *validator.Validate) error {
 		}
 		return true
 	}); err != nil {
+		return err
+	}
+
+	// Custom URL validation
+	if err := v.RegisterValidation("url", isURL); err != nil {
 		return err
 	}
 

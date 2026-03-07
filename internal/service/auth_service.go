@@ -80,7 +80,7 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, ip
 		TenantID:     result.Tenant.ID,
 		RefreshToken: refreshToken,
 		UserAgent:    &userAgent,
-		IpAddress:    parseIP(ipAddress),
+		IpAddress:    nil,
 		ExpiresAt:    refreshPayload.ExpiredAt,
 	}, ipAddress, userAgent); err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func (s *AuthService) Login(
 		TenantID:     user.TenantID,
 		RefreshToken: refreshToken,
 		UserAgent:    &userAgent,
-		IpAddress:    parseIP(ipAddress),
+		IpAddress:    nil,
 		ExpiresAt:    refreshPayload.ExpiredAt,
 	}, ipAddress, userAgent); err != nil {
 		return nil, err

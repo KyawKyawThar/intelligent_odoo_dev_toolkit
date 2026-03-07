@@ -72,12 +72,12 @@ jobs:
         migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" down 1
         echo "⚠️ One migration rolled back" >> $GITHUB_STEP_SUMMARY
 
-    - name: Force migration version
-      if: inputs.action == 'force-version' && inputs.force_version != ''
-      run: |
-        echo "Forcing migration version to ${{ inputs.force_version }}..."
-        migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" force ${{ inputs.force_version }}
-        echo "⚠️ Migration version forced to ${{ inputs.force_version }}" >> $GITHUB_STEP_SUMMARY
+    #     - name: Force migration version
+#       if: inputs.action == 'force-version' && inputs.force_version != ''
+#       run: |
+#         echo "Forcing migration version to ${{ inputs.force_version }}..."
+#         migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" force ${{ inputs.force_version }}
+#         echo "⚠️ Migration version forced to ${{ inputs.force_version }}" >> $GITHUB_STEP_SUMMARY
 
     - name: Show final status
       run: |

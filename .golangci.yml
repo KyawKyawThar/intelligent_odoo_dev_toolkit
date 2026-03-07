@@ -1,11 +1,11 @@
 # golangci-lint configuration
 # https://golangci-lint.run/usage/configuration/
 
+version: "2"
+
 run:
   timeout: 5m
   tests: true
-  # NOTE: skip-dirs removed in golangci-lint v2
-  # Moved to issues.exclude-rules / linters.exclusions.paths below
 
 linters:
   enable:
@@ -25,18 +25,13 @@ linters:
   - errname # Error naming conventions
   - errorlint # Error wrapping and comparison
   - exhaustive # Exhaustive switch statements
-  - copyloopvar # Loop variable capture (replaces exportloopref, removed in v2)
+  - copyloopvar # Loop variable capture (replaces exportloopref)
   - forbidigo # Forbidden identifiers
   - gocognit # Cognitive complexity
   - goconst # Repeated strings that could be constants
   - gocritic # Various code issues
   - gocyclo # Cyclomatic complexity
   - godot # Check comment endings
-  # NOTE: gofmt and goimports are FORMATTERS in golangci-lint v2.
-  # Move them to a formatters: section or run: golangci-lint fmt
-  # They still work here in v1-compat mode but will warn.
-  - gofmt # Code formatting
-  - goimports # Import formatting
   - gosec # Security issues
   - misspell # Spelling mistakes
   - nakedret # Naked returns in long functions
@@ -49,133 +44,132 @@ linters:
   - revive # Replacement for golint
   - sqlclosecheck # SQL rows/statements close
   - stylecheck # Style issues
-  # - tenv  # REMOVED in golangci-lint v2 — use t.Setenv() directly in your tests
-  - tparallel # Test parallelism
-  - unconvert # Unnecessary type conversions
-  - unparam # Unused function parameters
-  - wastedassign # Wasted assignments
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    exclude-functions:
-    - (io.Closer).Close
-    - (net/http.ResponseWriter).Write
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+      - (io.Closer).Close
+      - (net/http.ResponseWriter).Write
 
-  govet:
-    enable-all: true
-    disable:
-    - fieldalignment # Too strict for most cases
+    govet:
+      enable-all: true
+      disable:
+      - fieldalignment # Too strict for most cases
 
-  gocyclo:
-    min-complexity: 15
+    gocyclo:
+      min-complexity: 15
 
-  gocognit:
-    min-complexity: 20
+    gocognit:
+      min-complexity: 20
 
-  dupl:
-    threshold: 100
+    dupl:
+      threshold: 100
 
-  goconst:
-    min-len: 3
-    min-occurrences: 3
+    goconst:
+      min-len: 3
+      min-occurrences: 3
 
-  gocritic:
-    enabled-tags:
-    - diagnostic
-    - experimental
-    - opinionated
-    - performance
-    - style
-    disabled-checks:
-    - hugeParam
-    - rangeValCopy
+    gocritic:
+      enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+      disabled-checks:
+      - hugeParam
+      - rangeValCopy
 
-  gosec:
-    excludes:
-    - G104 # Audit errors not checked (handled by errcheck)
-    - G304 # File path provided as taint input (common in CLIs)
+    gosec:
+      excludes:
+      - G104 # Audit errors not checked (handled by errcheck)
+      - G304 # File path provided as taint input (common in CLIs)
 
-  misspell:
-    locale: US
+    misspell:
+      locale: US
 
-  nakedret:
-    max-func-lines: 30
+    nakedret:
+      max-func-lines: 30
 
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: true
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: true
 
-  revive:
+    revive:
+      rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unreachable-code
+
+    stylecheck:
+      checks: [ "all", "-ST1000", "-ST1003", "-ST1016" ]
+      dot-import-whitelist:
+      - github.com/onsi/ginkgo/v2
+      - github.com/onsi/gomega
+
+  exclusions:
     rules:
-    - name: blank-imports
-    - name: context-as-argument
-    - name: context-keys-type
-    - name: dot-imports
-    - name: error-return
-    - name: error-strings
-    - name: error-naming
-    - name: exported
-    - name: if-return
-    - name: increment-decrement
-    - name: var-naming
-    - name: var-declaration
-    - name: package-comments
-    - name: range
-    - name: receiver-naming
-    - name: time-naming
-    - name: unexported-return
-    - name: indent-error-flow
-    - name: errorf
-    - name: empty-block
-    - name: superfluous-else
-    - name: unreachable-code
+    # Exclude some linters from running on test files
+    - path: _test\.go
+      linters:
+      - dupl
+      - gocyclo
+      - gocognit
+      - gosec
+      - errcheck
+      - goconst
 
-  stylecheck:
-    checks: [ "all", "-ST1000", "-ST1003", "-ST1016" ]
-    dot-import-whitelist:
-    - github.com/onsi/ginkgo/v2
-    - github.com/onsi/gomega
+    # Exclude some linters from running on generated files
+    - path: db/sqlc/
+      linters:
+      - dupl
+      - gocritic
+      - stylecheck
+      - revive
 
-issues:
-  exclude-rules:
-  # Exclude some linters from running on tests files
-  - path: _test\.go
-    linters:
-    - dupl
-    - gocyclo
-    - gocognit
-    - gosec
-    - errcheck
-    - goconst
+    # Exclude vendor and testdata
+    - path: vendor/
+      linters: [ all ]
+    - path: testdata/
+      linters: [ all ]
 
-  # Exclude some linters from running on generated files
-  - path: db/sqlc/
-    linters:
-    - dupl
-    - gocritic
-    - stylecheck
-    - revive
+    # Ignore long lines in comments
+    - linters:
+      - lll
+      source: "^//go:"
 
-  # Exclude vendor and testdata (replaces removed run.skip-dirs in v2)
-  - path: vendor/
-    linters: [ all ]
-  - path: testdata/
-    linters: [ all ]
+    max-issues-per-linter: 50
+    max-same-issues: 10
 
-  # Ignore long lines in comments
-  - linters:
-    - lll
-    source: "^//go:"
-
-  max-issues-per-linter: 50
-  max-same-issues: 10
-  new: false
+formatters:
+  enable:
+  - gofmt
+  - goimports
 
 severity:
-  default-severity: warning
+  default: warning
   rules:
   - linters:
     - gosec

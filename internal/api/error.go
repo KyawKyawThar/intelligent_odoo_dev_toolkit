@@ -149,7 +149,7 @@ func (e *APIError) ToResponse() map[string]any {
 func (e *APIError) ToJSON() []byte {
 	data, err := json.Marshal(e.ToResponse())
 	if err != nil {
-		fmt.Printf("could not marshal error response: %v", err)
+		log.Error().Err(err).Msg("could not marshal error response")
 		return []byte(`{"error":{"code":"INTERNAL_ERROR","message":"Failed to serialize error response"}}`)
 	}
 	return data
@@ -436,7 +436,7 @@ func WriteError(w http.ResponseWriter, err *APIError) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(err.HTTPStatus)
 	if err := json.NewEncoder(w).Encode(err.ToResponse()); err != nil {
-		fmt.Printf("could not write error response: %v", err)
+		log.Error().Err(err).Msg("could not write error response")
 	}
 }
 

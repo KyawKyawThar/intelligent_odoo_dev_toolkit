@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +24,8 @@ const blacklistPrefix = "blacklist"
 const rateLimitPrefix = "ratelimit"
 
 type RedisClient struct {
-	client *redis.Client
-	prefix string // Key prefix for namespacing (e.g., "odt:")
+	Client *redis.Client
+	Prefix string // Key prefix for namespacing (e.g., "odt:")
 }
 
 type RedisConfig struct {
@@ -38,6 +39,7 @@ type RedisConfig struct {
 	Password string
 	DB       int
 	Prefix   string
+	TLS      bool
 }
 
 // ParseRedisConfig takes either a simple host:port string or a full Redis URL
@@ -63,6 +65,10 @@ func parseRedisURL(urlStr string) (RedisConfig, error) {
 	u, err := url.Parse(urlStr)
 	if err != nil {
 		return cfg, fmt.Errorf("invalid redis url: %w", err)
+	}
+
+	if u.Scheme != "redis" && u.Scheme != "rediss" {
+		return cfg, fmt.Errorf("invalid redis scheme: %s", u.Scheme)
 	}
 
 	cfg.Host = u.Hostname()
@@ -127,11 +133,21 @@ func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
 	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-	client := redis.NewClient(&redis.Options{
+	opts := &redis.Options{
 		Addr:     addr,
 		Password: cfg.Password,
 		DB:       cfg.DB,
-	})
+	}
+
+	if cfg.TLS {
+		opts.TLSConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: false,
+			ServerName:         cfg.Host,
+		}
+	}
+
+	client := redis.NewClient(opts)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -144,21 +160,21 @@ func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
 		prefix = "odt:"
 	}
 	return &RedisClient{
-		client: client,
-		prefix: prefix,
+		Client: client,
+		Prefix: prefix,
 	}, nil
 }
 func (r *RedisClient) Close() error {
-	return r.client.Close()
+	return r.Client.Close()
 }
 
 // Client returns the underlying redis client (for testing)
-func (r *RedisClient) Client() *redis.Client {
-	return r.client
+func (r *RedisClient) GetClient() *redis.Client {
+	return r.Client
 }
 
-func (r *RedisClient) key(parts ...string) string {
-	result := r.prefix
+func (r *RedisClient) Key(parts ...string) string {
+	result := r.Prefix
 	for _, part := range parts {
 		result += part + ":"
 	}
@@ -169,10 +185,10 @@ func (r *RedisClient) Set(ctx context.Context, key string, value any, expiration
 	if err != nil {
 		return fmt.Errorf("failed to marshal value: %w", err)
 	}
-	return r.client.Set(ctx, r.key(key), data, expiration).Err()
+	return r.Client.Set(ctx, r.Key(key), data, expiration).Err()
 }
 func (r *RedisClient) Get(ctx context.Context, key string, dest any) error {
-	data, err := r.client.Get(ctx, r.key(key)).Bytes()
+	data, err := r.Client.Get(ctx, r.Key(key)).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return ErrKeyNotFound
@@ -183,7 +199,7 @@ func (r *RedisClient) Get(ctx context.Context, key string, dest any) error {
 }
 
 func (r *RedisClient) GetString(ctx context.Context, key string) (string, error) {
-	result, err := r.client.Get(ctx, r.key(key)).Result()
+	result, err := r.Client.Get(ctx, r.Key(key)).Result()
 	if err == redis.Nil {
 		return "", ErrKeyNotFound
 	}
@@ -192,28 +208,28 @@ func (r *RedisClient) GetString(ctx context.Context, key string) (string, error)
 
 // SetString stores a string value with expiration
 func (r *RedisClient) SetString(ctx context.Context, key, value string, expiration time.Duration) error {
-	return r.client.Set(ctx, r.key(key), value, expiration).Err()
+	return r.Client.Set(ctx, r.Key(key), value, expiration).Err()
 }
 
 func (r *RedisClient) Delete(ctx context.Context, keys ...string) error {
 	prefixedKeys := make([]string, len(keys))
 	for i, k := range keys {
-		prefixedKeys[i] = r.key(k)
+		prefixedKeys[i] = r.Key(k)
 	}
-	return r.client.Del(ctx, prefixedKeys...).Err()
+	return r.Client.Del(ctx, prefixedKeys...).Err()
 }
 
 func (r *RedisClient) Exists(ctx context.Context, key string) (bool, error) {
-	result, err := r.client.Exists(ctx, r.key(key)).Result()
+	result, err := r.Client.Exists(ctx, r.Key(key)).Result()
 	return result > 0, err
 }
 
 func (r *RedisClient) Expire(ctx context.Context, key string, expiration time.Duration) error {
-	return r.client.Expire(ctx, r.key(key), expiration).Err()
+	return r.Client.Expire(ctx, r.Key(key), expiration).Err()
 }
 
 func (r *RedisClient) TTL(ctx context.Context, key string) (time.Duration, error) {
-	return r.client.TTL(ctx, r.key(key)).Result()
+	return r.Client.TTL(ctx, r.Key(key)).Result()
 }
 
 // =============================================================================
@@ -239,7 +255,7 @@ type Session struct {
 // CreateSession stores a new session in Redis
 func (r *RedisClient) CreateSession(ctx context.Context, session *Session) error {
 	// Store session by ID
-	sessionKey := r.key(sessionPrefix, session.ID)
+	sessionKey := r.Key(sessionPrefix, session.ID)
 	data, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("failed to marshal session: %w", err)
@@ -249,26 +265,26 @@ func (r *RedisClient) CreateSession(ctx context.Context, session *Session) error
 	if ttl <= 0 {
 		return fmt.Errorf("session expired")
 	}
-	if err := r.client.Set(ctx, sessionKey, data, ttl).Err(); err != nil {
+	if err := r.Client.Set(ctx, sessionKey, data, ttl).Err(); err != nil {
 		return fmt.Errorf("failed to store session: %w", err)
 	}
 
 	// Add session ID to user's session set (for listing all sessions)
-	userSessionsKey := r.key(userSessionPrefix, session.UserID)
-	if err := r.client.SAdd(ctx, userSessionsKey, session.ID).Err(); err != nil {
+	userSessionsKey := r.Key(userSessionPrefix, session.UserID)
+	if err := r.Client.SAdd(ctx, userSessionsKey, session.ID).Err(); err != nil {
 		return fmt.Errorf("failed to add session to user set: %w", err)
 	}
 
 	// Set expiry on user sessions set (auto-cleanup)
-	r.client.Expire(ctx, userSessionsKey, ttl+time.Hour)
+	r.Client.Expire(ctx, userSessionsKey, ttl+time.Hour)
 
 	return nil
 }
 
 // GetSession retrieves a session by ID
 func (r *RedisClient) GetSession(ctx context.Context, sessionID string) (*Session, error) {
-	sessionKey := r.key(sessionPrefix, sessionID)
-	data, err := r.client.Get(ctx, sessionKey).Bytes()
+	sessionKey := r.Key(sessionPrefix, sessionID)
+	data, err := r.Client.Get(ctx, sessionKey).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, ErrSessionNotFound // Session not found
@@ -292,22 +308,22 @@ func (r *RedisClient) UpdateSessionActivity(ctx context.Context, sessionID strin
 	}
 
 	session.LastActiveAt = time.Now().UTC()
-	sessionKey := r.key(sessionPrefix, sessionID)
+	sessionKey := r.Key(sessionPrefix, sessionID)
 	data, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
 
 	ttl := time.Until(session.ExpiresAt)
-	return r.client.Set(ctx, sessionKey, data, ttl).Err()
+	return r.Client.Set(ctx, sessionKey, data, ttl).Err()
 }
 
 // DeleteSession removes a session
 func (r *RedisClient) DeleteSession(ctx context.Context, sessionID, userID string) error {
-	sessionKey := r.key(sessionPrefix, sessionID)
-	userSessionsKey := r.key(userSessionPrefix, userID)
+	sessionKey := r.Key(sessionPrefix, sessionID)
+	userSessionsKey := r.Key(userSessionPrefix, userID)
 
-	pipe := r.client.Pipeline()
+	pipe := r.Client.Pipeline()
 	pipe.Del(ctx, sessionKey)
 	pipe.SRem(ctx, userSessionsKey, sessionID)
 	_, err := pipe.Exec(ctx)
@@ -324,10 +340,10 @@ func (r *RedisClient) RevokeAllSessions(ctx context.Context, userID string) erro
 
 // DeleteAllUserSessions removes all sessions for a user (logout everywhere)
 func (r *RedisClient) DeleteAllUserSessions(ctx context.Context, userID string) error {
-	userSessionsKey := r.key(userSessionPrefix, userID)
+	userSessionsKey := r.Key(userSessionPrefix, userID)
 
 	// Get all session IDs for the user
-	sessionIDs, err := r.client.SMembers(ctx, userSessionsKey).Result()
+	sessionIDs, err := r.Client.SMembers(ctx, userSessionsKey).Result()
 	if err != nil {
 		return fmt.Errorf("failed to get user sessions: %w", err)
 	}
@@ -337,9 +353,9 @@ func (r *RedisClient) DeleteAllUserSessions(ctx context.Context, userID string) 
 	}
 
 	// Delete all sessions
-	pipe := r.client.Pipeline()
+	pipe := r.Client.Pipeline()
 	for _, sid := range sessionIDs {
-		pipe.Del(ctx, r.key(sessionPrefix, sid))
+		pipe.Del(ctx, r.Key(sessionPrefix, sid))
 	}
 	pipe.Del(ctx, userSessionsKey)
 	_, err = pipe.Exec(ctx)
@@ -348,9 +364,9 @@ func (r *RedisClient) DeleteAllUserSessions(ctx context.Context, userID string) 
 
 // GetUserSessions returns all active sessions for a user
 func (r *RedisClient) GetUserSessions(ctx context.Context, userID string) ([]*Session, error) {
-	userSessionsKey := r.key(userSessionPrefix, userID)
+	userSessionsKey := r.Key(userSessionPrefix, userID)
 
-	sessionIDs, err := r.client.SMembers(ctx, userSessionsKey).Result()
+	sessionIDs, err := r.Client.SMembers(ctx, userSessionsKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user session IDs: %w", err)
 	}
@@ -371,18 +387,18 @@ func (r *RedisClient) GetUserSessions(ctx context.Context, userID string) ([]*Se
 
 // BlacklistToken adds a token to the blacklist
 func (r *RedisClient) BlacklistToken(ctx context.Context, tokenID string, expiresAt time.Time) error {
-	key := r.key(blacklistPrefix, tokenID)
+	key := r.Key(blacklistPrefix, tokenID)
 	ttl := time.Until(expiresAt)
 	if ttl <= 0 {
 		return nil // Token already expired, no need to blacklist
 	}
-	return r.client.Set(ctx, key, "1", ttl).Err()
+	return r.Client.Set(ctx, key, "1", ttl).Err()
 }
 
 // IsTokenBlacklisted checks if a token is blacklisted
 func (r *RedisClient) IsTokenBlacklisted(ctx context.Context, tokenID string) (bool, error) {
-	key := r.key(blacklistPrefix, tokenID)
-	exists, err := r.client.Exists(ctx, key).Result()
+	key := r.Key(blacklistPrefix, tokenID)
+	exists, err := r.Client.Exists(ctx, key).Result()
 	return exists > 0, err
 }
 
@@ -404,18 +420,18 @@ type ResetToken struct {
 
 // StoreResetToken stores a password reset token
 func (r *RedisClient) StoreResetToken(ctx context.Context, token *ResetToken) error {
-	key := r.key(resetTokenPrefix, token.Token)
+	key := r.Key(resetTokenPrefix, token.Token)
 	data, err := json.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to marshal reset token: %w", err)
 	}
-	return r.client.Set(ctx, key, data, resetTokenTTL).Err()
+	return r.Client.Set(ctx, key, data, resetTokenTTL).Err()
 }
 
 // GetResetToken retrieves a password reset token
 func (r *RedisClient) GetResetToken(ctx context.Context, token string) (*ResetToken, error) {
-	key := r.key(resetTokenPrefix, token)
-	data, err := r.client.Get(ctx, key).Bytes()
+	key := r.Key(resetTokenPrefix, token)
+	data, err := r.Client.Get(ctx, key).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, ErrTokenNotFound
@@ -432,8 +448,8 @@ func (r *RedisClient) GetResetToken(ctx context.Context, token string) (*ResetTo
 
 // DeleteResetToken removes a password reset token (after use)
 func (r *RedisClient) DeleteResetToken(ctx context.Context, token string) error {
-	key := r.key(resetTokenPrefix, token)
-	return r.client.Del(ctx, key).Err()
+	key := r.Key(resetTokenPrefix, token)
+	return r.Client.Del(ctx, key).Err()
 }
 
 // =============================================================================
@@ -454,18 +470,18 @@ type VerifyEmailToken struct {
 
 // StoreVerifyEmailToken stores an email verification token
 func (r *RedisClient) StoreVerifyEmailToken(ctx context.Context, token *VerifyEmailToken) error {
-	key := r.key(verifyEmailPrefix, token.Token)
+	key := r.Key(verifyEmailPrefix, token.Token)
 	data, err := json.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to marshal verify email token: %w", err)
 	}
-	return r.client.Set(ctx, key, data, verifyEmailTTL).Err()
+	return r.Client.Set(ctx, key, data, verifyEmailTTL).Err()
 }
 
 // GetVerifyEmailToken retrieves an email verification token
 func (r *RedisClient) GetVerifyEmailToken(ctx context.Context, token string) (*VerifyEmailToken, error) {
-	key := r.key(verifyEmailPrefix, token)
-	data, err := r.client.Get(ctx, key).Bytes()
+	key := r.Key(verifyEmailPrefix, token)
+	data, err := r.Client.Get(ctx, key).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, ErrTokenNotFound
@@ -482,8 +498,8 @@ func (r *RedisClient) GetVerifyEmailToken(ctx context.Context, token string) (*V
 
 // DeleteVerifyEmailToken removes a verification token (after use)
 func (r *RedisClient) DeleteVerifyEmailToken(ctx context.Context, token string) error {
-	key := r.key(verifyEmailPrefix, token)
-	return r.client.Del(ctx, key).Err()
+	key := r.Key(verifyEmailPrefix, token)
+	return r.Client.Del(ctx, key).Err()
 }
 
 // =============================================================================
@@ -502,9 +518,9 @@ func (r *RedisClient) CheckRateLimit(ctx context.Context, key string, limit int6
 	now := time.Now()
 	windowStart := now.Add(-window)
 
-	redisKey := r.key(rateLimitPrefix, key)
+	redisKey := r.Key(rateLimitPrefix, key)
 
-	pipe := r.client.Pipeline()
+	pipe := r.Client.Pipeline()
 
 	// Remove old entries outside the window
 	pipe.ZRemRangeByScore(ctx, redisKey, "0", fmt.Sprintf("%d", windowStart.UnixNano()))
@@ -562,23 +578,23 @@ type LoginAttemptResult struct {
 
 // RecordLoginAttempt tracks failed login attempts
 func (r *RedisClient) RecordLoginAttempt(ctx context.Context, identifier string, success bool) (*LoginAttemptResult, error) {
-	key := r.key(loginAttemptPrefix, identifier)
+	key := r.Key(loginAttemptPrefix, identifier)
 
 	if success {
 		// Clear attempts on successful login
-		r.client.Del(ctx, key)
+		r.Client.Del(ctx, key)
 		return &LoginAttemptResult{Allowed: true, AttemptsLeft: maxLoginAttempts}, nil
 	}
 
 	// Increment failed attempts
-	count, err := r.client.Incr(ctx, key).Result()
+	count, err := r.Client.Incr(ctx, key).Result()
 	if err != nil {
 		return nil, err
 	}
 
 	// Set expiry on first attempt
 	if count == 1 {
-		r.client.Expire(ctx, key, loginAttemptWindow)
+		r.Client.Expire(ctx, key, loginAttemptWindow)
 	}
 
 	attemptsLeft := maxLoginAttempts - int(count)
@@ -593,9 +609,9 @@ func (r *RedisClient) RecordLoginAttempt(ctx context.Context, identifier string,
 
 	// If max attempts reached, set lockout
 	if count >= maxLoginAttempts {
-		lockoutKey := r.key(loginAttemptPrefix, "lockout", identifier)
+		lockoutKey := r.Key(loginAttemptPrefix, "lockout", identifier)
 		lockedUntil := time.Now().Add(loginLockoutDuration)
-		r.client.Set(ctx, lockoutKey, lockedUntil.Unix(), loginLockoutDuration)
+		r.Client.Set(ctx, lockoutKey, lockedUntil.Unix(), loginLockoutDuration)
 		result.LockedUntil = &lockedUntil
 		result.LockoutDuration = loginLockoutDuration
 	}
@@ -605,8 +621,8 @@ func (r *RedisClient) RecordLoginAttempt(ctx context.Context, identifier string,
 
 // IsLoginLocked checks if an identifier is locked out
 func (r *RedisClient) IsLoginLocked(ctx context.Context, identifier string) (bool, *time.Time, error) {
-	lockoutKey := r.key(loginAttemptPrefix, "lockout", identifier)
-	timestamp, err := r.client.Get(ctx, lockoutKey).Int64()
+	lockoutKey := r.Key(loginAttemptPrefix, "lockout", identifier)
+	timestamp, err := r.Client.Get(ctx, lockoutKey).Int64()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return false, nil, nil
@@ -617,7 +633,7 @@ func (r *RedisClient) IsLoginLocked(ctx context.Context, identifier string) (boo
 	lockedUntil := time.Unix(timestamp, 0)
 	if time.Now().After(lockedUntil) {
 		// Lockout expired, clean up
-		r.client.Del(ctx, lockoutKey)
+		r.Client.Del(ctx, lockoutKey)
 		return false, nil, nil
 	}
 
@@ -626,9 +642,9 @@ func (r *RedisClient) IsLoginLocked(ctx context.Context, identifier string) (boo
 
 // ClearLoginAttempts clears login attempts for an identifier
 func (r *RedisClient) ClearLoginAttempts(ctx context.Context, identifier string) error {
-	key := r.key(loginAttemptPrefix, identifier)
-	lockoutKey := r.key(loginAttemptPrefix, "lockout", identifier)
-	return r.client.Del(ctx, key, lockoutKey).Err()
+	key := r.Key(loginAttemptPrefix, identifier)
+	lockoutKey := r.Key(loginAttemptPrefix, "lockout", identifier)
+	return r.Client.Del(ctx, key, lockoutKey).Err()
 }
 
 // =============================================================================
@@ -639,18 +655,18 @@ const featureFlagPrefix = "feature_flags"
 
 // CacheFeatureFlags caches feature flags for a tenant/environment
 func (r *RedisClient) CacheFeatureFlags(ctx context.Context, tenantID, envID string, flags map[string]bool, ttl time.Duration) error {
-	key := r.key(featureFlagPrefix, tenantID, envID)
+	key := r.Key(featureFlagPrefix, tenantID, envID)
 	data, err := json.Marshal(flags)
 	if err != nil {
 		return err
 	}
-	return r.client.Set(ctx, key, data, ttl).Err()
+	return r.Client.Set(ctx, key, data, ttl).Err()
 }
 
 // GetFeatureFlags retrieves cached feature flags
 func (r *RedisClient) GetFeatureFlags(ctx context.Context, tenantID, envID string) (map[string]bool, error) {
-	key := r.key(featureFlagPrefix, tenantID, envID)
-	data, err := r.client.Get(ctx, key).Bytes()
+	key := r.Key(featureFlagPrefix, tenantID, envID)
+	data, err := r.Client.Get(ctx, key).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, ErrTokenNotFound
@@ -675,14 +691,14 @@ func (r *RedisClient) Publish(ctx context.Context, channel string, message any) 
 	if err != nil {
 		return err
 	}
-	return r.client.Publish(ctx, r.key(channel), data).Err()
+	return r.Client.Publish(ctx, r.Key(channel), data).Err()
 }
 
 // Subscribe returns a subscription to a channel
 func (r *RedisClient) Subscribe(ctx context.Context, channels ...string) *redis.PubSub {
 	prefixedChannels := make([]string, len(channels))
 	for i, ch := range channels {
-		prefixedChannels[i] = r.key(ch)
+		prefixedChannels[i] = r.Key(ch)
 	}
-	return r.client.Subscribe(ctx, prefixedChannels...)
+	return r.Client.Subscribe(ctx, prefixedChannels...)
 }

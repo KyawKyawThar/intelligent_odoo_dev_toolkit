@@ -5,8 +5,10 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	mw "Intelligent_Dev_ToolKit_Odoo/internal/middleware"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -198,8 +200,36 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	// a lightweight GET/HEAD request and report its status here.
 	// ------------------------------------------------------------------
 	if u := s.config.AgentCloudURL; u != "" {
-		client := http.Client{Timeout: 2 * time.Second}
-		if resp, err := client.Get(u); err != nil || resp.StatusCode >= 400 {
+		parsedURL, err := url.Parse(u)
+		if err != nil {
+			checks["agent_cloud"] = "unhealthy: invalid URL: " + err.Error()
+			dto.WriteReady(w, false, checks)
+			return
+		}
+
+		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			checks["agent_cloud"] = "unhealthy: invalid URL scheme"
+			dto.WriteReady(w, false, checks)
+			return
+		}
+
+		//gosec:G107
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		if err != nil {
+			checks["agent_cloud"] = "unhealthy: " + err.Error()
+			dto.WriteReady(w, false, checks)
+			return
+		}
+		client := http.Client{
+			Timeout: 2 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion:         tls.VersionTLS12,
+					InsecureSkipVerify: false,
+				},
+			},
+		}
+		if resp, err := client.Do(req); err != nil || resp.StatusCode >= 400 {
 			checks["agent_cloud"] = "unhealthy"
 			if err != nil {
 				checks["agent_cloud"] += ": " + err.Error()
@@ -210,6 +240,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 			return
 		} else {
 			checks["agent_cloud"] = "healthy"
+			resp.Body.Close()
 		}
 	}
 

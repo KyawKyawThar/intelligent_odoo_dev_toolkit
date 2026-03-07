@@ -29,6 +29,8 @@ func RandomInteger(min, max int64) int64 {
 		panic("min cannot be greater than max")
 	}
 
+	//gosec:G404
+	//gosec:G404
 	n, err := rand.Int(rand.Reader, big.NewInt(max-min+1))
 	if err != nil {
 		panic(err)

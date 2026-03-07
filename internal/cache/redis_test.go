@@ -1,4 +1,4 @@
-package cache
+package cache_test
 
 import (
 	"context"
@@ -7,14 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
+	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
 // setupTestRedis creates a miniredis instance and returns a RedisClient for testing
-func setupTestRedis(t *testing.T) (*RedisClient, *miniredis.Miniredis) {
+func setupTestRedis(t *testing.T) (*cache.RedisClient, *miniredis.Miniredis) {
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 
@@ -22,9 +23,9 @@ func setupTestRedis(t *testing.T) (*RedisClient, *miniredis.Miniredis) {
 		Addr: mr.Addr(),
 	})
 
-	rc := &RedisClient{
-		client: client,
-		prefix: "test:",
+	rc := &cache.RedisClient{
+		Client: client,
+		Prefix: "test:",
 	}
 
 	return rc, mr
@@ -34,7 +35,7 @@ func setupTestRedis(t *testing.T) (*RedisClient, *miniredis.Miniredis) {
 // ParseRedisConfig tests
 // -----------------------------------------------------------------------------
 func TestParseRedisConfig_SimpleHostPort(t *testing.T) {
-	cfg, err := ParseRedisConfig("localhost:6380")
+	cfg, err := cache.ParseRedisConfig("localhost:6380")
 	require.NoError(t, err)
 	require.Equal(t, "localhost", cfg.Host)
 	require.Equal(t, 6380, cfg.Port)
@@ -45,7 +46,7 @@ func TestParseRedisConfig_SimpleHostPort(t *testing.T) {
 
 func TestParseRedisConfig_URLWithPasswordAndDB(t *testing.T) {
 	input := "redis://:mypassword@redis.local:6381/2"
-	cfg, err := ParseRedisConfig(input)
+	cfg, err := cache.ParseRedisConfig(input)
 	require.NoError(t, err)
 	require.Equal(t, "redis.local", cfg.Host)
 	require.Equal(t, 6381, cfg.Port)
@@ -54,7 +55,7 @@ func TestParseRedisConfig_URLWithPasswordAndDB(t *testing.T) {
 }
 
 func TestParseRedisConfig_URLWithoutPortOrDB(t *testing.T) {
-	cfg, err := ParseRedisConfig("redis://redis.local")
+	cfg, err := cache.ParseRedisConfig("redis://redis.local")
 	require.NoError(t, err)
 	require.Equal(t, "redis.local", cfg.Host)
 	// default port is 6379
@@ -69,7 +70,7 @@ func TestNewRedisClientWithAddress(t *testing.T) {
 
 	addr := mr.Addr()
 	// supply a URI-like address (without scheme) to NewRedisClient
-	client, err := NewRedisClient(RedisConfig{
+	client, err := cache.NewRedisClient(cache.RedisConfig{
 		Address: addr,
 		Prefix:  "test:",
 	})
@@ -84,13 +85,13 @@ func TestNewRedisClientWithURLAddress(t *testing.T) {
 	defer mr.Close()
 
 	url := fmt.Sprintf("redis://:%s@%s/%d", "", mr.Addr(), 0)
-	client, err := NewRedisClient(RedisConfig{Address: url})
+	client, err := cache.NewRedisClient(cache.RedisConfig{Address: url})
 	require.NoError(t, err)
 	require.NotNil(t, client)
 	client.Close()
 }
 
-func teardownTestRedis(rc *RedisClient, mr *miniredis.Miniredis) {
+func teardownTestRedis(rc *cache.RedisClient, mr *miniredis.Miniredis) {
 	rc.Close()
 	mr.Close()
 }
@@ -126,7 +127,7 @@ func TestRedisClient_GetNotFound(t *testing.T) {
 	err := rc.Get(ctx, "nonexistent", &data)
 
 	require.Error(t, err)
-	require.ErrorIs(t, err, ErrKeyNotFound)
+	require.ErrorIs(t, err, cache.ErrKeyNotFound)
 }
 func TestRedisClient_SetStringAndGetString(t *testing.T) {
 	rc, mr := setupTestRedis(t)
@@ -196,7 +197,7 @@ func TestRedisClient_CreateAndGetSession(t *testing.T) {
 
 	ctx := context.Background()
 
-	session := &Session{
+	session := &cache.Session{
 		ID:           "session-123",
 		UserID:       "user-456",
 		TenantID:     "tenant-789",
@@ -230,7 +231,8 @@ func TestRedisClient_GetSessionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	session, err := rc.GetSession(ctx, "nonexistent-session")
-	require.NoError(t, err) // Not found is not an error
+	require.Error(t, err) // Not found is an error
+	require.ErrorIs(t, err, cache.ErrSessionNotFound)
 	require.Nil(t, session)
 }
 func TestRedisClient_DeleteSession(t *testing.T) {
@@ -239,7 +241,7 @@ func TestRedisClient_DeleteSession(t *testing.T) {
 
 	ctx := context.Background()
 
-	session := &Session{
+	session := &cache.Session{
 		ID:        "session-to-delete",
 		UserID:    "user-123",
 		TenantID:  "tenant-123",
@@ -260,7 +262,8 @@ func TestRedisClient_DeleteSession(t *testing.T) {
 
 	// Verify session is gone
 	retrieved, err = rc.GetSession(ctx, session.ID)
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, cache.ErrSessionNotFound)
 	require.Nil(t, retrieved)
 }
 func TestRedisClient_GetUserSessions(t *testing.T) {
@@ -271,14 +274,14 @@ func TestRedisClient_GetUserSessions(t *testing.T) {
 	userID := "user-multi-session"
 
 	// Create multiple sessions for the same user
-	session1 := &Session{
+	session1 := &cache.Session{
 		ID:        "session-1",
 		UserID:    userID,
 		TenantID:  "tenant-123",
 		UserAgent: "Chrome",
 		ExpiresAt: time.Now().UTC().Add(time.Hour),
 	}
-	session2 := &Session{
+	session2 := &cache.Session{
 		ID:        "session-2",
 		UserID:    userID,
 		TenantID:  "tenant-123",
@@ -305,7 +308,7 @@ func TestRedisClient_DeleteAllUserSessions(t *testing.T) {
 
 	// Create multiple sessions
 	for i := range 3 {
-		session := &Session{
+		session := &cache.Session{
 			ID:        fmt.Sprintf("session-%d", i),
 			UserID:    userID,
 			TenantID:  "tenant-123",
@@ -335,7 +338,7 @@ func TestRedisClient_RevokeSession(t *testing.T) {
 
 	ctx := context.Background()
 
-	session := &Session{
+	session := &cache.Session{
 		ID:        "session-revoke",
 		UserID:    "user-revoke",
 		TenantID:  "tenant-123",
@@ -350,7 +353,8 @@ func TestRedisClient_RevokeSession(t *testing.T) {
 	require.NoError(t, err)
 
 	retrieved, err := rc.GetSession(ctx, session.ID)
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, cache.ErrSessionNotFound)
 	require.Nil(t, retrieved)
 }
 func TestRedisClient_RevokeAllSessions(t *testing.T) {
@@ -360,7 +364,7 @@ func TestRedisClient_RevokeAllSessions(t *testing.T) {
 	ctx := context.Background()
 	userID := "user-revoke-all"
 
-	session := &Session{
+	session := &cache.Session{
 		ID:        "session-revoke-all",
 		UserID:    userID,
 		TenantID:  "tenant-123",
@@ -384,7 +388,7 @@ func TestRedisClient_CreateExpiredSession(t *testing.T) {
 
 	ctx := context.Background()
 
-	session := &Session{
+	session := &cache.Session{
 		ID:        "expired-session",
 		UserID:    "user-123",
 		TenantID:  "tenant-123",
@@ -439,7 +443,7 @@ func TestRedisClient_ResetToken(t *testing.T) {
 
 	ctx := context.Background()
 
-	resetToken := &ResetToken{
+	resetToken := &cache.ResetToken{
 		UserID:    "user-reset",
 		Email:     "user@example.com",
 		Token:     "reset-token-xyz",
@@ -464,7 +468,8 @@ func TestRedisClient_ResetToken(t *testing.T) {
 
 	// Verify it's gone
 	retrieved, err = rc.GetResetToken(ctx, resetToken.Token)
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, cache.ErrTokenNotFound)
 	require.Nil(t, retrieved)
 }
 func TestRedisClient_GetResetTokenNotFound(t *testing.T) {
@@ -474,7 +479,8 @@ func TestRedisClient_GetResetTokenNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	token, err := rc.GetResetToken(ctx, "nonexistent-token")
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, cache.ErrTokenNotFound)
 	require.Nil(t, token)
 }
 func TestRedisClient_VerifyEmailToken(t *testing.T) {
@@ -483,7 +489,7 @@ func TestRedisClient_VerifyEmailToken(t *testing.T) {
 
 	ctx := context.Background()
 
-	verifyToken := &VerifyEmailToken{
+	verifyToken := &cache.VerifyEmailToken{
 		UserID:    "user-verify",
 		Email:     "verify@example.com",
 		Token:     "verify-token-abc",
@@ -507,7 +513,8 @@ func TestRedisClient_VerifyEmailToken(t *testing.T) {
 
 	// Verify it's gone
 	retrieved, err = rc.GetVerifyEmailToken(ctx, verifyToken.Token)
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, cache.ErrTokenNotFound)
 	require.Nil(t, retrieved)
 }
 func TestRedisClient_RateLimit(t *testing.T) {
@@ -610,7 +617,8 @@ func TestRedisClient_GetFeatureFlagsNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	flags, err := rc.GetFeatureFlags(ctx, "nonexistent", "env")
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, cache.ErrTokenNotFound)
 	require.Nil(t, flags)
 }
 func TestRedisClient_KeyPrefix(t *testing.T) {
@@ -618,13 +626,13 @@ func TestRedisClient_KeyPrefix(t *testing.T) {
 	defer teardownTestRedis(rc, mr)
 
 	// Test key building
-	key := rc.key("session", "abc123")
+	key := rc.Key("session", "abc123")
 	require.Equal(t, "test:session:abc123", key)
 
-	key = rc.key("user_sessions", "user-1")
+	key = rc.Key("user_sessions", "user-1")
 	require.Equal(t, "test:user_sessions:user-1", key)
 
-	key = rc.key("a", "b", "c")
+	key = rc.Key("a", "b", "c")
 	require.Equal(t, "test:a:b:c", key)
 }
 
@@ -633,7 +641,7 @@ func TestRedisClient_Client(t *testing.T) {
 	defer teardownTestRedis(rc, mr)
 
 	// Verify Client() returns the underlying client
-	client := rc.Client()
+	client := rc.GetClient()
 	require.NotNil(t, client)
 
 	// Use it directly

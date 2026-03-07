@@ -75,16 +75,25 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    - name: Create test config
+      run: |
+        cat > .env << EOF
+        DATABASE_URL=postgres://testuser:testpassword@localhost:5432/odoodevtools_test?sslmode=disable
+        REDIS_HOST=localhost
+        REDIS_PORT=6379
+        REDIS_PASSWORD=
+        SERVER_PORT=8080
+        JWT_SECRET=test-secret-key-for-ci-testing-only
+        JWT_ACCESS_TOKEN_TTL=15m
+        JWT_REFRESH_TOKEN_TTL=24h
+        APP_ENV=test
+        EOF
+
     - name: Run unit tests
       run: |
         go test -v -race -short -coverprofile=coverage-unit.out ./...
       env:
         CGO_ENABLED: 1
-        DATABASE_URL: postgres://testuser:testpassword@localhost:5432/odoodevtools_test?sslmode=disable
-        REDIS_HOST: localhost
-        REDIS_PORT: 6379
-        REDIS_PASSWORD: ""
-        JWT_SECRET: test-secret-key-for-ci-testing-only
 
     - name: Upload unit test coverage
       uses: actions/upload-artifact@v4
@@ -170,16 +179,15 @@ jobs:
         REDIS_PORT: 6379
         REDIS_PASSWORD: ""
         JWT_SECRET: test-secret-key-for-ci-testing-only
+    #     - name: Upload integration test coverage
+    #       uses: actions/upload-artifact@v4
+    #       with:
+    #         name: coverage-integration
+    #         path: coverage-integration.out
 
-    - name: Upload integration test coverage
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-integration
-        path: coverage-integration.out
-
-  # ─────────────────────────────────────────────────────────────────
-  # Security Scanning
-  # ─────────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────
+    # Security Scanning
+    # ─────────────────────────────────────────────────────────────────
   security-scan:
     name: Security Scanning
     runs-on: ubuntu-latest

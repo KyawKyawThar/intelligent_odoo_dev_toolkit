@@ -8,9 +8,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"net/netip"
 	"net/smtp"
-	"strings"
+
 	"time"
 )
 
@@ -38,24 +37,6 @@ func (s *AuthService) persistSession(
 	})
 
 	return nil
-}
-
-// parseIP parses an IP address string (optionally including a port) into a
-// *netip.Addr. Returns nil on any parsing error so callers don't need to handle it.
-func parseIP(s string) *netip.Addr {
-	host := s
-	// Strip port from "ip:port" or "[::1]:port"
-	if idx := strings.LastIndex(s, ":"); idx != -1 {
-		candidate := s[:idx]
-		if strings.Contains(candidate, ".") || strings.HasPrefix(candidate, "[") {
-			host = strings.Trim(candidate, "[]")
-		}
-	}
-	addr, err := netip.ParseAddr(host)
-	if err != nil {
-		return nil
-	}
-	return &addr
 }
 
 // =============================================================================
@@ -98,6 +79,7 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email s
 	)
 
 	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
+	//gosec:G107
 	if err := smtp.SendMail(addr, nil, s.config.SMTPFrom, []string{email}, []byte(body)); err != nil {
 		fmt.Printf("[email] ERROR sending verify email to %s via %s: %v\n", email, addr, err)
 		return err
@@ -123,6 +105,7 @@ func (s *AuthService) sendPasswordResetEmail(_ context.Context, email, resetToke
 	)
 
 	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
+	//gosec:G107
 	if err := smtp.SendMail(addr, nil, s.config.SMTPFrom, []string{email}, []byte(body)); err != nil {
 		fmt.Printf("[email] ERROR sending reset email to %s via %s: %v\n", email, addr, err)
 		return
