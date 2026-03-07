@@ -251,7 +251,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	dto.WriteJSON(w, http.StatusOK, map[string]string{
 		"version":     "1.0.0",
 		"api_version": "v1",
-		"go_version":  "1.24.4",
+		"go_version":  "1.26.1",
 	})
 }
 
