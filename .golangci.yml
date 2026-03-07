@@ -1,0 +1,185 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  tests: true
+  # NOTE: skip-dirs removed in golangci-lint v2
+  # Moved to issues.exclude-rules / linters.exclusions.paths below
+
+linters:
+  enable:
+  # Default linters
+  - errcheck
+  - gosimple
+  - govet
+  - ineffassign
+  - staticcheck
+  - unused
+
+  # Additional recommended linters
+  - bodyclose # Checks HTTP response body is closed
+  - contextcheck # Check context.Context usage
+  - dupl # Code duplication detection
+  - durationcheck # Check time.Duration calculations
+  - errname # Error naming conventions
+  - errorlint # Error wrapping and comparison
+  - exhaustive # Exhaustive switch statements
+  - copyloopvar # Loop variable capture (replaces exportloopref, removed in v2)
+  - forbidigo # Forbidden identifiers
+  - gocognit # Cognitive complexity
+  - goconst # Repeated strings that could be constants
+  - gocritic # Various code issues
+  - gocyclo # Cyclomatic complexity
+  - godot # Check comment endings
+  # NOTE: gofmt and goimports are FORMATTERS in golangci-lint v2.
+  # Move them to a formatters: section or run: golangci-lint fmt
+  # They still work here in v1-compat mode but will warn.
+  - gofmt # Code formatting
+  - goimports # Import formatting
+  - gosec # Security issues
+  - misspell # Spelling mistakes
+  - nakedret # Naked returns in long functions
+  - nilerr # nil error returns
+  - nilnil # Multiple nil returns
+  - noctx # HTTP requests without context
+  - nolintlint # Malformed nolint directives
+  - prealloc # Slice preallocation
+  - predeclared # Shadowing predeclared identifiers
+  - revive # Replacement for golint
+  - sqlclosecheck # SQL rows/statements close
+  - stylecheck # Style issues
+  # - tenv  # REMOVED in golangci-lint v2 — use t.Setenv() directly in your tests
+  - tparallel # Test parallelism
+  - unconvert # Unnecessary type conversions
+  - unparam # Unused function parameters
+  - wastedassign # Wasted assignments
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    exclude-functions:
+    - (io.Closer).Close
+    - (net/http.ResponseWriter).Write
+
+  govet:
+    enable-all: true
+    disable:
+    - fieldalignment # Too strict for most cases
+
+  gocyclo:
+    min-complexity: 15
+
+  gocognit:
+    min-complexity: 20
+
+  dupl:
+    threshold: 100
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  gocritic:
+    enabled-tags:
+    - diagnostic
+    - experimental
+    - opinionated
+    - performance
+    - style
+    disabled-checks:
+    - hugeParam
+    - rangeValCopy
+
+  gosec:
+    excludes:
+    - G104 # Audit errors not checked (handled by errcheck)
+    - G304 # File path provided as taint input (common in CLIs)
+
+  misspell:
+    locale: US
+
+  nakedret:
+    max-func-lines: 30
+
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: true
+
+  revive:
+    rules:
+    - name: blank-imports
+    - name: context-as-argument
+    - name: context-keys-type
+    - name: dot-imports
+    - name: error-return
+    - name: error-strings
+    - name: error-naming
+    - name: exported
+    - name: if-return
+    - name: increment-decrement
+    - name: var-naming
+    - name: var-declaration
+    - name: package-comments
+    - name: range
+    - name: receiver-naming
+    - name: time-naming
+    - name: unexported-return
+    - name: indent-error-flow
+    - name: errorf
+    - name: empty-block
+    - name: superfluous-else
+    - name: unreachable-code
+
+  stylecheck:
+    checks: [ "all", "-ST1000", "-ST1003", "-ST1016" ]
+    dot-import-whitelist:
+    - github.com/onsi/ginkgo/v2
+    - github.com/onsi/gomega
+
+issues:
+  exclude-rules:
+  # Exclude some linters from running on tests files
+  - path: _test\.go
+    linters:
+    - dupl
+    - gocyclo
+    - gocognit
+    - gosec
+    - errcheck
+    - goconst
+
+  # Exclude some linters from running on generated files
+  - path: db/sqlc/
+    linters:
+    - dupl
+    - gocritic
+    - stylecheck
+    - revive
+
+  # Exclude vendor and testdata (replaces removed run.skip-dirs in v2)
+  - path: vendor/
+    linters: [ all ]
+  - path: testdata/
+    linters: [ all ]
+
+  # Ignore long lines in comments
+  - linters:
+    - lll
+    source: "^//go:"
+
+  max-issues-per-linter: 50
+  max-same-issues: 10
+  new: false
+
+severity:
+  default-severity: warning
+  rules:
+  - linters:
+    - gosec
+    severity: error
+  - linters:
+    - errcheck
+    severity: error

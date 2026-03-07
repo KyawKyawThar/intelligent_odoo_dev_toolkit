@@ -231,3 +231,22 @@ func (q *Queries) TouchSession(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, touchSession, id)
 	return err
 }
+
+const updateSessionToken = `-- name: UpdateSessionToken :exec
+UPDATE sessions
+SET refresh_token = $2,
+    expires_at = $3,
+    last_used_at = now()
+WHERE id = $1
+`
+
+type UpdateSessionTokenParams struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	RefreshToken string    `db:"refresh_token" json:"refresh_token"`
+	ExpiresAt    time.Time `db:"expires_at" json:"expires_at"`
+}
+
+func (q *Queries) UpdateSessionToken(ctx context.Context, arg UpdateSessionTokenParams) error {
+	_, err := q.db.Exec(ctx, updateSessionToken, arg.ID, arg.RefreshToken, arg.ExpiresAt)
+	return err
+}

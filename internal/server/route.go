@@ -2,8 +2,10 @@ package server
 
 import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
+	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	mw "Intelligent_Dev_ToolKit_Odoo/internal/middleware"
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func (s *Server) setupRoutes() {
@@ -66,38 +69,356 @@ func (s *Server) setupRoutes() {
 	// ==========================================================================
 
 	// Health checks
-	r.Get("/api/v1/health", s.handleHealth)
 	r.Get("/api/v1/ready", s.handleReady)
-	r.Get("/api/v1/not_implement", s.handler.HandleRegister)
+	r.Get("/api/v1/not_implement", s.handler.Auth.HandleNotImplement)
 
+	r.Group(func(r chi.Router) {
+		r.Use(mw.SwaggerCSP)
+		r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/docs/", http.StatusMovedPermanently)
+		})
+		r.Get("/docs/*", httpSwagger.Handler(
+			httpSwagger.URL("/docs/doc.json"),
+			httpSwagger.DeepLinking(true),
+			httpSwagger.DocExpansion("list"),
+		))
+	})
+
+	// Root
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		dto.WriteJSON(w, http.StatusOK, map[string]string{
+			"service": "OdooDevTools API",
+			"version": "1.0.0",
+			"status":  "running",
+			"docs":    "/docs",
+		})
+	})
+	r.Route("/api/v1", func(r chi.Router) {
+		// --------------------
+		// Public endpoints
+		// --------------------
+
+		r.Get("/health", s.handleHealth)
+		r.Get("/version", s.handleVersion)
+
+		// Authentication (public)
+		r.Route("/auth", func(r chi.Router) {
+
+			// Public auth endpoints (no authentication required)
+			if s.handler.Auth != nil {
+				r.Post("/register", s.handler.Auth.HandleRegister)
+				r.Post("/login", s.handler.Auth.HandleLogin)
+				r.Post("/refresh", s.handler.Auth.HandleRefreshToken)
+				r.Post("/forgot-password", s.handler.Auth.HandleForgotPassword)
+				r.Post("/reset-password", s.handler.Auth.HandleResetPassword)
+				r.Post("/verify-email", s.handler.Auth.HandleVerifyEmail)
+			} else {
+				// Fallback to not implemented
+				r.Post("/register", s.handleRegister)
+				r.Post("/login", s.handleLogin)
+				r.Post("/refresh", s.handleRefreshToken)
+				r.Post("/forgot-password", s.handleForgotPassword)
+				r.Post("/reset-password", s.handleResetPassword)
+			}
+		})
+	})
+
+	// --------------------
+	// Protected endpoints (JWT auth)
+	// --------------------
+
+	r.Group(func(r chi.Router) {
+		// JWT Authentication - use service-based auth if available (checks Redis blacklist)
+		if s.services != nil {
+			r.Use(mw.JWTAuthWithService(s.services.Auth))
+		} else {
+			r.Use(mw.JWTAuth(s.tokenMaker))
+		}
+
+		// Tenant Resolution
+		r.Use(mw.TenantResolver(mw.DatabaseTenantLookup(s.store)))
+
+		r.Use(mw.TieredRateLimit(mw.DefaultPlanLimits))
+
+		// Authenticated Auth endpoints
+		if s.handler.Auth != nil {
+			r.Post("/api/v1/auth/logout", s.handler.Auth.HandleLogout)
+			r.Get("/api/v1/auth/me", s.handler.Auth.HandleGetCurrentUser)
+			r.Patch("/api/v1/auth/me", s.handler.Auth.HandleUpdateCurrentUser)
+			r.Post("/api/v1/auth/change-password", s.handler.Auth.HandleChangePassword)
+			r.Get("/api/v1/auth/sessions", s.handler.Auth.HandleGetSessions)
+			r.Delete("/api/v1/auth/sessions/{session_id}", s.handler.Auth.HandleRevokeSession)
+			r.Post("/api/v1/auth/resend-verification", s.handler.Auth.HandleResendVerification)
+		} else {
+			r.Post("/api/v1/auth/logout", s.handleLogout)
+			r.Get("/api/v1/auth/me", s.handleGetCurrentUser)
+			r.Patch("/api/v1/auth/me", s.handleUpdateCurrentUser)
+			r.Post("/api/v1/auth/change-password", s.handleChangePassword)
+		}
+	})
 	s.router = r
 }
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	api.WriteJSON(w, http.StatusOK, map[string]string{
+	dto.WriteJSON(w, http.StatusOK, map[string]string{
 		"status": "healthy",
 	})
 }
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	checks := make(map[string]string)
-	// Check database connectivity
+
+	// create a cancellable context so that individual probes don't hang
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	// ------------------------------------------------------------------
+	// database
+	// ------------------------------------------------------------------
 	if err := s.store.Ping(ctx); err != nil {
 		checks["database"] = "unhealthy: " + err.Error()
-		api.WriteReady(w, false, checks)
+		dto.WriteReady(w, false, checks)
 		return
 	}
 	checks["database"] = "healthy"
 
-	// TODO: Add other checks (e.g., cache, external services)
+	// ------------------------------------------------------------------
+	// cache (redis) – optional component
+	// ------------------------------------------------------------------
+	if s.cache != nil {
+		if err := s.cache.Client().Ping(ctx).Err(); err != nil {
+			checks["cache"] = "unhealthy: " + err.Error()
+			dto.WriteReady(w, false, checks)
+			return
+		}
+		checks["cache"] = "healthy"
+	}
 
-	api.WriteReady(w, true, checks)
+	// ------------------------------------------------------------------
+	// external services (example)
+	// if your application depends on a third party API you can perform
+	// a lightweight GET/HEAD request and report its status here.
+	// ------------------------------------------------------------------
+	if u := s.config.AgentCloudURL; u != "" {
+		client := http.Client{Timeout: 2 * time.Second}
+		if resp, err := client.Get(u); err != nil || resp.StatusCode >= 400 {
+			checks["agent_cloud"] = "unhealthy"
+			if err != nil {
+				checks["agent_cloud"] += ": " + err.Error()
+			} else {
+				checks["agent_cloud"] += fmt.Sprintf(" status=%d", resp.StatusCode)
+			}
+			dto.WriteReady(w, false, checks)
+			return
+		} else {
+			checks["agent_cloud"] = "healthy"
+		}
+	}
+
+	dto.WriteReady(w, true, checks)
 }
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
-	api.WriteJSON(w, http.StatusOK, map[string]string{
+	dto.WriteJSON(w, http.StatusOK, map[string]string{
 		"version":     "1.0.0",
 		"api_version": "v1",
-		"go_version":  "1.21",
+		"go_version":  "1.24.4",
+	})
+}
+
+func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
+
+	var req dto.RegisterRequest
+	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+	}
+
+	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+
+	resp, err := s.services.Auth.Register(r.Context(), &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
+
+	if err != nil {
+		s.handler.Auth.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteCreated(w, r, resp)
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var req dto.LoginRequest
+	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+
+	resp, err := s.services.Auth.Login(r.Context(), &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
+	if err != nil {
+		s.handler.Auth.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, resp)
+}
+
+func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
+
+	var req dto.RefreshTokenRequest
+	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+
+	resp, err := s.services.Auth.RefreshToken(r.Context(), &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
+	if err != nil {
+		s.handler.Auth.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, resp)
+}
+
+func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req dto.ForgotPasswordRequest
+	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+
+	// Intentionally ignore the error — security requirement
+	_ = s.services.Auth.ForgotPassword(r.Context(), &req)
+
+	dto.WriteSuccess(w, r, map[string]any{
+		"message": "If that email address is registered you will receive a reset link shortly.",
+	})
+}
+
+func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+
+	var req dto.ResetPasswordRequest
+	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+
+	if err := s.services.Auth.ResetPassword(r.Context(), &req); err != nil {
+		s.handler.Auth.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, map[string]any{
+		"message": "Password has been reset. Please log in with your new password.",
+	})
+}
+
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	BearerToken := s.handler.Auth.BearerToken(r)
+	if BearerToken == "" {
+		s.handler.Auth.WriteErr(w, r, api.ErrMissingAuthHeader())
+		return
+	}
+
+	// Body is optional — default to single-token logout
+	var req dto.LogoutRequest
+	_ = s.handler.Auth.DecodeJSON(r, &req) // intentionally ignoring parse errors
+
+	if err := s.services.Auth.Logout(r.Context(), BearerToken, &req); err != nil {
+		s.handler.Auth.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteNoContent(w)
+}
+
+func (s *Server) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := s.handler.Auth.MustUserID(w, r)
+	if !ok {
+		return
+	}
+	tenantID, ok := s.handler.Auth.MustTenantID(w, r)
+	if !ok {
+		return
+	}
+
+	user, err := s.services.Auth.GetCurrentUser(r.Context(), userID, tenantID)
+	if err != nil {
+		s.handler.Auth.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, user)
+}
+func (s *Server) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := s.handler.Auth.MustUserID(w, r)
+	if !ok {
+		return
+	}
+	tenantID, ok := s.handler.Auth.MustTenantID(w, r)
+	if !ok {
+		return
+	}
+
+	var req dto.UpdateUserRequest
+	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+
+	user, err := s.services.Auth.UpdateCurrentUser(r.Context(), userID, tenantID, &req)
+	if err != nil {
+		s.handler.Auth.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, user)
+}
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+
+	userID, ok := s.handler.Auth.MustUserID(w, r)
+	if !ok {
+		return
+	}
+	tenantID, ok := s.handler.Auth.MustTenantID(w, r)
+	if !ok {
+		return
+	}
+
+	var req dto.ChangePasswordRequest
+	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
+		s.handler.Auth.WriteErr(w, r, apiErr)
+		return
+	}
+
+	if err := s.services.Auth.ChangePassword(r.Context(), userID, tenantID, &req); err != nil {
+		s.handler.Auth.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, map[string]any{
+		"message": "Password changed successfully. Please log in again.",
 	})
 }

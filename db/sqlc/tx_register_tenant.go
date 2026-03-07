@@ -90,12 +90,12 @@ func (store *SQLStore) RegisterTenantTx(ctx context.Context, arg RegisterTenantP
 
 		// 2. Create owner user
 		result.User, err = q.CreateUser(ctx, CreateUserParams{
-			TenantID:     result.Tenant.ID,
-			Email:        arg.OwnerEmail,
-			PasswordHash: arg.PasswordHash,
-			FullName:     optionalStringPtr(arg.FullName), // nil if empty
-			Role:         "owner",
-			IsActive:     true,
+			TenantID:      result.Tenant.ID,
+			Email:         arg.OwnerEmail,
+			PasswordHash:  arg.PasswordHash,
+			FullName:      optionalStringPtr(arg.FullName), // nil if empty
+			EmailVerified: false,
+			IsActive:      true,
 		})
 		if err != nil {
 			return err

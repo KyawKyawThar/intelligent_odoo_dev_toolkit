@@ -31,12 +31,12 @@ func createTestUser(t *testing.T, tenantID uuid.UUID) User {
 	email := utils.RandomString(8) + "@example.com"
 	fullName := "Test User"
 	user, err := testStore.CreateUser(context.Background(), CreateUserParams{
-		TenantID:     tenantID,
-		Email:        email,
-		PasswordHash: "$2a$10$" + utils.RandomString(50),
-		FullName:     &fullName,
-		Role:         "admin",
-		IsActive:     true,
+		TenantID:      tenantID,
+		Email:         email,
+		PasswordHash:  "$2a$10$" + utils.RandomString(50),
+		FullName:      &fullName,
+		EmailVerified: true,
+		IsActive:      true,
 	})
 	require.NoError(t, err)
 	require.NotZero(t, user.ID)
@@ -250,12 +250,12 @@ func TestCreateUser_AllFields(t *testing.T) {
 	email := utils.RandomString(8) + "@test.com"
 
 	user, err := testStore.CreateUser(context.Background(), CreateUserParams{
-		TenantID:     tenant.ID,
-		Email:        email,
-		PasswordHash: "$2a$10$hashedpassword",
-		FullName:     &fullName,
-		Role:         "admin",
-		IsActive:     true,
+		TenantID:      tenant.ID,
+		Email:         email,
+		PasswordHash:  "$2a$10$hashedpassword",
+		FullName:      &fullName,
+		EmailVerified: true,
+		IsActive:      true,
 	})
 	require.NoError(t, err)
 
@@ -264,7 +264,7 @@ func TestCreateUser_AllFields(t *testing.T) {
 	require.Equal(t, email, user.Email)
 	require.Equal(t, "$2a$10$hashedpassword", user.PasswordHash)
 	require.Equal(t, "Nicholas Dev", *user.FullName)
-	require.Equal(t, "admin", user.Role)
+	require.True(t, user.EmailVerified)
 	require.True(t, user.IsActive)
 	require.Nil(t, user.LastLoginAt)
 	require.NotZero(t, user.CreatedAt)
@@ -273,11 +273,11 @@ func TestCreateUser_NilFullName(t *testing.T) {
 	tenant := createTestTenant(t)
 
 	user, err := testStore.CreateUser(context.Background(), CreateUserParams{
-		TenantID:     tenant.ID,
-		Email:        utils.RandomString(8) + "@test.com",
-		PasswordHash: "$2a$10$hash",
-		Role:         "viewer",
-		IsActive:     true,
+		TenantID:      tenant.ID,
+		Email:         utils.RandomString(8) + "@test.com",
+		PasswordHash:  "$2a$10$hash",
+		EmailVerified: false,
+		IsActive:      true,
 	})
 	require.NoError(t, err)
 	require.Nil(t, user.FullName)
@@ -286,11 +286,11 @@ func TestCreateUser_InactiveUser(t *testing.T) {
 	tenant := createTestTenant(t)
 
 	user, err := testStore.CreateUser(context.Background(), CreateUserParams{
-		TenantID:     tenant.ID,
-		Email:        utils.RandomString(8) + "@test.com",
-		PasswordHash: "$2a$10$hash",
-		Role:         "viewer",
-		IsActive:     false,
+		TenantID:      tenant.ID,
+		Email:         utils.RandomString(8) + "@test.com",
+		PasswordHash:  "$2a$10$hash",
+		EmailVerified: true,
+		IsActive:      false,
 	})
 	require.NoError(t, err)
 	require.False(t, user.IsActive)
@@ -367,11 +367,11 @@ func TestGetUserByEmailGlobal_InactiveUser_NotFound(t *testing.T) {
 	email := utils.RandomString(8) + "@test.com"
 
 	_, err := testStore.CreateUser(context.Background(), CreateUserParams{
-		TenantID:     tenant.ID,
-		Email:        email,
-		PasswordHash: "$2a$10$hash",
-		Role:         "viewer",
-		IsActive:     false,
+		TenantID:      tenant.ID,
+		Email:         email,
+		PasswordHash:  "$2a$10$hash",
+		EmailVerified: false,
+		IsActive:      false,
 	})
 	require.NoError(t, err)
 
@@ -440,15 +440,15 @@ func TestUpdateUser_AllFields(t *testing.T) {
 	newName := "Updated Name"
 
 	updated, err := testStore.UpdateUser(context.Background(), UpdateUserParams{
-		ID:       user.ID,
-		FullName: &newName,
-		Role:     "viewer",
-		IsActive: false,
-		TenantID: tenant.ID,
+		ID:            user.ID,
+		FullName:      &newName,
+		EmailVerified: false,
+		IsActive:      false,
+		TenantID:      tenant.ID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "Updated Name", *updated.FullName)
-	require.Equal(t, "viewer", updated.Role)
+	require.False(t, updated.EmailVerified)
 	require.False(t, updated.IsActive)
 	require.Equal(t, user.Email, updated.Email)
 }
@@ -458,10 +458,10 @@ func TestUpdateUser_WrongTenant(t *testing.T) {
 	user := createTestUser(t, t1.ID)
 
 	_, err := testStore.UpdateUser(context.Background(), UpdateUserParams{
-		ID:       user.ID,
-		Role:     "admin",
-		IsActive: true,
-		TenantID: t2.ID,
+		ID:            user.ID,
+		EmailVerified: true,
+		IsActive:      true,
+		TenantID:      t2.ID,
 	})
 	require.Error(t, err)
 }
@@ -470,7 +470,7 @@ func TestUpdateUser_UpdatedAtAdvances(t *testing.T) {
 	user := createTestUser(t, tenant.ID)
 
 	updated, err := testStore.UpdateUser(context.Background(), UpdateUserParams{
-		ID: user.ID, Role: "viewer", IsActive: true, TenantID: tenant.ID,
+		ID: user.ID, EmailVerified: true, IsActive: true, TenantID: tenant.ID,
 	})
 	require.NoError(t, err)
 	require.True(t, updated.UpdatedAt.After(user.UpdatedAt) ||

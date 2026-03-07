@@ -1,0 +1,718 @@
+basePath: /api/v1
+definitions:
+  api.APIError:
+    properties:
+      code:
+        $ref: '#/definitions/api.ErrorCode'
+      details:
+        items:
+          $ref: '#/definitions/api.ErrorDetail'
+        type: array
+      message:
+        type: string
+      request_id:
+        type: string
+    type: object
+  api.ErrorCode:
+    enum:
+    - VALIDATION_ERROR
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - CONFLICT
+    - UNPROCESSABLE_ENTITY
+    - RATE_LIMITED
+    - BAD_REQUEST
+    - PAYLOAD_TOO_LARGE
+    - INTERNAL_ERROR
+    - SERVICE_UNAVAILABLE
+    - TIMEOUT
+    - DATABASE_ERROR
+    - TENANT_NOT_FOUND
+    - ENVIRONMENT_NOT_FOUND
+    - AGENT_NOT_CONNECTED
+    - AGENT_NOT_FOUND
+    - QUOTA_EXCEEDED
+    - PLAN_LIMIT_REACHED
+    - INVALID_API_KEY
+    - EXPIRED_API_KEY
+    - INVALID_TOKEN
+    - EXPIRED_TOKEN
+    - INVALID_CREDENTIALS
+    - EMAIL_ALREADY_EXISTS
+    - SLUG_ALREADY_EXISTS
+    - INVALID_SCOPE
+    - SCHEMA_SNAPSHOT_NOT_FOUND
+    - MIGRATION_SCAN_NOT_FOUND
+    - ERROR_GROUP_NOT_FOUND
+    - ALERT_RULE_NOT_FOUND
+    - ALERT_CHANNEL_NOT_FOUND
+    - PROFILER_RECORDING_NOT_FOUND
+    - ANON_PROFILE_NOT_FOUND
+    - ANON_JOB_NOT_FOUND
+    - INVALID_ODOO_VERSION
+    - INVALID_DOMAIN
+    type: string
+    x-enum-varnames:
+    - ErrCodeValidation
+    - ErrCodeUnauthorized
+    - ErrCodeForbidden
+    - ErrCodeNotFound
+    - ErrCodeConflict
+    - ErrCodeUnprocessable
+    - ErrCodeRateLimited
+    - ErrCodeBadRequest
+    - ErrCodePayloadTooLarge
+    - ErrCodeInternal
+    - ErrCodeUnavailable
+    - ErrCodeTimeout
+    - ErrCodeDatabase
+    - ErrCodeTenantNotFound
+    - ErrCodeEnvironmentNotFound
+    - ErrCodeAgentNotConnected
+    - ErrCodeAgentNotFound
+    - ErrCodeQuotaExceeded
+    - ErrCodePlanLimitReached
+    - ErrCodeInvalidAPIKey
+    - ErrCodeExpiredAPIKey
+    - ErrCodeInvalidToken
+    - ErrCodeExpiredToken
+    - ErrCodeInvalidCredentials
+    - ErrCodeEmailAlreadyExists
+    - ErrCodeSlugAlreadyExists
+    - ErrCodeInvalidScope
+    - ErrCodeSchemaSnapshotNotFound
+    - ErrCodeMigrationScanNotFound
+    - ErrCodeErrorGroupNotFound
+    - ErrCodeAlertRuleNotFound
+    - ErrCodeAlertChannelNotFound
+    - ErrCodeProfilerRecordingNotFound
+    - ErrCodeAnonProfileNotFound
+    - ErrCodeAnonJobNotFound
+    - ErrCodeInvalidOdooVersion
+    - ErrCodeInvalidDomain
+  api.ErrorDetail:
+    properties:
+      code:
+        type: string
+      field:
+        type: string
+      message:
+        type: string
+      value: {}
+    type: object
+  dto.ChangePasswordRequest:
+    properties:
+      current_password:
+        type: string
+      new_password:
+        minLength: 8
+        type: string
+    required:
+    - current_password
+    - new_password
+    type: object
+  dto.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+      user:
+        $ref: '#/definitions/dto.UserResponse'
+    type: object
+  dto.LogoutRequest:
+    properties:
+      logout_all:
+        description: true = revoke all sessions
+        type: boolean
+      session_id:
+        description: specific session; empty = current token only
+        type: string
+    type: object
+  dto.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.RefreshTokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  dto.RegisterRequest:
+    properties:
+      email:
+        type: string
+      full_name:
+        maxLength: 100
+        type: string
+      password:
+        minLength: 8
+        type: string
+      tenant_name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      tenant_slug:
+        maxLength: 50
+        minLength: 2
+        type: string
+    required:
+    - email
+    - password
+    - tenant_name
+    - tenant_slug
+    type: object
+  dto.ResetPasswordRequest:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
+    type: object
+  dto.SessionResponse:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      ip_address:
+        type: string
+      last_active_at:
+        type: string
+      user_agent:
+        type: string
+    type: object
+  dto.UpdateUserRequest:
+    properties:
+      email:
+        type: string
+      full_name:
+        maxLength: 100
+        type: string
+    type: object
+  dto.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      full_name:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      last_login_at:
+        type: string
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.VerifyEmailRequest:
+    properties:
+      token:
+        type: string
+    required:
+    - token
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: API Support
+    url: http://example.com/support
+  description: A comprehensive development toolkit for Odoo environments with profiling,
+    monitoring, and optimization features.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: OdooDevTools API
+  version: 1.0.0
+paths:
+  /auth/change-password:
+    post:
+      consumes:
+      - application/json
+      description: Lets a logged-in user change their own password. Requires the current
+        password for verification. All sessions are revoked on success.
+      parameters:
+      - description: Current and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Change password
+      tags:
+      - Auth
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Always returns HTTP 200 regardless of whether the email is registered
+        (prevents user enumeration). Sends a reset link via MailHog when the account
+        exists.
+      parameters:
+      - description: Email address
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Forgot password
+      tags:
+      - Auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user by email and password. Enforces brute-force
+        protection via Redis. Returns an access and refresh token pair.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      security:
+      - none: []
+      summary: Login
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Invalidates the current session or all sessions when logout_all=true.
+        Requires a valid Bearer token.
+      parameters:
+      - description: Logout options (optional)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/dto.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Logout
+      tags:
+      - Auth
+  /auth/me:
+    get:
+      description: Returns the profile of the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - Auth
+    patch:
+      consumes:
+      - application/json
+      description: Updates full_name and/or email for the authenticated user. If the
+        email is changed a new verification email is sent via MailHog.
+      parameters:
+      - description: Fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Update current user
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Rotates the refresh token (old one is blacklisted in Redis) and
+        issues a new access + refresh pair.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RefreshTokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Refresh token
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new tenant and owner user, and returns an access and
+        refresh token.
+      parameters:
+      - description: User registration details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Register a new user
+      tags:
+      - Auth
+  /auth/resend-verification:
+    post:
+      description: Sends a fresh verification email via MailHog. Returns 409 if the
+        email is already verified.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Resend verification email
+      tags:
+      - Auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Consumes the one-time Redis token and updates the user's password.
+        All existing sessions are revoked on success.
+      parameters:
+      - description: Reset token and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Reset password
+      tags:
+      - Auth
+  /auth/sessions:
+    get:
+      description: Returns all active sessions for the authenticated user. Redis is
+        checked first; the DB is used as a fallback.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/dto.SessionResponse'
+              type: array
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Get active sessions
+      tags:
+      - Auth
+  /auth/sessions/{session_id}:
+    delete:
+      description: Invalidates a specific session by ID. The session must belong to
+        the authenticated user.
+      parameters:
+      - description: Session ID to revoke
+        in: path
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      security:
+      - BearerAuth: []
+      summary: Revoke session
+      tags:
+      - Auth
+  /auth/verify-email:
+    post:
+      consumes:
+      - application/json
+      description: Consumes the one-time Redis verification token and marks the user's
+        email as verified in the database.
+      parameters:
+      - description: Verification token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VerifyEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Verify email
+      tags:
+      - Auth
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

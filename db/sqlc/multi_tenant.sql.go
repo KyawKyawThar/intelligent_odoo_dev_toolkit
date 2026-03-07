@@ -81,20 +81,20 @@ INSERT INTO users (
     email,
     password_hash,
     full_name,
-    role,
+    email_verified,
     is_active
 ) VALUES (
     $1, $2, $3, $4, $5, $6
-) RETURNING id, tenant_id, email, password_hash, full_name, role, is_active, last_login_at, created_at, updated_at
+) RETURNING id, tenant_id, email, password_hash, full_name, email_verified, is_active, last_login_at, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	TenantID     uuid.UUID `db:"tenant_id" json:"tenant_id"`
-	Email        string    `db:"email" json:"email"`
-	PasswordHash string    `db:"password_hash" json:"password_hash"`
-	FullName     *string   `db:"full_name" json:"full_name"`
-	Role         string    `db:"role" json:"role"`
-	IsActive     bool      `db:"is_active" json:"is_active"`
+	TenantID      uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	Email         string    `db:"email" json:"email"`
+	PasswordHash  string    `db:"password_hash" json:"password_hash"`
+	FullName      *string   `db:"full_name" json:"full_name"`
+	EmailVerified bool      `db:"email_verified" json:"email_verified"`
+	IsActive      bool      `db:"is_active" json:"is_active"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -103,7 +103,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Email,
 		arg.PasswordHash,
 		arg.FullName,
-		arg.Role,
+		arg.EmailVerified,
 		arg.IsActive,
 	)
 	var i User
@@ -113,7 +113,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Email,
 		&i.PasswordHash,
 		&i.FullName,
-		&i.Role,
+		&i.EmailVerified,
 		&i.IsActive,
 		&i.LastLoginAt,
 		&i.CreatedAt,
@@ -212,7 +212,7 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, tenant_id, email, password_hash, full_name, role, is_active, last_login_at, created_at, updated_at FROM users
+SELECT id, tenant_id, email, password_hash, full_name, email_verified, is_active, last_login_at, created_at, updated_at FROM users
 WHERE email = $1 AND tenant_id = $2
 LIMIT 1
 `
@@ -231,7 +231,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) 
 		&i.Email,
 		&i.PasswordHash,
 		&i.FullName,
-		&i.Role,
+		&i.EmailVerified,
 		&i.IsActive,
 		&i.LastLoginAt,
 		&i.CreatedAt,
@@ -241,7 +241,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) 
 }
 
 const getUserByEmailGlobal = `-- name: GetUserByEmailGlobal :one
-SELECT u.id, u.tenant_id, u.email, u.password_hash, u.full_name, u.role, u.is_active, u.last_login_at, u.created_at, u.updated_at, t.slug AS tenant_slug, t.plan AS tenant_plan
+SELECT u.id, u.tenant_id, u.email, u.password_hash, u.full_name, u.email_verified, u.is_active, u.last_login_at, u.created_at, u.updated_at, t.slug AS tenant_slug, t.plan AS tenant_plan
 FROM users u
 JOIN tenants t ON u.tenant_id = t.id
 WHERE u.email = $1 AND u.is_active = true
@@ -249,18 +249,18 @@ LIMIT 1
 `
 
 type GetUserByEmailGlobalRow struct {
-	ID           uuid.UUID  `db:"id" json:"id"`
-	TenantID     uuid.UUID  `db:"tenant_id" json:"tenant_id"`
-	Email        string     `db:"email" json:"email"`
-	PasswordHash string     `db:"password_hash" json:"password_hash"`
-	FullName     *string    `db:"full_name" json:"full_name"`
-	Role         string     `db:"role" json:"role"`
-	IsActive     bool       `db:"is_active" json:"is_active"`
-	LastLoginAt  *time.Time `db:"last_login_at" json:"last_login_at"`
-	CreatedAt    time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time  `db:"updated_at" json:"updated_at"`
-	TenantSlug   string     `db:"tenant_slug" json:"tenant_slug"`
-	TenantPlan   string     `db:"tenant_plan" json:"tenant_plan"`
+	ID            uuid.UUID  `db:"id" json:"id"`
+	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	Email         string     `db:"email" json:"email"`
+	PasswordHash  string     `db:"password_hash" json:"password_hash"`
+	FullName      *string    `db:"full_name" json:"full_name"`
+	EmailVerified bool       `db:"email_verified" json:"email_verified"`
+	IsActive      bool       `db:"is_active" json:"is_active"`
+	LastLoginAt   *time.Time `db:"last_login_at" json:"last_login_at"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
+	TenantSlug    string     `db:"tenant_slug" json:"tenant_slug"`
+	TenantPlan    string     `db:"tenant_plan" json:"tenant_plan"`
 }
 
 // Login flow: user provides email only, we resolve tenant from the result
@@ -273,7 +273,7 @@ func (q *Queries) GetUserByEmailGlobal(ctx context.Context, email string) (GetUs
 		&i.Email,
 		&i.PasswordHash,
 		&i.FullName,
-		&i.Role,
+		&i.EmailVerified,
 		&i.IsActive,
 		&i.LastLoginAt,
 		&i.CreatedAt,
@@ -285,7 +285,7 @@ func (q *Queries) GetUserByEmailGlobal(ctx context.Context, email string) (GetUs
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, tenant_id, email, password_hash, full_name, role, is_active, last_login_at, created_at, updated_at FROM users
+SELECT id, tenant_id, email, password_hash, full_name, email_verified, is_active, last_login_at, created_at, updated_at FROM users
 WHERE id = $1 AND tenant_id = $2
 LIMIT 1
 `
@@ -304,11 +304,55 @@ func (q *Queries) GetUserByID(ctx context.Context, arg GetUserByIDParams) (User,
 		&i.Email,
 		&i.PasswordHash,
 		&i.FullName,
-		&i.Role,
+		&i.EmailVerified,
 		&i.IsActive,
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserByIDGlobal = `-- name: GetUserByIDGlobal :one
+SELECT u.id, u.tenant_id, u.email, u.password_hash, u.full_name, u.email_verified, u.is_active, u.last_login_at, u.created_at, u.updated_at, t.slug AS tenant_slug, t.plan AS tenant_plan
+FROM users u
+JOIN tenants t ON u.tenant_id = t.id
+WHERE u.id = $1
+LIMIT 1
+`
+
+type GetUserByIDGlobalRow struct {
+	ID            uuid.UUID  `db:"id" json:"id"`
+	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	Email         string     `db:"email" json:"email"`
+	PasswordHash  string     `db:"password_hash" json:"password_hash"`
+	FullName      *string    `db:"full_name" json:"full_name"`
+	EmailVerified bool       `db:"email_verified" json:"email_verified"`
+	IsActive      bool       `db:"is_active" json:"is_active"`
+	LastLoginAt   *time.Time `db:"last_login_at" json:"last_login_at"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
+	TenantSlug    string     `db:"tenant_slug" json:"tenant_slug"`
+	TenantPlan    string     `db:"tenant_plan" json:"tenant_plan"`
+}
+
+// Fetch user by id across tenants (used by password reset flows)
+func (q *Queries) GetUserByIDGlobal(ctx context.Context, id uuid.UUID) (GetUserByIDGlobalRow, error) {
+	row := q.db.QueryRow(ctx, getUserByIDGlobal, id)
+	var i GetUserByIDGlobalRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FullName,
+		&i.EmailVerified,
+		&i.IsActive,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TenantSlug,
+		&i.TenantPlan,
 	)
 	return i, err
 }
@@ -350,7 +394,7 @@ func (q *Queries) ListTenants(ctx context.Context) ([]Tenant, error) {
 }
 
 const listUsersByTenant = `-- name: ListUsersByTenant :many
-SELECT id, tenant_id, email, password_hash, full_name, role, is_active, last_login_at, created_at, updated_at FROM users
+SELECT id, tenant_id, email, password_hash, full_name, email_verified, is_active, last_login_at, created_at, updated_at FROM users
 WHERE tenant_id = $1
 ORDER BY created_at
 `
@@ -370,7 +414,7 @@ func (q *Queries) ListUsersByTenant(ctx context.Context, tenantID uuid.UUID) ([]
 			&i.Email,
 			&i.PasswordHash,
 			&i.FullName,
-			&i.Role,
+			&i.EmailVerified,
 			&i.IsActive,
 			&i.LastLoginAt,
 			&i.CreatedAt,
@@ -384,6 +428,24 @@ func (q *Queries) ListUsersByTenant(ctx context.Context, tenantID uuid.UUID) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const unverifyUserEmail = `-- name: UnverifyUserEmail :exec
+UPDATE users
+SET
+    email_verified = false,
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $2
+`
+
+type UnverifyUserEmailParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+}
+
+func (q *Queries) UnverifyUserEmail(ctx context.Context, arg UnverifyUserEmailParams) error {
+	_, err := q.db.Exec(ctx, unverifyUserEmail, arg.ID, arg.TenantID)
+	return err
 }
 
 const updateTenantPlan = `-- name: UpdateTenantPlan :one
@@ -497,26 +559,26 @@ const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET
     full_name = $2,
-    role = $3,
+    email_verified = $3,
     is_active = $4,
     updated_at = now()
 WHERE id = $1 AND tenant_id = $5
-RETURNING id, tenant_id, email, password_hash, full_name, role, is_active, last_login_at, created_at, updated_at
+RETURNING id, tenant_id, email, password_hash, full_name, email_verified, is_active, last_login_at, created_at, updated_at
 `
 
 type UpdateUserParams struct {
-	ID       uuid.UUID `db:"id" json:"id"`
-	FullName *string   `db:"full_name" json:"full_name"`
-	Role     string    `db:"role" json:"role"`
-	IsActive bool      `db:"is_active" json:"is_active"`
-	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	ID            uuid.UUID `db:"id" json:"id"`
+	FullName      *string   `db:"full_name" json:"full_name"`
+	EmailVerified bool      `db:"email_verified" json:"email_verified"`
+	IsActive      bool      `db:"is_active" json:"is_active"`
+	TenantID      uuid.UUID `db:"tenant_id" json:"tenant_id"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateUser,
 		arg.ID,
 		arg.FullName,
-		arg.Role,
+		arg.EmailVerified,
 		arg.IsActive,
 		arg.TenantID,
 	)
@@ -527,7 +589,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Email,
 		&i.PasswordHash,
 		&i.FullName,
-		&i.Role,
+		&i.EmailVerified,
 		&i.IsActive,
 		&i.LastLoginAt,
 		&i.CreatedAt,
@@ -565,5 +627,63 @@ type UpdateUserPasswordParams struct {
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
 	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.PasswordHash, arg.TenantID)
+	return err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users
+SET
+    full_name = COALESCE($1, full_name),
+    email = COALESCE($2, email),
+    updated_at = now()
+WHERE id = $3 AND tenant_id = $4
+RETURNING id, tenant_id, email, password_hash, full_name, email_verified, is_active, last_login_at, created_at, updated_at
+`
+
+type UpdateUserProfileParams struct {
+	FullName *string   `db:"full_name" json:"full_name"`
+	Email    *string   `db:"email" json:"email"`
+	ID       uuid.UUID `db:"id" json:"id"`
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile,
+		arg.FullName,
+		arg.Email,
+		arg.ID,
+		arg.TenantID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FullName,
+		&i.EmailVerified,
+		&i.IsActive,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const verifyUserEmail = `-- name: VerifyUserEmail :exec
+UPDATE users
+SET
+    email_verified = true,
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $2
+`
+
+type VerifyUserEmailParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+}
+
+func (q *Queries) VerifyUserEmail(ctx context.Context, arg VerifyUserEmailParams) error {
+	_, err := q.db.Exec(ctx, verifyUserEmail, arg.ID, arg.TenantID)
 	return err
 }

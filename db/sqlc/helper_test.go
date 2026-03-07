@@ -48,12 +48,12 @@ func createRandomUser(t *testing.T, tenantID uuid.UUID) User {
 	require.NoError(t, err)
 
 	arg := CreateUserParams{
-		TenantID:     tenantID,
-		Email:        utils.RandomEmail(),
-		PasswordHash: hashPassword,
-		FullName:     &fullName,
-		Role:         "member",
-		IsActive:     true,
+		TenantID:      tenantID,
+		Email:         utils.RandomEmail(),
+		PasswordHash:  hashPassword,
+		FullName:      &fullName,
+		EmailVerified: true,
+		IsActive:      true,
 	}
 
 	user, err := testStore.CreateUser(context.Background(), arg)

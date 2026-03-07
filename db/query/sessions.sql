@@ -45,6 +45,14 @@ UPDATE sessions
 SET last_used_at = now()
 WHERE id = $1;
 
+-- name: UpdateSessionToken :exec
+UPDATE sessions
+SET refresh_token = $2,
+    expires_at = $3,
+    last_used_at = now()
+WHERE id = $1;
+
+
 -- name: RevokeSession :exec
 DELETE FROM sessions
 WHERE id = $1 AND user_id = $2;

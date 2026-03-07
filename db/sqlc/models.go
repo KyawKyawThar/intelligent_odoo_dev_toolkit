@@ -267,14 +267,14 @@ type Tenant struct {
 }
 
 type User struct {
-	ID           uuid.UUID  `db:"id" json:"id"`
-	TenantID     uuid.UUID  `db:"tenant_id" json:"tenant_id"`
-	Email        string     `db:"email" json:"email"`
-	PasswordHash string     `db:"password_hash" json:"password_hash"`
-	FullName     *string    `db:"full_name" json:"full_name"`
-	Role         string     `db:"role" json:"role"`
-	IsActive     bool       `db:"is_active" json:"is_active"`
-	LastLoginAt  *time.Time `db:"last_login_at" json:"last_login_at"`
-	CreatedAt    time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time  `db:"updated_at" json:"updated_at"`
+	ID            uuid.UUID  `db:"id" json:"id"`
+	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	Email         string     `db:"email" json:"email"`
+	PasswordHash  string     `db:"password_hash" json:"password_hash"`
+	FullName      *string    `db:"full_name" json:"full_name"`
+	EmailVerified bool       `db:"email_verified" json:"email_verified"`
+	IsActive      bool       `db:"is_active" json:"is_active"`
+	LastLoginAt   *time.Time `db:"last_login_at" json:"last_login_at"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time  `db:"updated_at" json:"updated_at"`
 }

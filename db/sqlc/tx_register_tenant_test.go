@@ -62,7 +62,6 @@ func TestRegisterTenantTx_Cloud(t *testing.T) {
 	require.NotEmpty(t, result.User)
 	require.NotZero(t, result.User.ID)
 	require.Equal(t, arg.OwnerEmail, result.User.Email)
-	require.Equal(t, "owner", result.User.Role)
 	require.Equal(t, result.Tenant.ID, result.User.TenantID)
 	require.True(t, result.User.IsActive)
 	require.NotNil(t, result.User.FullName)
@@ -169,12 +168,12 @@ func TestRegisterTenantTx_DuplicateEmail_SameTenant_Fails(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = testStore.CreateUser(context.Background(), CreateUserParams{
-		TenantID:     result.Tenant.ID,
-		Email:        arg1.OwnerEmail, // same email, same tenant
-		PasswordHash: hashedPw,
-		FullName:     optionalStringPtr("Duplicate User"),
-		Role:         "member",
-		IsActive:     true,
+		TenantID:      result.Tenant.ID,
+		Email:         arg1.OwnerEmail, // same email, same tenant
+		PasswordHash:  hashedPw,
+		FullName:      optionalStringPtr("Duplicate User"),
+		EmailVerified: true,
+		IsActive:      true,
 	})
 	require.Error(t, err, "duplicate (tenant_id, email) must be rejected")
 }

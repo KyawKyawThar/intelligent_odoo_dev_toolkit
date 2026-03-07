@@ -1,0 +1,22 @@
+version: "1.0"
+swaggerTemplate: ""
+parseDepth: 6
+outputTypes:
+- go
+- json
+generalInfo:
+  title: OdooDevTools API
+  version: "1.0.0"
+  description: A comprehensive development toolkit for Odoo environments with profiling, monitoring, and optimization features.
+  termsOfService: http://swagger.io/terms/
+  contact:
+    name: API Support
+    url: http://example.com/support
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+host: localhost:8080
+basePath: /api/v1
+schemes:
+- http
+- https

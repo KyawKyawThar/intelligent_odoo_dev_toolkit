@@ -1,9 +1,12 @@
 package middleware
 
 import (
+	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
 	"context"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 // =============================================================================
@@ -158,5 +161,37 @@ func RequireTenantOwnership(getResourceTenantID ResourceOwnershipFunc, resourceP
 
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+// DatabaseTenantLookup returns a TenantLookupFunc that fetches tenant info from the database.
+func DatabaseTenantLookup(store db.Store) TenantLookupFunc {
+	return func(ctx context.Context, userID string) (*TenantInfo, error) {
+		// parse the UUID coming from the auth middleware
+		uid, err := uuid.Parse(userID)
+		if err != nil {
+			return nil, api.NewAPIError(api.ErrCodeValidation, "invalid user id", http.StatusBadRequest)
+		}
+
+		// get the user without a tenant filter so we can determine which tenant to
+		// load.
+		user, err := store.GetUserByIDGlobal(ctx, uid)
+		if err != nil {
+			return nil, api.FromPgError(err)
+		}
+
+		tenant, err := store.GetTenantByID(ctx, user.TenantID)
+		if err != nil {
+			return nil, api.FromPgError(err)
+		}
+
+		isActive := tenant.PlanStatus == "active"
+
+		return &TenantInfo{
+			TenantID:   tenant.ID.String(),
+			TenantSlug: tenant.Slug,
+			Plan:       tenant.Plan,
+			IsActive:   isActive,
+		}, nil
 	}
 }

@@ -1,8 +1,12 @@
-ENV_FILE=deploy/.env
 MIGRATIONS_PATH=db/migrations
 
-ifneq (,$(wildcard $(ENV_FILE)))
-  include $(ENV_FILE)
+ifneq (,$(wildcard deploy/.env))
+  include deploy/.env
+  export
+endif
+
+ifneq (,$(wildcard .env))
+  include .env
   export
 endif
 
@@ -35,5 +39,10 @@ migrate_force:
 
 sqlc:
 	sqlc generate
+generate:
+	go generate
 
-.PHONY: sqlc docker_run new_migration migrate_up migrate_down migrate_goto migrate_force
+swagger:
+	swag init -g cmd/server/main.go -d ./
+
+.PHONY: sqlc docker_run new_migration migrate_up migrate_down migrate_goto migrate_force swagger generate

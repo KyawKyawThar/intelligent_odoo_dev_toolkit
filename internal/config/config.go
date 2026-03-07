@@ -1,6 +1,7 @@
 package config
 
 import (
+	"Intelligent_Dev_ToolKit_Odoo/utils"
 	"strings"
 	"time"
 
@@ -49,8 +50,16 @@ type Config struct {
 	S3SecretKey      string `mapstructure:"S3_SECRET_KEY"`
 	S3ForcePathStyle bool   `mapstructure:"S3_FORCE_PATH_STYLE"`
 
+	// ── SMTP ─────────────────────────────────────────────────────
+	SMTPHost     string `mapstructure:"SMTP_HOST"`
+	SMTPPort     int    `mapstructure:"SMTP_PORT"`
+	SMTPUsername string `mapstructure:"SMTP_USERNAME"`
+	SMTPPassword string `mapstructure:"SMTP_PASSWORD"`
+	EmailFrom    string `mapstructure:"EMAIL_FROM"`
+	ClientAppURL string `mapstructure:"CLIENT_APP_URL"`
+
 	// ── JWT Auth ─────────────────────────────────────────────────
-	JWTSecret            string        `mapstructure:"JWT_SECRET"`
+	TokenSymmetricKey    string        `mapstructure:"TOKEN_SYMMETRIC_KEY"`
 	AccessTokenDuration  time.Duration `mapstructure:"JWT_ACCESS_TOKEN_TTL"`
 	RefreshTokenDuration time.Duration `mapstructure:"JWT_REFRESH_TOKEN_TTL"`
 	JWTIssuer            string        `mapstructure:"JWT_ISSUER"`
@@ -120,6 +129,7 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetDefault("RATE_LIMIT_RPM", 100)
 	viper.SetDefault("RATE_LIMIT_INGEST_PM", 1000)
 	viper.SetDefault("REDIS_DB", 0)
+	viper.SetDefault("TOKEN_SYMMETRIC_KEY", utils.RandomString(32))
 
 	err = viper.ReadInConfig()
 	if err != nil {

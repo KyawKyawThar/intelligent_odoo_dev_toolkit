@@ -1,0 +1,154 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+
+env:
+  GO_VERSION: '1.24.4'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # Quick Checks (fail fast)
+  # ─────────────────────────────────────────────────────────────────
+  quick-checks:
+    name: Quick Checks
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Check go.mod tidy
+      run: |
+        go mod tidy
+        git diff --exit-code go.mod go.sum
+
+    - name: Check formatting
+      run: |
+        gofmt_output=$(gofmt -l .)
+        if [ -n "$gofmt_output" ]; then
+          echo "The following files need formatting:"
+          echo "$gofmt_output"
+          exit 1
+        fi
+
+    - name: Build check
+      run: go build ./...
+
+  # ─────────────────────────────────────────────────────────────────
+  # Code Coverage Report
+  # ─────────────────────────────────────────────────────────────────
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: odoodevtools_test
+        ports:
+        - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U testuser -d odoodevtools_test" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+        - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Install golang-migrate
+      run: |
+        curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
+        sudo mv migrate /usr/local/bin/migrate
+
+    - name: Run database migrations
+      run: |
+        migrate -path db/migrations -database "postgres://testuser:testpassword@localhost:5432/odoodevtools_test?sslmode=disable" up
+      continue-on-error: true
+
+    - name: Create test config
+      run: |
+        cat > .env << EOF
+        DATABASE_URL=postgres://testuser:testpassword@localhost:5432/odoodevtools_test?sslmode=disable
+        REDIS_HOST=localhost
+        REDIS_PORT=6379
+        REDIS_PASSWORD=
+        SERVER_PORT=8080
+        JWT_SECRET=test-secret-key-for-ci-testing-only
+        JWT_ACCESS_TOKEN_TTL=15m
+        JWT_REFRESH_TOKEN_TTL=24h
+        APP_ENV=test
+        EOF
+        # FIX: DB_SOURCE → DATABASE_URL (matches your .env)
+        # FIX: REDIS_ADDRESS → REDIS_HOST + REDIS_PORT (matches your .env)
+        # FIX: SERVER_ADDRESS → SERVER_PORT (matches your .env)
+        # FIX: TOKEN_DURATION → JWT_ACCESS_TOKEN_TTL (matches your .env)
+        # FIX: REFRESH_TOKEN_DURATION → JWT_REFRESH_TOKEN_TTL (matches your .env)
+        # FIX: ENVIRONMENT → APP_ENV (matches your .env)
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests with coverage
+      run: |
+        go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+      env:
+        CGO_ENABLED: 1
+        DATABASE_URL: postgres://testuser:testpassword@localhost:5432/odoodevtools_test?sslmode=disable
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        REDIS_PASSWORD: ""
+        JWT_SECRET: test-secret-key-for-ci-testing-only
+        # FIX: DB_SOURCE → DATABASE_URL, REDIS_ADDRESS → REDIS_HOST+REDIS_PORT (match .env)
+
+    - name: Generate coverage report
+      run: |
+        go tool cover -func=coverage.out | tee coverage-summary.txt
+        go tool cover -html=coverage.out -o coverage.html
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }} # FIX: required for codecov-action@v4 — add CODECOV_TOKEN to repo secrets
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Post coverage summary
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          const fs = require('fs');
+          const coverage = fs.readFileSync('coverage-summary.txt', 'utf8');
+          const lines = coverage.split('\n');
+          const totalLine = lines.find(l => l.includes('total:'));
+          const percentage = totalLine ? totalLine.match(/(\d+\.\d+)%/)?.[1] : 'N/A';
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## 📊 Code Coverage Report\n\n**Total Coverage: ${percentage}%**\n\n<details>\n<summary>View full coverage report</summary>\n\n\`\`\`\n${coverage}\n\`\`\`\n</details>`
+          });

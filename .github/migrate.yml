@@ -1,0 +1,86 @@
+name: Database Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      action:
+        description: 'Migration action'
+        required: true
+        default: 'status'
+        type: choice
+        options:
+        - status
+        - up
+        - up-one
+        - down-one
+        - force-version
+      force_version:
+        description: 'Force migration to version (only for force-version action)'
+        required: false
+        type: string
+
+jobs:
+  migrate:
+    name: Run Migration
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install golang-migrate
+      run: |
+        curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
+        sudo mv migrate /usr/local/bin/migrate
+
+    - name: Check migration status
+      if: inputs.action == 'status'
+      run: |
+        echo "## Migration Status" >> $GITHUB_STEP_SUMMARY
+        migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" version 2>&1 | tee status.txt
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat status.txt >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+
+    - name: Run all pending migrations
+      if: inputs.action == 'up'
+      run: |
+        echo "Running all pending migrations..."
+        migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" up
+        echo "✅ Migrations completed" >> $GITHUB_STEP_SUMMARY
+
+    - name: Run one migration up
+      if: inputs.action == 'up-one'
+      run: |
+        echo "Running one migration up..."
+        migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" up 1
+        echo "✅ One migration applied" >> $GITHUB_STEP_SUMMARY
+
+    - name: Rollback one migration
+      if: inputs.action == 'down-one'
+      run: |
+        echo "Rolling back one migration..."
+        migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" down 1
+        echo "⚠️ One migration rolled back" >> $GITHUB_STEP_SUMMARY
+
+    - name: Force migration version
+      if: inputs.action == 'force-version' && inputs.force_version != ''
+      run: |
+        echo "Forcing migration version to ${{ inputs.force_version }}..."
+        migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" force ${{ inputs.force_version }}
+        echo "⚠️ Migration version forced to ${{ inputs.force_version }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Show final status
+      run: |
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Current Version" >> $GITHUB_STEP_SUMMARY
+        migrate -path db/migrations -database "${{ secrets.DATABASE_URL }}" version 2>&1 || true
