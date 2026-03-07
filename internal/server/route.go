@@ -186,7 +186,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	// cache (redis) – optional component
 	// ------------------------------------------------------------------
 	if s.cache != nil {
-		if err := s.cache.Client().Ping(ctx).Err(); err != nil {
+		if err := s.cache.Client.Ping(ctx).Err(); err != nil {
 			checks["cache"] = "unhealthy: " + err.Error()
 			dto.WriteReady(w, false, checks)
 			return
