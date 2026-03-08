@@ -30,7 +30,7 @@ RUN addgroup -S odoodt && adduser -S odoodt -G odoodt
 WORKDIR /app
 
 COPY --from=builder /bin/server .
-COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/db/migrations ./migrations
 
 USER odoodt
 
