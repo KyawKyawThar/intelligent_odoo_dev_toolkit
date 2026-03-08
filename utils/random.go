@@ -26,12 +26,12 @@ func RandomString(maxLength int) string {
 }
 
 // RandomInteger generates a random integer between min and max.
-func RandomInteger(minVal, max int64) int64 {
-	if minVal > max {
+func RandomInteger(minVal, maxVal int64) int64 {
+	if minVal > maxVal {
 		panic("min cannot be greater than max")
 	}
 
-	n, err := rand.Int(rand.Reader, big.NewInt(max-minVal+1))
+	n, err := rand.Int(rand.Reader, big.NewInt(maxVal-minVal+1))
 	if err != nil {
 		panic(err)
 	}

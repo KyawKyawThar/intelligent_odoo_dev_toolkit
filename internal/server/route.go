@@ -329,8 +329,7 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Intentionally ignore the error — security requirement
-	_ = s.services.Auth.ForgotPassword(r.Context(), &req) //nolint:errcheck
+	_ = s.services.Auth.ForgotPassword(r.Context(), &req) //nolint:errcheck // Error is ignored to prevent user enumeration attacks. The service handles logging.
 
 	dto.WriteSuccess(w, r, map[string]any{
 		"message": "If that email address is registered you will receive a reset link shortly.",

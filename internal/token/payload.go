@@ -10,6 +10,7 @@ import (
 var (
 	// ErrInvalidToken is returned when a token is invalid.
 	ErrInvalidToken = errors.New("token is invalid")
+	// ErrTokenExpired is returned when a token has expired.
 	ErrTokenExpired = errors.New("token is expired")
 )
 
