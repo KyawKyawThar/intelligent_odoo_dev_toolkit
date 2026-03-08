@@ -1,3 +1,4 @@
+// Package handler provides HTTP handlers for the application.
 package handler
 
 import (
@@ -39,12 +40,7 @@ func NewAuthHandler(authService *service.AuthService, base *BaseHandler) *AuthHa
 // @Router       /auth/register [post]
 func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	var req dto.RegisterRequest
-	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := h.ValidateRequest(&req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
+	if !h.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -78,12 +74,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 // @Router       /auth/login [post]
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var req dto.LoginRequest
-	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := h.ValidateRequest(&req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
+	if !h.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -116,12 +107,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 // and issues a new access + refresh pair.
 func (h *AuthHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	var req dto.RefreshTokenRequest
-	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := h.ValidateRequest(&req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
+	if !h.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -160,7 +146,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// Body is optional — default to single-token logout
 	var req dto.LogoutRequest
-	_ = h.DecodeJSON(r, &req) // intentionally ignoring parse errors
+	_ = h.DecodeJSON(r, &req) //nolint:errcheck // error is handled in DecodeJSON
 
 	if err := h.svc.Logout(r.Context(), BearerToken, &req); err != nil {
 		h.HandleErr(w, r, err)
@@ -188,17 +174,12 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 // @Router       /auth/forgot-password [post]
 func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	var req dto.ForgotPasswordRequest
-	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := h.ValidateRequest(&req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
+	if !h.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
 	// Intentionally ignore the error — security requirement
-	_ = h.svc.ForgotPassword(r.Context(), &req)
+	_ = h.svc.ForgotPassword(r.Context(), &req) //nolint:errcheck // error is not critical for this operation
 
 	dto.WriteSuccess(w, r, map[string]any{
 		"message": "If that email address is registered you will receive a reset link shortly.",
@@ -223,12 +204,7 @@ func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Reques
 // @Router       /auth/reset-password [post]
 func (h *AuthHandler) HandleResetPassword(w http.ResponseWriter, r *http.Request) {
 	var req dto.ResetPasswordRequest
-	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := h.ValidateRequest(&req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
+	if !h.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -272,12 +248,7 @@ func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Reques
 	}
 
 	var req dto.ChangePasswordRequest
-	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := h.ValidateRequest(&req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
+	if !h.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -309,12 +280,7 @@ func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Reques
 // @Router       /auth/verify-email [post]
 func (h *AuthHandler) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	var req dto.VerifyEmailRequest
-	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := h.ValidateRequest(&req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
+	if !h.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -428,12 +394,7 @@ func (h *AuthHandler) HandleUpdateCurrentUser(w http.ResponseWriter, r *http.Req
 	}
 
 	var req dto.UpdateUserRequest
-	if apiErr := h.DecodeJSON(r, &req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := h.ValidateRequest(&req); apiErr != nil {
-		h.WriteErr(w, r, apiErr)
+	if !h.DecodeAndValidate(w, r, &req) {
 		return
 	}
 

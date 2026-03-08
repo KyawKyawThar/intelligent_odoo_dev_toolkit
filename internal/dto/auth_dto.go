@@ -1,3 +1,4 @@
+// Package dto contains data transfer objects.
 package dto
 
 import (
@@ -8,14 +9,17 @@ import (
 	"github.com/google/uuid"
 )
 
+// MessageResponse is a generic JSON envelope carrying a single message string.
 type MessageResponse struct {
 	Message string `json:"message"`
 }
 
+// NewMessageResponse creates a MessageResponse with the given text.
 func NewMessageResponse(msg string) *MessageResponse {
 	return &MessageResponse{Message: msg}
 }
 
+// RegisterRequest carries the fields needed to create a new tenant + owner user.
 type RegisterRequest struct {
 	Email      string `json:"email"       validate:"required,email"`
 	Password   string `json:"password"    validate:"required,min=8"`
@@ -24,6 +28,7 @@ type RegisterRequest struct {
 	FullName   string `json:"full_name"   validate:"omitempty,max=100"`
 }
 
+// RegisterResponse is returned after successful registration with user, tenant, and tokens.
 type RegisterResponse struct {
 	User         *UserResponse   `json:"user"`
 	Tenant       *TenantResponse `json:"tenant"`
@@ -35,11 +40,13 @@ type RegisterResponse struct {
 
 // --- Login ---
 
+// LoginRequest carries email and password for authentication.
 type LoginRequest struct {
 	Email    string `json:"email"    validate:"required,email"`
 	Password string `json:"password" validate:"required"`
 }
 
+// LoginResponse is returned after successful authentication with tokens and user info.
 type LoginResponse struct {
 	AccessToken  string        `json:"access_token"`
 	RefreshToken string        `json:"refresh_token"`
@@ -50,10 +57,12 @@ type LoginResponse struct {
 
 // --- Token Refresh ---
 
+// RefreshTokenRequest carries the refresh token to obtain a new access token.
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
+// RefreshTokenResponse is returned after a successful token refresh.
 type RefreshTokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -63,6 +72,7 @@ type RefreshTokenResponse struct {
 
 // --- Logout ---
 
+// LogoutRequest optionally targets a specific session or all sessions for the user.
 type LogoutRequest struct {
 	SessionID string `json:"session_id,omitempty"` // specific session; empty = current token only
 	LogoutAll bool   `json:"logout_all"`           // true = revoke all sessions
@@ -70,15 +80,18 @@ type LogoutRequest struct {
 
 // --- Password Management ---
 
+// ForgotPasswordRequest initiates a password-reset flow for the given email.
 type ForgotPasswordRequest struct {
 	Email string `json:"email" validate:"required,email"`
 }
 
+// ResetPasswordRequest completes a password reset using a one-time token.
 type ResetPasswordRequest struct {
 	Token       string `json:"token"        validate:"required"`
 	NewPassword string `json:"new_password" validate:"required,min=8"`
 }
 
+// ChangePasswordRequest lets an authenticated user update their password.
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" validate:"required"`
 	NewPassword     string `json:"new_password"     validate:"required,min=8"`
@@ -86,12 +99,14 @@ type ChangePasswordRequest struct {
 
 // --- Email Verification ---
 
+// VerifyEmailRequest carries the verification token sent to the user's inbox.
 type VerifyEmailRequest struct {
 	Token string `json:"token" validate:"required"`
 }
 
 // --- User Profile ---
 
+// UpdateUserRequest carries optional fields a user may change on their own profile.
 type UpdateUserRequest struct {
 	Email    *string `json:"email,omitempty"     validate:"omitempty,email"`
 	FullName *string `json:"full_name,omitempty" validate:"omitempty,max=100"`
@@ -99,6 +114,7 @@ type UpdateUserRequest struct {
 
 // --- Sessions ---
 
+// SessionResponse represents a single active session returned to the client.
 type SessionResponse struct {
 	ID           string    `json:"id"`
 	UserAgent    string    `json:"user_agent,omitempty"`
@@ -112,6 +128,7 @@ type SessionResponse struct {
 // User DTOs
 // =============================================================================
 
+// UserResponse is the public representation of a user returned by the API.
 type UserResponse struct {
 	ID            string     `json:"id"`
 	Email         string     `json:"email"`
@@ -124,6 +141,7 @@ type UserResponse struct {
 	LastLoginAt   *time.Time `json:"last_login_at,omitempty"`
 }
 
+// UserListItem is a trimmed user representation used in list/search endpoints.
 type UserListItem struct {
 	ID            string     `json:"id"`
 	Email         string     `json:"email"`
@@ -134,12 +152,14 @@ type UserListItem struct {
 	LastLoginAt   *time.Time `json:"last_login_at,omitempty"`
 }
 
+// CreateUserRequest carries the fields an admin needs to create a new user.
 type CreateUserRequest struct {
 	Email    string  `json:"email"     validate:"required,email"`
 	Password string  `json:"password"  validate:"required,min=8"`
 	FullName *string `json:"full_name" validate:"omitempty,max=100"`
 }
 
+// AdminUpdateUserRequest carries optional fields an admin may change on any user.
 type AdminUpdateUserRequest struct {
 	Email         *string `json:"email,omitempty"          validate:"omitempty,email"`
 	FullName      *string `json:"full_name,omitempty"      validate:"omitempty,max=100"`
@@ -147,6 +167,7 @@ type AdminUpdateUserRequest struct {
 	IsActive      *bool   `json:"is_active,omitempty"`
 }
 
+// UserGlobalRowResponse maps the cross-tenant user lookup row including tenant metadata.
 type UserGlobalRowResponse struct {
 	ID            uuid.UUID  `db:"id" json:"id"`
 	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
@@ -162,7 +183,7 @@ type UserGlobalRowResponse struct {
 	TenantPlan    string     `db:"tenant_plan" json:"tenant_plan"`
 }
 
-// toUserResponse maps db.User → UserResponse.
+// ToUserResponse maps db.User to a client-facing UserResponse.
 func ToUserResponse(u db.User) *UserResponse {
 	return &UserResponse{
 		ID:       u.ID.String(),
@@ -177,6 +198,8 @@ func ToUserResponse(u db.User) *UserResponse {
 		LastLoginAt:   u.LastLoginAt,
 	}
 }
+
+// ToUserResponseFromGlobal maps a global-lookup row to a client-facing UserResponse.
 func ToUserResponseFromGlobal(u db.GetUserByEmailGlobalRow) *UserResponse {
 	return &UserResponse{
 		ID:            u.ID.String(),
@@ -191,7 +214,7 @@ func ToUserResponseFromGlobal(u db.GetUserByEmailGlobalRow) *UserResponse {
 	}
 }
 
-// UserGlobalRowResponse.
+// ToUserGlobalRowResponse maps a global-lookup row to a UserGlobalRowResponse.
 func ToUserGlobalRowResponse(u db.GetUserByEmailGlobalRow) *UserGlobalRowResponse {
 	return &UserGlobalRowResponse{
 		ID:            u.ID,
@@ -209,7 +232,7 @@ func ToUserGlobalRowResponse(u db.GetUserByEmailGlobalRow) *UserGlobalRowRespons
 	}
 }
 
-// toTenantResponse maps db.Tenant → TenantResponse.
+// ToTenantResponse maps db.Tenant to a client-facing TenantResponse.
 func ToTenantResponse(t db.Tenant) *TenantResponse {
 	return &TenantResponse{
 		ID:         t.ID.String(),
@@ -221,6 +244,7 @@ func ToTenantResponse(t db.Tenant) *TenantResponse {
 	}
 }
 
+// CacheSessionToResponse converts a cached session into a SessionResponse.
 func CacheSessionToResponse(s *cache.Session) *SessionResponse {
 	return &SessionResponse{
 		ID:           s.ID,
@@ -232,6 +256,7 @@ func CacheSessionToResponse(s *cache.Session) *SessionResponse {
 	}
 }
 
+// DbSessionToResponse converts a database session row into a SessionResponse.
 func DbSessionToResponse(s db.Session) *SessionResponse {
 	r := &SessionResponse{
 		ID:           s.ID.String(),

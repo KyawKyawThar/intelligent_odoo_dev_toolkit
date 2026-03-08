@@ -23,19 +23,26 @@ type Handlers struct {
 	// Profiler    *ProfilerHandler
 	// Alert       *AlertHandler
 	//	APIKey *APIKeyHandler
-	//Tenant *TenantHandler
-	//User   *UserHandler
+	// Tenant *TenantHandler
+	// User   *UserHandler
 }
 
 // NewHandlers creates all handlers with their service dependencies.
 func NewHandlers(services *service.Services) *Handlers {
 	v := validator.New()
-	api.RegisterCustomValidations(v)
+	if err := api.RegisterCustomValidations(v); err != nil {
+		panic(err)
+	}
 
 	base := &BaseHandler{validate: v}
 
+	authSvc, ok := services.Auth.(*service.AuthService)
+	if !ok {
+		panic("invalid auth service type")
+	}
+
 	return &Handlers{
-		Auth: NewAuthHandler(services.Auth.(*service.AuthService), base),
+		Auth: NewAuthHandler(authSvc, base),
 		// APIKey: NewAPIKeyHandler(services.APIKey, base),
 		// Tenant: NewTenantHandler(services.Tenant, base),
 		// User:   NewUserHandler(services.User, base),
@@ -56,7 +63,7 @@ type BaseHandler struct {
 // =============================================================================
 
 func (h *BaseHandler) HandleNotImplement(w http.ResponseWriter, r *http.Request) {
-	api.HandleError(w, r, api.NewAPIError(
+	api.HandleError(w, r, api.NewError(
 		api.ErrCodeInternal,
 		"This endpoint is not yet implemented",
 		http.StatusNotImplemented,
@@ -72,7 +79,7 @@ func (h *BaseHandler) HandleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 // DecodeJSON decodes the request body into v. It rejects unknown fields.
-func (h *BaseHandler) DecodeJSON(r *http.Request, v any) *api.APIError {
+func (h *BaseHandler) DecodeJSON(r *http.Request, v any) *api.Error {
 
 	if r.Body == nil {
 		return api.ErrBadRequest("Request body is empty")
@@ -89,26 +96,39 @@ func (h *BaseHandler) DecodeJSON(r *http.Request, v any) *api.APIError {
 }
 
 // ValidateRequest validates v against struct tags and returns a rich APIError.
-func (h *BaseHandler) ValidateRequest(v any) *api.APIError {
+func (h *BaseHandler) ValidateRequest(v any) *api.Error {
 	if err := h.validate.Struct(v); err != nil {
 		return api.FromValidationError(err)
 	}
 	return nil
 }
 
+// DecodeAndValidate is a convenience helper that decodes and validates a request.
+func (h *BaseHandler) DecodeAndValidate(w http.ResponseWriter, r *http.Request, v any) bool {
+	if apiErr := h.DecodeJSON(r, v); apiErr != nil {
+		h.WriteErr(w, r, apiErr)
+		return false
+	}
+	if apiErr := h.ValidateRequest(v); apiErr != nil {
+		h.WriteErr(w, r, apiErr)
+		return false
+	}
+	return true
+}
+
 // WriteErr writes an APIError response with request context (request-id, path …).
-func (h *BaseHandler) WriteErr(w http.ResponseWriter, r *http.Request, err *api.APIError) {
+func (h *BaseHandler) WriteErr(w http.ResponseWriter, r *http.Request, err *api.Error) {
 	api.WriteErrorWithContext(w, r, err)
 }
 
-// MapErr converts any error (sentinel, APIError, pg, …) to an *api.APIError.
-func (h *BaseHandler) MapErr(err error) *api.APIError {
+// MapErr converts any error (sentinel, APIError, pg, …) to an *api.Error.
+func (h *BaseHandler) MapErr(err error) *api.Error {
 	if err == nil {
 		return nil
 	}
 
 	// Already a typed API error (from api.FromPgError, api.ErrXxx, …)
-	var apiErr *api.APIError
+	var apiErr *api.Error
 	if errors.As(err, &apiErr) {
 		return apiErr
 	}

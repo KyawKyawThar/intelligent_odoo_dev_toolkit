@@ -68,13 +68,13 @@ func (store *SQLStore) IngestErrorBatchTx(ctx context.Context, arg IngestErrorBa
 }
 
 func (store *SQLStore) checkForSpikeAlert(ctx context.Context, q *Queries, eg ErrorGroup, arg IngestErrorBatchParams) error {
-	if arg.SpikeThreshold <= 0 || eg.OccurrenceCount < int32(arg.SpikeThreshold) {
+	if arg.SpikeThreshold <= 0 || eg.OccurrenceCount < int32(arg.SpikeThreshold) { //nolint:gosec
 		return nil
 	}
 
 	// Only alert once per threshold crossing
 	preCount := eg.OccurrenceCount - 1
-	if preCount >= int32(arg.SpikeThreshold) {
+	if preCount >= int32(arg.SpikeThreshold) { //nolint:gosec
 		return nil
 	}
 

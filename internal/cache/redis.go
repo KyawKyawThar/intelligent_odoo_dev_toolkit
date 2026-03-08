@@ -1,3 +1,4 @@
+// Package cache provides a Redis-backed cache for sessions, tokens, and other data.
 package cache
 
 import (
@@ -15,19 +16,24 @@ import (
 )
 
 var (
+	// ErrSessionNotFound is returned when a session is not found in the cache.
 	ErrSessionNotFound = errors.New("session not found")
-	ErrTokenNotFound   = errors.New("token not found")
-	ErrKeyNotFound     = errors.New("key not found")
+	// ErrTokenNotFound is returned when a token is not found in the cache.
+	ErrTokenNotFound = errors.New("token not found")
+	// ErrKeyNotFound is returned when a key is not found in the cache.
+	ErrKeyNotFound = errors.New("key not found")
 )
 
 const blacklistPrefix = "blacklist"
 const rateLimitPrefix = "ratelimit"
 
+// RedisClient is a wrapper around the go-redis client.
 type RedisClient struct {
 	Client *redis.Client
 	Prefix string // Key prefix for namespacing (e.g., "odt:")
 }
 
+// RedisConfig is the configuration for the Redis client.
 type RedisConfig struct {
 	// Address may contain a full redis URI (redis:// or rediss://) or a
 	// simple host:port pair.  If provided, it takes precedence over Host/Port
@@ -106,6 +112,7 @@ func parseSimpleRedisAddr(urlStr string) (RedisConfig, error) {
 	return cfg, nil
 }
 
+// NewRedisClient creates a new Redis client.
 func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
 	// if an address string is provided, parse it to fill missing fields.
 	if cfg.Address != "" {
@@ -164,15 +171,18 @@ func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
 		Prefix: prefix,
 	}, nil
 }
+
+// Close closes the Redis client.
 func (r *RedisClient) Close() error {
 	return r.Client.Close()
 }
 
-// Client returns the underlying redis client (for testing)
+// GetClient returns the underlying redis client (for testing)
 func (r *RedisClient) GetClient() *redis.Client {
 	return r.Client
 }
 
+// Key generates a prefixed key for Redis.
 func (r *RedisClient) Key(parts ...string) string {
 	result := r.Prefix
 	for _, part := range parts {
@@ -180,6 +190,8 @@ func (r *RedisClient) Key(parts ...string) string {
 	}
 	return result[:len(result)-1] // Remove trailing colon
 }
+
+// Set stores a value in Redis with an expiration.
 func (r *RedisClient) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -187,6 +199,8 @@ func (r *RedisClient) Set(ctx context.Context, key string, value any, expiration
 	}
 	return r.Client.Set(ctx, r.Key(key), data, expiration).Err()
 }
+
+// Get retrieves a value from Redis.
 func (r *RedisClient) Get(ctx context.Context, key string, dest any) error {
 	data, err := r.Client.Get(ctx, r.Key(key)).Bytes()
 	if err != nil {
@@ -198,6 +212,7 @@ func (r *RedisClient) Get(ctx context.Context, key string, dest any) error {
 	return json.Unmarshal(data, dest)
 }
 
+// GetString retrieves a string value from Redis.
 func (r *RedisClient) GetString(ctx context.Context, key string) (string, error) {
 	result, err := r.Client.Get(ctx, r.Key(key)).Result()
 	if errors.Is(err, redis.Nil) {
@@ -211,6 +226,7 @@ func (r *RedisClient) SetString(ctx context.Context, key, value string, expirati
 	return r.Client.Set(ctx, r.Key(key), value, expiration).Err()
 }
 
+// Delete removes keys from Redis.
 func (r *RedisClient) Delete(ctx context.Context, keys ...string) error {
 	prefixedKeys := make([]string, len(keys))
 	for i, k := range keys {
@@ -219,15 +235,18 @@ func (r *RedisClient) Delete(ctx context.Context, keys ...string) error {
 	return r.Client.Del(ctx, prefixedKeys...).Err()
 }
 
+// Exists checks if a key exists in Redis.
 func (r *RedisClient) Exists(ctx context.Context, key string) (bool, error) {
 	result, err := r.Client.Exists(ctx, r.Key(key)).Result()
 	return result > 0, err
 }
 
+// Expire sets an expiration on a key.
 func (r *RedisClient) Expire(ctx context.Context, key string, expiration time.Duration) error {
 	return r.Client.Expire(ctx, r.Key(key), expiration).Err()
 }
 
+// TTL returns the remaining time to live of a key.
 func (r *RedisClient) TTL(ctx context.Context, key string) (time.Duration, error) {
 	return r.Client.TTL(ctx, r.Key(key)).Result()
 }
@@ -240,6 +259,7 @@ const (
 	userSessionPrefix = "user_sessions"
 )
 
+// Session represents a user session.
 type Session struct {
 	ID           string    `json:"id"`
 	UserID       string    `json:"user_id"`
@@ -256,7 +276,7 @@ type Session struct {
 func (r *RedisClient) CreateSession(ctx context.Context, session *Session) error {
 	// Store session by ID
 	sessionKey := r.Key(sessionPrefix, session.ID)
-	data, err := json.Marshal(session)
+	data, err := json.Marshal(session) //nolint:gosec // not a credential
 	if err != nil {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
@@ -309,7 +329,7 @@ func (r *RedisClient) UpdateSessionActivity(ctx context.Context, sessionID strin
 
 	session.LastActiveAt = time.Now().UTC()
 	sessionKey := r.Key(sessionPrefix, sessionID)
-	data, err := json.Marshal(session)
+	data, err := json.Marshal(session) //nolint:gosec // not a credential
 	if err != nil {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
@@ -330,10 +350,12 @@ func (r *RedisClient) DeleteSession(ctx context.Context, sessionID, userID strin
 	return err
 }
 
+// RevokeSession revokes a user session.
 func (r *RedisClient) RevokeSession(ctx context.Context, userID, sessionID string) error {
 	return r.DeleteSession(ctx, sessionID, userID)
 }
 
+// RevokeAllSessions revokes all sessions for a user.
 func (r *RedisClient) RevokeAllSessions(ctx context.Context, userID string) error {
 	return r.DeleteAllUserSessions(ctx, userID)
 }
@@ -410,6 +432,7 @@ const (
 	resetTokenTTL    = 1 * time.Hour
 )
 
+// ResetToken represents a password reset token.
 type ResetToken struct {
 	UserID    string    `json:"user_id"`
 	Email     string    `json:"email"`
@@ -461,6 +484,7 @@ const (
 	verifyEmailTTL    = 24 * time.Hour
 )
 
+// VerifyEmailToken represents an email verification token.
 type VerifyEmailToken struct {
 	UserID    string    `json:"user_id"`
 	Email     string    `json:"email"`
@@ -506,6 +530,7 @@ func (r *RedisClient) DeleteVerifyEmailToken(ctx context.Context, token string) 
 // Rate Limiting
 // =============================================================================
 
+// RateLimitResult represents the result of a rate limit check.
 type RateLimitResult struct {
 	Allowed    bool
 	Remaining  int64
@@ -569,6 +594,7 @@ const (
 	loginLockoutDuration = 30 * time.Minute
 )
 
+// LoginAttemptResult represents the result of a login attempt.
 type LoginAttemptResult struct {
 	Allowed         bool
 	AttemptsLeft    int

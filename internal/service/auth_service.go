@@ -1,3 +1,4 @@
+// Package service provides the business logic for the application.
 package service
 
 import (
@@ -59,8 +60,8 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, ip
 	}
 
 	// Verify email can be delivered before proceeding further.
-	if err := s.sendVerificationEmail(ctx, result.User.ID.String(), email); err != nil {
-		_ = s.store.DeleteTenant(ctx, result.Tenant.ID)
+	if err = s.sendVerificationEmail(ctx, result.User.ID.String(), email); err != nil {
+		_ = s.store.DeleteTenant(ctx, result.Tenant.ID) //nolint:errcheck // Best effort cleanup
 		return nil, api.ErrInternal(fmt.Errorf("send verification email: %w", err))
 	}
 
@@ -112,35 +113,35 @@ func (s *AuthService) Login(
 		if lockedUntil != nil {
 			msg = fmt.Sprintf("Account locked until %s.", lockedUntil.Format(time.RFC3339))
 		}
-		return nil, api.NewAPIError(api.ErrCodeRateLimited, msg, http.StatusTooManyRequests)
+		return nil, api.NewError(api.ErrCodeRateLimited, msg, http.StatusTooManyRequests)
 	}
 
 	user, err := s.store.GetUserByEmailGlobal(ctx, email)
 
 	if err != nil {
-		s.cache.RecordLoginAttempt(ctx, email, false) //nolint:errcheck
+		s.cache.RecordLoginAttempt(ctx, email, false) //nolint:errcheck // We don't care about the result, just that it's recorded
 		return nil, api.ErrInvalidCredentials()
 	}
 	if !user.IsActive {
-		return nil, api.NewAPIError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
+		return nil, api.NewError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
 	}
 	if !user.EmailVerified {
-		return nil, api.NewAPIError(api.ErrCodeForbidden, "Please verify your email address before logging in", http.StatusForbidden)
+		return nil, api.NewError(api.ErrCodeForbidden, "Please verify your email address before logging in", http.StatusForbidden)
 	}
-	if err := utils.CheckPassword(req.Password, user.PasswordHash); err != nil {
-		result, _ := s.cache.RecordLoginAttempt(ctx, email, false)
+	if err = utils.CheckPassword(req.Password, user.PasswordHash); err != nil {
+		result, _ := s.cache.RecordLoginAttempt(ctx, email, false) //nolint:errcheck // We don't care about the result, just that it's recorded
 		if result != nil && !result.Allowed {
 			msg := "Too many failed login attempts."
 			if result.LockoutDuration > 0 {
 				msg = fmt.Sprintf("Too many failed attempts. Account locked for %v.", result.LockoutDuration)
 			}
-			return nil, api.NewAPIError(api.ErrCodeRateLimited, msg, http.StatusTooManyRequests)
+			return nil, api.NewError(api.ErrCodeRateLimited, msg, http.StatusTooManyRequests)
 		}
 		return nil, api.ErrInvalidCredentials()
 	}
 	// Clear lockout on success
-	s.cache.RecordLoginAttempt(ctx, email, true)                        //nolint:errcheck
-	go s.store.UpdateUserLastLogin(context.WithoutCancel(ctx), user.ID) //nolint:errcheck
+	s.cache.RecordLoginAttempt(ctx, email, true)                        //nolint:errcheck // We don't care about the result, just that it's recorded
+	go s.store.UpdateUserLastLogin(context.WithoutCancel(ctx), user.ID) //nolint:errcheck // Fire-and-forget goroutine
 
 	// Issue tokens
 	accessToken, _, err := s.tokenMaker.CreateToken(user.ID.String(), s.config.AccessTokenDuration)
@@ -183,7 +184,10 @@ func (s *AuthService) RefreshToken(
 		return nil, api.ErrInvalidToken("Invalid or expired refresh token")
 	}
 
-	blacklisted, _ := s.cache.IsTokenBlacklisted(ctx, refreshPayload.ID.String())
+	blacklisted, err := s.cache.IsTokenBlacklisted(ctx, refreshPayload.ID.String())
+	if err != nil {
+		return nil, api.ErrInternal(fmt.Errorf("checking token blacklist: %w", err))
+	}
 	if blacklisted {
 		return nil, api.ErrInvalidToken("Refresh token has been revoked")
 	}
@@ -197,10 +201,10 @@ func (s *AuthService) RefreshToken(
 	}
 
 	if !session.UserIsActive {
-		return nil, api.NewAPIError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
+		return nil, api.NewError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
 	}
 	// Rotate — blacklist old token, issue new pair
-	s.cache.BlacklistToken(ctx, refreshPayload.ID.String(), refreshPayload.ExpiredAt) //nolint:errcheck
+	s.cache.BlacklistToken(ctx, refreshPayload.ID.String(), refreshPayload.ExpiredAt) //nolint:errcheck // We don't care about the result, the token will expire anyway
 
 	newAccessToken, _, err := s.tokenMaker.CreateToken(session.UserID.String(), s.config.AccessTokenDuration)
 	if err != nil {
@@ -221,8 +225,8 @@ func (s *AuthService) RefreshToken(
 	}
 
 	// Refresh Redis entry
-	s.cache.DeleteSession(ctx, session.ID.String(), session.UserID.String()) //nolint:errcheck
-	_ = s.cache.CreateSession(ctx, &cache.Session{
+	s.cache.DeleteSession(ctx, session.ID.String(), session.UserID.String()) //nolint:errcheck // We don't care about the result, the old session will expire anyway
+	_ = s.cache.CreateSession(ctx, &cache.Session{                           //nolint:errcheck // Best effort
 		ID:           session.ID.String(),
 		UserID:       session.UserID.String(),
 		TenantID:     session.TenantID.String(),
@@ -270,12 +274,12 @@ func (s *AuthService) Logout(ctx context.Context, accessToken string, req *dto.L
 		}); err != nil {
 			return api.FromPgError(err)
 		}
-		s.cache.DeleteSession(ctx, req.SessionID, userID) //nolint:errcheck
+		s.cache.DeleteSession(ctx, req.SessionID, userID) //nolint:errcheck // We don't care about the result, the session will expire anyway
 		return nil
 	}
 
 	// No explicit session ID — blacklist the current access token
-	s.cache.BlacklistToken(ctx, payload.ID.String(), payload.ExpiredAt) //nolint:errcheck
+	s.cache.BlacklistToken(ctx, payload.ID.String(), payload.ExpiredAt) //nolint:errcheck // We don't care about the result, the token will expire anyway
 	return nil
 }
 
@@ -324,7 +328,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, req *dto.ResetPasswordR
 		return api.ErrInternal(fmt.Errorf("parse userID from reset token: %w", err))
 	}
 
-	if err := utils.ValidatePassword(req.NewPassword, s.config.PasswordMinLength); err != nil {
+	if err = utils.ValidatePassword(req.NewPassword, s.config.PasswordMinLength); err != nil {
 		return api.ErrValidation(err.Error())
 	}
 
@@ -350,11 +354,11 @@ func (s *AuthService) ResetPassword(ctx context.Context, req *dto.ResetPasswordR
 	}
 
 	// One-time token — consume it
-	s.cache.DeleteResetToken(ctx, req.Token) //nolint:errcheck
+	s.cache.DeleteResetToken(ctx, req.Token) //nolint:errcheck // One-time token, we don't care about the result
 
 	// Invalidate all sessions (force re-login everywhere)
-	s.store.RevokeAllSessions(ctx, userID)              //nolint:errcheck
-	s.cache.DeleteAllUserSessions(ctx, userID.String()) //nolint:errcheck
+	s.store.RevokeAllSessions(ctx, userID)              //nolint:errcheck // Best effort, cache will be cleared anyway
+	s.cache.DeleteAllUserSessions(ctx, userID.String()) //nolint:errcheck // We don't care about the result
 
 	return nil
 }
@@ -376,16 +380,16 @@ func (s *AuthService) ChangePassword(
 		return api.FromPgError(err)
 	}
 
-	if err := utils.CheckPassword(req.CurrentPassword, user.PasswordHash); err != nil {
+	if err = utils.CheckPassword(req.CurrentPassword, user.PasswordHash); err != nil {
 		return api.ErrValidation("Current password is incorrect").
 			WithDetail("current_password", "does not match")
 	}
 	// Guard against same password reuse
-	if err := utils.CheckPassword(req.NewPassword, user.PasswordHash); err == nil {
+	if err = utils.CheckPassword(req.NewPassword, user.PasswordHash); err == nil {
 		return api.ErrValidation("New password must be different from the current password")
 	}
 
-	if err := utils.ValidatePassword(req.NewPassword, s.config.PasswordMinLength); err != nil {
+	if err = utils.ValidatePassword(req.NewPassword, s.config.PasswordMinLength); err != nil {
 		return api.ErrValidation(err.Error())
 	}
 
@@ -403,8 +407,8 @@ func (s *AuthService) ChangePassword(
 	}
 
 	// Revoke all sessions so all devices must re-login
-	s.store.RevokeAllSessions(ctx, userID)              //nolint:errcheck
-	s.cache.DeleteAllUserSessions(ctx, userID.String()) //nolint:errcheck
+	s.store.RevokeAllSessions(ctx, userID)              //nolint:errcheck // Best effort, cache will be cleared anyway
+	s.cache.DeleteAllUserSessions(ctx, userID.String()) //nolint:errcheck // We don't care about the result
 
 	return nil
 }
@@ -438,7 +442,7 @@ func (s *AuthService) VerifyEmail(ctx context.Context, req *dto.VerifyEmailReque
 	}
 
 	// One-time use — always delete
-	s.cache.DeleteVerifyEmailToken(ctx, req.Token) //nolint:errcheck
+	s.cache.DeleteVerifyEmailToken(ctx, req.Token) //nolint:errcheck // One-time token, we don't care about the result
 	return nil
 }
 
@@ -456,7 +460,7 @@ func (s *AuthService) ResendVerificationEmail(ctx context.Context, userID, tenan
 	}
 
 	if user.EmailVerified {
-		return api.NewAPIError(api.ErrCodeConflict, "Email is already verified", http.StatusConflict)
+		return api.NewError(api.ErrCodeConflict, "Email is already verified", http.StatusConflict)
 	}
 
 	// send synchronously so errors bubble up
@@ -538,7 +542,7 @@ func (s *AuthService) UpdateCurrentUser(
 		if err != nil {
 			// Attempt to roll back the email change on failure.
 			// This is best-effort and highlights why a transaction would be ideal.
-			_, _ = s.store.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
+			_, _ = s.store.UpdateUserProfile(ctx, db.UpdateUserProfileParams{ //nolint:errcheck // Best effort to roll back
 				ID:       userID,
 				TenantID: tenantID,
 				Email:    &userBeforeUpdate.Email,
@@ -594,7 +598,7 @@ func (s *AuthService) RevokeSession(ctx context.Context, userID uuid.UUID, sessi
 		return api.FromPgError(err)
 	}
 
-	s.cache.DeleteSession(ctx, sessionID, userID.String()) //nolint:errcheck
+	s.cache.DeleteSession(ctx, sessionID, userID.String()) //nolint:errcheck // We don't care about the result, the session will expire anyway
 	return nil
 }
 func (s *AuthService) ValidateAccessToken(ctx context.Context, tokenStr string) (*token.Payload, error) {

@@ -1,3 +1,4 @@
+// Package config ...
 package config
 
 import (
@@ -9,17 +10,20 @@ import (
 	"github.com/spf13/viper"
 )
 
+// EnvironmentDevelopment is a constant for the development environment.
 const (
 	EnvironmentDevelopment = "development"
 	EnvironmentStaging     = "staging"
 	EnvironmentProduction  = "production"
 )
 
+// StatusHealthy is a constant for the healthy status.
 const (
 	StatusHealthy   = "healthy"
 	StatusUnhealthy = "unhealthy"
 )
 
+// Config is the configuration for the application.
 type Config struct {
 	// ── App ──────────────────────────────────────────────────────
 	Environment string `mapstructure:"APP_ENV"` // development | staging | production
@@ -124,6 +128,7 @@ type Config struct {
 	AgentProfilerBatchInterval string `mapstructure:"AGENT_PROFILER_BATCH_INTERVAL"`
 }
 
+// LoadConfig loads the configuration from the given path.
 func LoadConfig(path string) (config Config, err error) {
 	viper.AddConfigPath(path)
 	viper.SetConfigName(".env") // filename without extension

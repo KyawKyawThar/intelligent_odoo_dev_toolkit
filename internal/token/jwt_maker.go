@@ -1,3 +1,4 @@
+// Package token provides functionality for creating and verifying tokens.
 package token
 
 import (

@@ -11,9 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// =============================================================================.
-// Response Types.
-// =============================================================================.
+// Response is the standard JSON envelope for all API responses.
 type Response struct {
 	Success   bool   `json:"success"`
 	Data      any    `json:"data,omitempty"`
@@ -42,12 +40,14 @@ type ListResponse struct {
 // Pagination
 // =============================================================================
 
+// Pagination holds page, per-page, and total counts for paginated queries.
 type Pagination struct {
 	Page    int
 	PerPage int
 	Total   int64
 }
 
+// NewPagination returns a Pagination clamped to sane page/perPage bounds.
 func NewPagination(page, perPage int) *Pagination {
 	if page < 1 {
 		page = 1
@@ -64,10 +64,12 @@ func NewPagination(page, perPage int) *Pagination {
 	}
 }
 
+// Offset returns the SQL OFFSET derived from the current page and per-page size.
 func (p *Pagination) Offset() int {
 	return (p.Page - 1) * p.PerPage
 }
 
+// TotalPages returns the number of pages needed to cover all records.
 func (p *Pagination) TotalPages() int {
 	if p.Total == 0 {
 		return 0
@@ -79,6 +81,7 @@ func (p *Pagination) TotalPages() int {
 	return pages
 }
 
+// ToMeta converts the Pagination state into a Meta response struct.
 func (p *Pagination) ToMeta() *Meta {
 	totalPages := p.TotalPages()
 	return &Meta{
@@ -91,25 +94,25 @@ func (p *Pagination) ToMeta() *Meta {
 	}
 }
 
-// =============================================================================.
-// JSON Response Helpers.
-// =============================================================================.
+// =============================================================================
+// JSON Response Helpers
+// =============================================================================
 func setCommonHeaders(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
 
+// WriteJSON encodes data as JSON and writes it with the given HTTP status code.
 func WriteJSON(w http.ResponseWriter, status int, data any) {
 	setCommonHeaders(w)
 	w.WriteHeader(status)
 
 	if data != nil {
-		if err := json.NewEncoder(w).Encode(data); err != nil {
-			// TODO: log error
-		}
+		_ = json.NewEncoder(w).Encode(data) //nolint:errcheck // best-effort write; caller cannot recover
 	}
 }
 
+// WriteList writes a paginated list response with metadata headers.
 func WriteList(w http.ResponseWriter, r *http.Request, data any, pagination *Pagination) {
 	response := ListResponse{
 		Data:       data,
@@ -119,11 +122,10 @@ func WriteList(w http.ResponseWriter, r *http.Request, data any, pagination *Pag
 	setCommonHeaders(w)
 	w.Header().Set("X-Request-ID", getOrCreateRequestID(r))
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// TODO: log error
-	}
+	_ = json.NewEncoder(w).Encode(response) //nolint:errcheck // best-effort write; caller cannot recover
 }
 
+// WriteSuccess writes a 200 OK response wrapping data in the standard envelope.
 func WriteSuccess(w http.ResponseWriter, r *http.Request, data any) {
 	response := Response{
 		Success:   true,
@@ -133,6 +135,7 @@ func WriteSuccess(w http.ResponseWriter, r *http.Request, data any) {
 	WriteJSON(w, http.StatusOK, response)
 }
 
+// WriteSuccessWithMeta writes a 200 OK response with pagination metadata.
 func WriteSuccessWithMeta(w http.ResponseWriter, r *http.Request, data any, pagination *Pagination) {
 	response := Response{
 		Success:   true,
@@ -143,6 +146,7 @@ func WriteSuccessWithMeta(w http.ResponseWriter, r *http.Request, data any, pagi
 	WriteJSON(w, http.StatusOK, response)
 }
 
+// WriteCreated writes a 201 Created response wrapping data in the standard envelope.
 func WriteCreated(w http.ResponseWriter, r *http.Request, data any) {
 	response := Response{
 		Success:   true,
@@ -152,6 +156,7 @@ func WriteCreated(w http.ResponseWriter, r *http.Request, data any) {
 	WriteJSON(w, http.StatusCreated, response)
 }
 
+// WriteAccepted writes a 202 Accepted response wrapping data in the standard envelope.
 func WriteAccepted(w http.ResponseWriter, r *http.Request, data any) {
 	response := Response{
 		Success:   true,
@@ -161,6 +166,7 @@ func WriteAccepted(w http.ResponseWriter, r *http.Request, data any) {
 	WriteJSON(w, http.StatusAccepted, response)
 }
 
+// WriteNoContent writes a 204 No Content response with no body.
 func WriteNoContent(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -169,6 +175,7 @@ func WriteNoContent(w http.ResponseWriter) {
 // Specialized Responses
 // =============================================================================
 
+// HealthResponse is returned by the health-check endpoint.
 type HealthResponse struct {
 	Status    string            `json:"status"`
 	Timestamp time.Time         `json:"timestamp"`
@@ -176,6 +183,7 @@ type HealthResponse struct {
 	Version   string            `json:"version,omitempty"`
 }
 
+// WriteHealth writes a health-check response, returning 503 when unhealthy.
 func WriteHealth(w http.ResponseWriter, healthy bool, checks map[string]string, version string) {
 	status := config.StatusHealthy
 	httpStatus := http.StatusOK
@@ -195,11 +203,13 @@ func WriteHealth(w http.ResponseWriter, healthy bool, checks map[string]string, 
 	WriteJSON(w, httpStatus, response)
 }
 
+// ReadyResponse is returned by the readiness probe endpoint.
 type ReadyResponse struct {
 	Ready  bool              `json:"ready"`
 	Checks map[string]string `json:"checks,omitempty"`
 }
 
+// WriteReady writes a readiness response, returning 503 when not ready.
 func WriteReady(w http.ResponseWriter, ready bool, checks map[string]string) {
 	httpStatus := http.StatusOK
 	if !ready {
@@ -225,6 +235,7 @@ func getOrCreateRequestID(r *http.Request) string {
 	return uuid.New().String()
 }
 
+// GetPaginationFromRequest extracts page and per_page from the query string.
 func GetPaginationFromRequest(r *http.Request) *Pagination {
 	page := 1
 	perPage := 25
@@ -272,6 +283,7 @@ func parseInt(s string) int {
 // Rate Limit Headers
 // =============================================================================
 
+// WriteRateLimitHeaders sets the standard X-RateLimit-* response headers.
 func WriteRateLimitHeaders(w http.ResponseWriter, limit, remaining int, resetUnix int64) {
 	w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", limit))
 	w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", remaining))

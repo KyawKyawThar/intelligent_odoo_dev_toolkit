@@ -1,0 +1,66 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────
+# Git pre-push hook — blocks push if lint or vet fails.
+# Install: make hooks  (or: cp scripts/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push)
+# Bypass:  git push --no-verify
+# ─────────────────────────────────────────────────────────────────
+
+set -e
+
+echo "🔍 Running pre-push checks..."
+echo ""
+
+# ── 1. Check go.mod is tidy ──────────────────────────────────────
+echo "→ Checking go.mod tidy..."
+go mod tidy
+if ! git diff --quiet go.mod go.sum 2>/dev/null; then
+    echo "❌ go.mod or go.sum is not tidy. Run 'go mod tidy' and commit."
+    exit 1
+fi
+echo "  ✓ go.mod is tidy"
+
+# ── 2. Check formatting ──────────────────────────────────────────
+echo "→ Checking gofmt..."
+GOFMT_OUTPUT=$(gofmt -l . 2>/dev/null || true)
+if [ -n "$GOFMT_OUTPUT" ]; then
+    echo "❌ These files need formatting:"
+    echo "$GOFMT_OUTPUT"
+    echo "Run: gofmt -w ."
+    exit 1
+fi
+echo "  ✓ Formatting OK"
+
+# ── 3. golangci-lint (same args as CI) ───────────────────────────
+echo "→ Running golangci-lint..."
+if ! command -v golangci-lint >/dev/null 2>&1; then
+    echo "❌ golangci-lint not found. Run: make tools"
+    exit 1
+fi
+if ! golangci-lint run --timeout 5m; then
+    echo ""
+    echo "❌ Lint failed. Fix errors above before pushing."
+    echo "   Tip: run 'golangci-lint run --fix' to auto-fix some issues."
+    exit 1
+fi
+echo "  ✓ Lint passed"
+
+# ── 4. go vet ────────────────────────────────────────────────────
+echo "→ Running go vet..."
+if ! go vet ./...; then
+    echo "❌ go vet failed."
+    exit 1
+fi
+echo "  ✓ Vet passed"
+
+# ── 5. Quick test (short mode) ───────────────────────────────────
+echo "→ Running short tests..."
+if ! go test -short -count=1 ./... > /dev/null 2>&1; then
+    echo "❌ Tests failed. Run 'go test -v -short ./...' for details."
+    exit 1
+fi
+echo "  ✓ Tests passed"
+
+echo ""
+echo "════════════════════════════════════════"
+echo "  ✅ All pre-push checks passed"
+echo "════════════════════════════════════════"
