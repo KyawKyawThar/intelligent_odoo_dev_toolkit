@@ -326,7 +326,7 @@ jobs:
     #   uses: docker/build-push-action@v6
     #   with:
     #     context: .
-    #     file: ./deploy/Dockerfile_worker
+    #     file: ./deploy/Dockerfile.worker
     #     push: true
     #     platforms: linux/amd64,linux/arm64
     #     tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker:${{ github.ref_name }}
@@ -340,7 +340,7 @@ jobs:
     #   uses: docker/build-push-action@v6
     #   with:
     #     context: .
-    #     file: ./deploy/Dockerfile_agent
+    #     file: ./deploy/Dockerfile.agent
     #     push: true
     #     platforms: linux/amd64,linux/arm64
     #     tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-agent:${{ github.ref_name }}
