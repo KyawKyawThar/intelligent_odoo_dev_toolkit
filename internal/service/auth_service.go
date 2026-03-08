@@ -1,3 +1,4 @@
+// Package service provides the business logic for the application.
 package service
 
 import (
@@ -112,7 +113,7 @@ func (s *AuthService) Login(
 		if lockedUntil != nil {
 			msg = fmt.Sprintf("Account locked until %s.", lockedUntil.Format(time.RFC3339))
 		}
-		return nil, api.NewAPIError(api.ErrCodeRateLimited, msg, http.StatusTooManyRequests)
+		return nil, api.NewError(api.ErrCodeRateLimited, msg, http.StatusTooManyRequests)
 	}
 
 	user, err := s.store.GetUserByEmailGlobal(ctx, email)
@@ -122,10 +123,10 @@ func (s *AuthService) Login(
 		return nil, api.ErrInvalidCredentials()
 	}
 	if !user.IsActive {
-		return nil, api.NewAPIError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
+		return nil, api.NewError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
 	}
 	if !user.EmailVerified {
-		return nil, api.NewAPIError(api.ErrCodeForbidden, "Please verify your email address before logging in", http.StatusForbidden)
+		return nil, api.NewError(api.ErrCodeForbidden, "Please verify your email address before logging in", http.StatusForbidden)
 	}
 	if err = utils.CheckPassword(req.Password, user.PasswordHash); err != nil {
 		result, _ := s.cache.RecordLoginAttempt(ctx, email, false) //nolint:errcheck // We don't care about the result, just that it's recorded
@@ -134,7 +135,7 @@ func (s *AuthService) Login(
 			if result.LockoutDuration > 0 {
 				msg = fmt.Sprintf("Too many failed attempts. Account locked for %v.", result.LockoutDuration)
 			}
-			return nil, api.NewAPIError(api.ErrCodeRateLimited, msg, http.StatusTooManyRequests)
+			return nil, api.NewError(api.ErrCodeRateLimited, msg, http.StatusTooManyRequests)
 		}
 		return nil, api.ErrInvalidCredentials()
 	}
@@ -200,7 +201,7 @@ func (s *AuthService) RefreshToken(
 	}
 
 	if !session.UserIsActive {
-		return nil, api.NewAPIError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
+		return nil, api.NewError(api.ErrCodeForbidden, "Account has been deactivated", http.StatusForbidden)
 	}
 	// Rotate — blacklist old token, issue new pair
 	s.cache.BlacklistToken(ctx, refreshPayload.ID.String(), refreshPayload.ExpiredAt) //nolint:errcheck // We don't care about the result, the token will expire anyway
@@ -459,7 +460,7 @@ func (s *AuthService) ResendVerificationEmail(ctx context.Context, userID, tenan
 	}
 
 	if user.EmailVerified {
-		return api.NewAPIError(api.ErrCodeConflict, "Email is already verified", http.StatusConflict)
+		return api.NewError(api.ErrCodeConflict, "Email is already verified", http.StatusConflict)
 	}
 
 	// send synchronously so errors bubble up

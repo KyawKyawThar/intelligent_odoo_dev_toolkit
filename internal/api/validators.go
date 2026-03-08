@@ -57,10 +57,7 @@ func registerGeneralValidators(v *validator.Validate) error {
 	if err := v.RegisterValidation("slug", validateSlug); err != nil {
 		return err
 	}
-	if err := v.RegisterValidation("url", isURL); err != nil {
-		return err
-	}
-	return nil
+	return v.RegisterValidation("url", isURL)
 }
 
 // registerAppSpecificValidators registers validators for application-specific types.

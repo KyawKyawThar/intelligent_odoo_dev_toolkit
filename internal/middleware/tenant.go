@@ -10,9 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// =============================================================================
-// Tenant Resolver
-// =============================================================================
+// TenantInfo holds information about a tenant.
 type TenantInfo struct {
 	TenantID   string
 	TenantSlug string
@@ -59,7 +57,7 @@ func TenantResolver(lookupFunc TenantLookupFunc) func(http.Handler) http.Handler
 			// Look up tenant
 			tenantInfo, err := lookupFunc(r.Context(), userID)
 			if err != nil {
-				var apiErr *api.APIError
+				var apiErr *api.Error
 				if errors.As(err, &apiErr) {
 					api.HandleError(w, r, apiErr)
 					return
@@ -102,7 +100,7 @@ func TenantFromHeader(validateFunc func(ctx context.Context, tenantID string) (*
 			// Validate tenant exists
 			tenantInfo, err := validateFunc(r.Context(), tenantID)
 			if err != nil {
-				var apiErr *api.APIError
+				var apiErr *api.Error
 				if errors.As(err, &apiErr) {
 					api.HandleError(w, r, apiErr)
 					return
@@ -173,7 +171,7 @@ func DatabaseTenantLookup(store db.Store) TenantLookupFunc {
 		// parse the UUID coming from the auth middleware
 		uid, err := uuid.Parse(userID)
 		if err != nil {
-			return nil, api.NewAPIError(api.ErrCodeValidation, "invalid user id", http.StatusBadRequest)
+			return nil, api.NewError(api.ErrCodeValidation, "invalid user id", http.StatusBadRequest)
 		}
 
 		// get the user without a tenant filter so we can determine which tenant to

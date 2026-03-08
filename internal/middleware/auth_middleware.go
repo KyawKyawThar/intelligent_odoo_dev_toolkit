@@ -1,3 +1,4 @@
+// Package middleware provides HTTP middleware for the application.
 package middleware
 
 import (
@@ -220,7 +221,7 @@ func APIKeyAuth(validateFunc APIKeyAuthFunc) func(http.Handler) http.Handler {
 			keyInfo, err := validateFunc(r.Context(), apiKey)
 			if err != nil {
 				// Check for specific error types
-				var apiErr *api.APIError
+				var apiErr *api.Error
 				if errors.As(err, &apiErr) {
 					api.HandleError(w, r, apiErr)
 					return

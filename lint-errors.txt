@@ -1,0 +1,154 @@
+internal/middleware/auth_middleware.go:1:1: package-comments: should have a package comment (revive)
+package middleware
+^
+internal/middleware/auth_middleware.go:26:6: exported: exported type AuthConfig should have comment or be unexported (revive)
+type AuthConfig struct {
+     ^
+internal/middleware/auth_middleware.go:33:1: exported: exported function DefaultAuthConfig should have comment or be unexported (revive)
+func DefaultAuthConfig(tokenMaker token.Maker) AuthConfig {
+^
+internal/middleware/auth_middleware.go:201:6: exported: exported type APIKeyInfo should have comment or be unexported (revive)
+type APIKeyInfo struct {
+     ^
+internal/middleware/auth_middleware.go:250:7: exported: exported const ContextKeyScopes should have comment or be unexported (revive)
+const ContextKeyScopes scopeContextKey = "scopes"
+      ^
+internal/middleware/cors.go:8:6: exported: exported type CORSConfig should have comment or be unexported (revive)
+type CORSConfig struct {
+     ^
+internal/middleware/cors.go:208:1: exported: exported function SwaggerCSP should have comment or be unexported (revive)
+func SwaggerCSP(next http.Handler) http.Handler {
+^
+internal/middleware/logging.go:96:6: exported: exported type LogEntry should have comment or be unexported (revive)
+type LogEntry struct {
+     ^
+internal/middleware/middleware.go:21:2: exported: exported const ContextKeyRequestID should have comment (or a comment on this block) or be unexported (revive)
+	ContextKeyRequestID   contextKey = "request_id"
+	^
+internal/middleware/middleware.go:33:1: exported: exported function GetRequestID should have comment or be unexported (revive)
+func GetRequestID(ctx context.Context) string {
+^
+internal/middleware/middleware.go:39:1: exported: exported function GetRequestTime should have comment or be unexported (revive)
+func GetRequestTime(ctx context.Context) time.Time {
+^
+internal/middleware/middleware.go:46:1: exported: exported function GetTenantID should have comment or be unexported (revive)
+func GetTenantID(ctx context.Context) string {
+^
+internal/middleware/middleware.go:53:1: exported: exported function GetUserID should have comment or be unexported (revive)
+func GetUserID(ctx context.Context) string {
+^
+internal/middleware/middleware.go:60:1: exported: exported function GetAPIKeyID should have comment or be unexported (revive)
+func GetAPIKeyID(ctx context.Context) string {
+^
+internal/middleware/middleware.go:67:1: exported: exported function GetEnvID should have comment or be unexported (revive)
+func GetEnvID(ctx context.Context) string {
+^
+internal/middleware/middleware.go:78:1: exported: exported function SetRequestID should have comment or be unexported (revive)
+func SetRequestID(ctx context.Context, requestID string) context.Context {
+^
+internal/middleware/middleware.go:82:1: exported: exported function SetTenantID should have comment or be unexported (revive)
+func SetTenantID(ctx context.Context, tenantID string) context.Context {
+^
+internal/middleware/middleware.go:86:1: exported: exported function SetUserID should have comment or be unexported (revive)
+func SetUserID(ctx context.Context, userID string) context.Context {
+^
+internal/middleware/middleware.go:90:1: exported: exported function SetAPIKeyID should have comment or be unexported (revive)
+func SetAPIKeyID(ctx context.Context, keyID string) context.Context {
+^
+internal/middleware/middleware.go:94:1: exported: exported function SetEnvID should have comment or be unexported (revive)
+func SetEnvID(ctx context.Context, envID string) context.Context {
+^
+internal/middleware/middleware.go:102:1: exported: exported function RequestID should have comment or be unexported (revive)
+func RequestID(next http.Handler) http.Handler {
+^
+internal/middleware/middleware.go:122:1: exported: exported function Recoverer should have comment or be unexported (revive)
+func Recoverer(logger *zerolog.Logger) func(http.Handler) http.Handler {
+^
+internal/middleware/middleware.go:161:1: exported: exported function SecurityHeaders should have comment or be unexported (revive)
+func SecurityHeaders(next http.Handler) http.Handler {
+^
+internal/middleware/middleware.go:177:1: exported: exported function ContentTypeJSON should have comment or be unexported (revive)
+func ContentTypeJSON(next http.Handler) http.Handler {
+^
+internal/middleware/middleware.go:202:1: exported: exported function Timeout should have comment or be unexported (revive)
+func Timeout(timeout time.Duration) func(http.Handler) http.Handler {
+^
+internal/middleware/middleware.go:240:1: exported: exported function RealIP should have comment or be unexported (revive)
+func RealIP(next http.Handler) http.Handler {
+^
+internal/middleware/middleware.go:270:1: exported: exported function MaxBodySize should have comment or be unexported (revive)
+func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
+^
+internal/middleware/ratelmit.go:12:6: exported: exported type RateLimitConfig should have comment or be unexported (revive)
+type RateLimitConfig struct {
+     ^
+internal/middleware/ratelmit.go:27:1: exported: exported function DefaultRateLimitConfig should have comment or be unexported (revive)
+func DefaultRateLimitConfig() RateLimitConfig {
+^
+internal/middleware/ratelmit.go:69:6: exported: exported type InMemoryRateLimiter should have comment or be unexported (revive)
+type InMemoryRateLimiter struct {
+     ^
+internal/middleware/ratelmit.go:91:1: exported: exported function NewInMemoryRateLimiter should have comment or be unexported (revive)
+func NewInMemoryRateLimiter(config RateLimitConfig) *InMemoryRateLimiter {
+^
+internal/middleware/ratelmit.go:102:1: exported: exported method InMemoryRateLimiter.Allow should have comment or be unexported (revive)
+func (rl *InMemoryRateLimiter) Allow(key string) (allowed bool, remaining int, resetTime time.Time) {
+^
+internal/middleware/ratelmit.go:223:6: exported: exported type PlanLimits should have comment or be unexported (revive)
+type PlanLimits struct {
+     ^
+internal/middleware/ratelmit.go:229:5: exported: exported var DefaultPlanLimits should have comment or be unexported (revive)
+var DefaultPlanLimits = map[string]PlanLimits{
+    ^
+internal/middleware/tenant.go:13:1: exported: comment on exported type TenantInfo should be of the form "TenantInfo ..." (with optional leading article) (revive)
+// =============================================================================
+^
+internal/server/route.go:1:1: package-comments: should have a package comment (revive)
+package server
+^
+internal/server/route.go:242:10: indent-error-flow: if block ends with a return statement, so drop this else and outdent its block (move short variable declaration to its own line if necessary) (revive)
+		} else {
+			checks["agent_cloud"] = config.StatusHealthy
+			resp.Body.Close()
+		}
+internal/server/server.go:5:2: blank-imports: a blank import should be only in a main or test package, or have a comment justifying it (revive)
+	_ "Intelligent_Dev_ToolKit_Odoo/docs"
+	^
+internal/server/server.go:21:6: exported: exported type Server should have comment or be unexported (revive)
+type Server struct {
+     ^
+internal/server/server.go:34:1: exported: exported function NewServer should have comment or be unexported (revive)
+func NewServer(store db.Store, cache *cache.RedisClient, config config.Config) (*Server, error) {
+^
+internal/server/server.go:69:1: exported: exported method Server.Start should have comment or be unexported (revive)
+func (s *Server) Start(address string) error {
+^
+internal/server/server.go:107:1: exported: exported method Server.Router should have comment or be unexported (revive)
+func (s *Server) Router() http.Handler {
+^
+internal/service/auth_service.go:1:1: package-comments: should have a package comment (revive)
+package service
+^
+internal/service/interfaces.go:14:6: exported: exported type AuthServicer should have comment or be unexported (revive)
+type AuthServicer interface {
+     ^
+internal/service/service.go:15:6: exported: exported type Services should have comment or be unexported (revive)
+type Services struct {
+     ^
+internal/service/service.go:25:6: exported: exported type Config should have comment or be unexported (revive)
+type Config struct {
+     ^
+internal/service/service.go:30:1: exported: comment on exported type AuthService should be of the form "AuthService ..." (with optional leading article) (revive)
+// =============================================================================
+^
+internal/service/service.go:39:6: exported: exported type AuthConfig should have comment or be unexported (revive)
+type AuthConfig struct {
+     ^
+internal/service/service.go:52:1: exported: exported function DefaultAuthConfig should have comment or be unexported (revive)
+func DefaultAuthConfig() *AuthConfig {
+^
+internal/service/service.go:73:1: exported: exported function NewAuthService should have comment or be unexported (revive)
+func NewAuthService(store db.Store, redisCache *cache.RedisClient, tokenMaker token.Maker, cfg *AuthConfig) *AuthService {
+^
+50 issues:
+* revive: 50

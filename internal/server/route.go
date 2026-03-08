@@ -1,3 +1,4 @@
+// Package server provides the server implementation.
 package server
 
 import (
@@ -230,19 +231,21 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 				},
 			},
 		}
-		if resp, err := client.Do(req); err != nil || resp.StatusCode >= 400 {
-			checks["agent_cloud"] = config.StatusUnhealthy
-			if err != nil {
-				checks["agent_cloud"] += ": " + err.Error()
-			} else {
-				checks["agent_cloud"] += fmt.Sprintf(" status=%d", resp.StatusCode)
-			}
+		resp, err := client.Do(req)
+		if err != nil {
+			checks["agent_cloud"] = config.StatusUnhealthy + ": " + err.Error()
 			dto.WriteReady(w, false, checks)
 			return
-		} else {
-			checks["agent_cloud"] = config.StatusHealthy
-			resp.Body.Close()
 		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			checks["agent_cloud"] = config.StatusUnhealthy + fmt.Sprintf(" status=%d", resp.StatusCode)
+			dto.WriteReady(w, false, checks)
+			return
+		}
+
+		checks["agent_cloud"] = config.StatusHealthy
 	}
 
 	dto.WriteReady(w, true, checks)
@@ -256,76 +259,43 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
-
 	var req dto.RegisterRequest
-	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-	}
-
-	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-		return
-	}
-
-	resp, err := s.services.Auth.Register(r.Context(), &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
-
-	if err != nil {
-		s.handler.Auth.HandleErr(w, r, err)
-		return
-	}
-
-	dto.WriteCreated(w, r, resp)
+	s.handleAuthAction(w, r, &req, func(ctx context.Context) (interface{}, error) {
+		return s.services.Auth.Register(ctx, &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
+	}, dto.WriteCreated)
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req dto.LoginRequest
-	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-		return
-	}
-
-	resp, err := s.services.Auth.Login(r.Context(), &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
-	if err != nil {
-		s.handler.Auth.HandleErr(w, r, err)
-		return
-	}
-
-	dto.WriteSuccess(w, r, resp)
+	s.handleAuthAction(w, r, &req, func(ctx context.Context) (interface{}, error) {
+		return s.services.Auth.Login(ctx, &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
+	}, dto.WriteSuccess)
 }
 
 func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
-
 	var req dto.RefreshTokenRequest
-	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
+	s.handleAuthAction(w, r, &req, func(ctx context.Context) (interface{}, error) {
+		return s.services.Auth.RefreshToken(ctx, &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
+	}, dto.WriteSuccess)
+}
+
+func (s *Server) handleAuthAction(w http.ResponseWriter, r *http.Request, req interface{}, action func(ctx context.Context) (interface{}, error), successWriter func(http.ResponseWriter, *http.Request, interface{})) {
+	if !s.handler.Auth.DecodeAndValidate(w, r, req) {
 		return
 	}
 
-	resp, err := s.services.Auth.RefreshToken(r.Context(), &req, s.handler.Auth.ClientIP(r), r.Header.Get("User-Agent"))
+	resp, err := action(r.Context())
 	if err != nil {
 		s.handler.Auth.HandleErr(w, r, err)
 		return
 	}
 
-	dto.WriteSuccess(w, r, resp)
+	successWriter(w, r, resp)
 }
 
 func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	var req dto.ForgotPasswordRequest
-	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
+	if !s.handler.Auth.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -339,12 +309,7 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	var req dto.ResetPasswordRequest
-	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
+	if !s.handler.Auth.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -406,12 +371,7 @@ func (s *Server) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req dto.UpdateUserRequest
-	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
+	if !s.handler.Auth.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -435,12 +395,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req dto.ChangePasswordRequest
-	if apiErr := s.handler.Auth.DecodeJSON(r, &req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
-		return
-	}
-	if apiErr := s.handler.Auth.ValidateRequest(&req); apiErr != nil {
-		s.handler.Auth.WriteErr(w, r, apiErr)
+	if !s.handler.Auth.DecodeAndValidate(w, r, &req) {
 		return
 	}
 

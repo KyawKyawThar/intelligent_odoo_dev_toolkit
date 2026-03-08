@@ -119,8 +119,8 @@ var customTagMessages = map[string]string{
 // Validation Error Conversion
 // =============================================================================
 
-// FromValidationError converts validator.ValidationErrors to APIError
-func FromValidationError(err error) *APIError {
+// FromValidationError converts validator.ValidationErrors to Error
+func FromValidationError(err error) *Error {
 	var validationErrors validator.ValidationErrors
 	if !errors.As(err, &validationErrors) {
 		return ErrValidation("Invalid input").WithInternal(err)
@@ -136,7 +136,7 @@ func FromValidationError(err error) *APIError {
 		details = append(details, detail)
 	}
 
-	return NewAPIError(ErrCodeValidation, "Validation failed", 400).
+	return NewError(ErrCodeValidation, "Validation failed", 400).
 		WithDetails(details...).
 		WithInternal(err)
 }
@@ -186,8 +186,8 @@ func formatFieldError(fe validator.FieldError) string {
 // Validation Helper Functions
 // =============================================================================
 
-// ValidateStruct validates a struct and returns an APIError if validation fails
-func ValidateStruct(v *validator.Validate, s any) *APIError {
+// ValidateStruct validates a struct and returns an Error if validation fails
+func ValidateStruct(v *validator.Validate, s any) *Error {
 	if err := v.Struct(s); err != nil {
 		return FromValidationError(err)
 	}
@@ -202,8 +202,8 @@ func formatValidationTag(tag string) string {
 	return fmt.Sprintf("must satisfy: %s", tag)
 }
 
-// ValidateVar validates a single variable and returns an APIError if validation fails
-func ValidateVar(v *validator.Validate, field any, tag, fieldName string) *APIError {
+// ValidateVar validates a single variable and returns an Error if validation fails
+func ValidateVar(v *validator.Validate, field any, tag, fieldName string) *Error {
 	if err := v.Var(field, tag); err != nil {
 		return ErrValidation(fmt.Sprintf("Invalid %s", fieldName)).
 			WithDetail(fieldName, formatValidationTag(tag)).

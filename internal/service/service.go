@@ -27,9 +27,7 @@ type Config struct {
 	// Future configs can be added here
 }
 
-// =============================================================================
-// Auth Configuration
-// =============================================================================
+// AuthService provides authentication related services.
 type AuthService struct {
 	store      db.Store
 	cache      *cache.RedisClient
