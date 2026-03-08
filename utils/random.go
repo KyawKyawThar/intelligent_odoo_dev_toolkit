@@ -26,16 +26,16 @@ func RandomString(maxLength int) string {
 }
 
 // RandomInteger generates a random integer between min and max.
-func RandomInteger(min, max int64) int64 {
-	if min > max {
+func RandomInteger(minVal, max int64) int64 {
+	if minVal > max {
 		panic("min cannot be greater than max")
 	}
 
-	n, err := rand.Int(rand.Reader, big.NewInt(max-min+1))
+	n, err := rand.Int(rand.Reader, big.NewInt(max-minVal+1))
 	if err != nil {
 		panic(err)
 	}
-	return n.Int64() + min
+	return n.Int64() + minVal
 }
 
 // RandomOwner generates a random owner name.

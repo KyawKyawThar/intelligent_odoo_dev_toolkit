@@ -122,9 +122,9 @@ func RequestID(next http.Handler) http.Handler {
 func Recoverer(logger *zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
+			defer func(ctx context.Context) {
 				if err := recover(); err != nil {
-					requestID := GetRequestID(r.Context())
+					requestID := GetRequestID(ctx)
 					stack := string(debug.Stack())
 
 					logger.Error().
@@ -147,7 +147,7 @@ func Recoverer(logger *zerolog.Logger) func(http.Handler) http.Handler {
 						logger.Error().Err(err).Msg("failed to write panic response")
 					}
 				}
-			}()
+			}(r.Context())
 
 			next.ServeHTTP(w, r)
 		})
