@@ -330,6 +330,17 @@ func ErrMissingAuthHeader() *Error {
 	return NewError(ErrCodeUnauthorized, "Missing Authorization header", http.StatusUnauthorized)
 }
 
+// ErrInvalidAuthHeaderFormat creates a new 401 Invalid Auth Header Format error.
+func ErrInvalidAuthHeaderFormat() *Error {
+	return NewError(ErrCodeUnauthorized, "Invalid Authorization header format", http.StatusUnauthorized)
+}
+
+// ErrUnsupportedAuthType creates a new 401 Unsupported Auth Type error.
+func ErrUnsupportedAuthType(authType string) *Error {
+	return NewError(ErrCodeUnauthorized, "Unsupported authorization type", http.StatusUnauthorized).
+		WithDetail("type", "unsupported authorization type, only "+authType+" is supported")
+}
+
 // ErrMissingAPIKey creates a new 401 Missing API Key error.
 func ErrMissingAPIKey() *Error {
 	return NewError(ErrCodeUnauthorized, "Missing X-API-Key header", http.StatusUnauthorized)

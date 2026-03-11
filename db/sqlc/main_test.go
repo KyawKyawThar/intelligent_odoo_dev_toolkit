@@ -18,6 +18,7 @@ var testStore Store
 
 func TestMain(m *testing.M) {
 	config, err := config.LoadConfig("../..")
+
 	if err != nil {
 		log.Fatal("cannot load config:", err)
 	}

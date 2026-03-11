@@ -76,6 +76,7 @@ func (s *Server) setupRoutes() {
 	r.Get("/api/v1/ready", s.handleReady)
 	r.Get("/api/v1/not_implement", s.handler.Auth.HandleNotImplement)
 
+	// Swagger docs
 	r.Group(func(r chi.Router) {
 		r.Use(mw.SwaggerCSP)
 		r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
@@ -97,18 +98,16 @@ func (s *Server) setupRoutes() {
 			"docs":    "/docs",
 		})
 	})
-	r.Route("/api/v1", func(r chi.Router) {
-		// --------------------
-		// Public endpoints
-		// --------------------
 
+	// ==========================================================================
+	// API v1 — Public endpoints
+	// ==========================================================================
+	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", s.handleHealth)
 		r.Get("/version", s.handleVersion)
 
-		// Authentication (public)
+		// Authentication (public — no auth required)
 		r.Route("/auth", func(r chi.Router) {
-
-			// Public auth endpoints (no authentication required)
 			if s.handler.Auth != nil {
 				r.Post("/register", s.handler.Auth.HandleRegister)
 				r.Post("/login", s.handler.Auth.HandleLogin)
@@ -127,10 +126,9 @@ func (s *Server) setupRoutes() {
 		})
 	})
 
-	// --------------------
-	// Protected endpoints (JWT auth)
-	// --------------------
-
+	// ==========================================================================
+	// Protected endpoints (JWT auth + Tenant resolution)
+	// ==========================================================================
 	r.Group(func(r chi.Router) {
 		// JWT Authentication - use service-based auth if available (checks Redis blacklist)
 		if s.services != nil {
@@ -142,9 +140,12 @@ func (s *Server) setupRoutes() {
 		// Tenant Resolution
 		r.Use(mw.TenantResolver(mw.DatabaseTenantLookup(s.store)))
 
+		// Rate Limiting
 		r.Use(mw.TieredRateLimit(mw.DefaultPlanLimits))
 
-		// Authenticated Auth endpoints
+		// ------------------------------------------------------------------
+		// Auth (protected)
+		// ------------------------------------------------------------------
 		if s.handler.Auth != nil {
 			r.Post("/api/v1/auth/logout", s.handler.Auth.HandleLogout)
 			r.Get("/api/v1/auth/me", s.handler.Auth.HandleGetCurrentUser)
@@ -159,14 +160,49 @@ func (s *Server) setupRoutes() {
 			r.Patch("/api/v1/auth/me", s.handleUpdateCurrentUser)
 			r.Post("/api/v1/auth/change-password", s.handleChangePassword)
 		}
+
+		// ------------------------------------------------------------------
+		// Environments (protected — requires JWT + Tenant)
+		// ------------------------------------------------------------------
+		if s.handler.Environment != nil {
+			r.Route("/api/v1/environments", func(r chi.Router) {
+				r.Post("/", s.handler.Environment.HandleCreate)
+				r.Get("/", s.handler.Environment.HandleList)
+
+				r.Route("/{env_id}", func(r chi.Router) {
+					r.Get("/", s.handler.Environment.HandleGet)
+					r.Patch("/", s.handler.Environment.HandleUpdate)
+					r.Delete("/", s.handler.Environment.HandleDelete)
+				})
+			})
+		}
 	})
+
+	// ==========================================================================
+	// Agent endpoints (API Key auth)
+	// ==========================================================================
+	r.Group(func(r chi.Router) {
+		r.Use(mw.AgentAPIKeyAuth(s.store))
+
+		r.Route("/api/v1/agent", func(r chi.Router) {
+			// websocket connection
+			r.Get("/ws", s.handler.Ws.HandleWebSocket)
+		})
+	})
+
 	s.router = r
 }
+
+// =============================================================================
+// Handler Functions
+// =============================================================================
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	dto.WriteJSON(w, http.StatusOK, map[string]string{
 		"status": config.StatusHealthy,
 	})
 }
+
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	checks := make(map[string]string)
 
@@ -198,8 +234,6 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 
 	// ------------------------------------------------------------------
 	// external services (example)
-	// if your application depends on a third party API you can perform
-	// a lightweight GET/HEAD request and report its status here.
 	// ------------------------------------------------------------------
 	if u := s.config.AgentCloudURL; u != "" {
 		parsedURL, err := url.Parse(u)
@@ -250,6 +284,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 
 	dto.WriteReady(w, true, checks)
 }
+
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	dto.WriteJSON(w, http.StatusOK, map[string]string{
 		"version":     "1.0.0",
@@ -307,7 +342,6 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleResetPassword(w http.ResponseWriter, r *http.Request) {
-
 	var req dto.ResetPasswordRequest
 	if !s.handler.Auth.DecodeAndValidate(w, r, &req) {
 		return
@@ -360,6 +394,7 @@ func (s *Server) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 
 	dto.WriteSuccess(w, r, user)
 }
+
 func (s *Server) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
 	userID, ok := s.handler.Auth.MustUserID(w, r)
 	if !ok {
@@ -383,8 +418,8 @@ func (s *Server) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request)
 
 	dto.WriteSuccess(w, r, user)
 }
-func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	userID, ok := s.handler.Auth.MustUserID(w, r)
 	if !ok {
 		return

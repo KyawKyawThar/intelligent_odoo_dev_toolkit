@@ -9,8 +9,6 @@ import (
 )
 
 // AuthServicer defines the contract for authentication operations.
-// This interface allows for easy mocking in tests.
-
 type AuthServicer interface {
 	Register(ctx context.Context, req *dto.RegisterRequest, ipAddress, userAgent string) (*dto.RegisterResponse, error)
 	Login(ctx context.Context, req *dto.LoginRequest, ipAddress, userAgent string) (*dto.LoginResponse, error)
@@ -27,4 +25,13 @@ type AuthServicer interface {
 	GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*dto.SessionResponse, error)
 	RevokeSession(ctx context.Context, userID uuid.UUID, sessionID string) error
 	ValidateAccessToken(ctx context.Context, tokenStr string) (*token.Payload, error)
+}
+
+// EnvironmentServicer defines the business operations for environments.
+type EnvironmentServicer interface {
+	Create(ctx context.Context, tenantID uuid.UUID, req *dto.CreateEnvironmentRequest) (*dto.EnvironmentResponse, error)
+	GetByID(ctx context.Context, tenantID, envID uuid.UUID) (*dto.EnvironmentResponse, error)
+	List(ctx context.Context, tenantID uuid.UUID, req *dto.ListEnvironmentsRequest) (*dto.EnvironmentListResponse, error)
+	Update(ctx context.Context, tenantID, envID uuid.UUID, req *dto.UpdateEnvironmentRequest) (*dto.EnvironmentResponse, error)
+	Delete(ctx context.Context, tenantID, envID uuid.UUID) error
 }

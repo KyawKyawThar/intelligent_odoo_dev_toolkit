@@ -128,14 +128,14 @@ type DeleteEnvironmentTxParams struct {
 func (store *SQLStore) DeleteEnvironmentTx(ctx context.Context, arg DeleteEnvironmentTxParams) error {
 	return store.execTx(ctx, func(q *Queries) error {
 		// 1. Delete environment
-		result, err := q.DeleteEnvironment(ctx, DeleteEnvironmentParams{
+		rowsAffected, err := q.DeleteEnvironment(ctx, DeleteEnvironmentParams{
 			ID:       arg.EnvID,
 			TenantID: arg.TenantID,
 		})
 		if err != nil {
 			return err
 		}
-		if result.RowsAffected() == 0 {
+		if rowsAffected == 0 {
 			return fmt.Errorf("environment not found or not owned by tenant")
 		}
 

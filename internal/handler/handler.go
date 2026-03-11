@@ -1,6 +1,7 @@
 package handler
 
 import (
+	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/middleware"
@@ -8,18 +9,22 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 // Handlers is the main container for all HTTP handlers.
 type Handlers struct {
-	Auth *AuthHandler
+	Auth        *AuthHandler
+	Ws          *WsHandler
+	Environment *EnvironmentHandler
 
 	// Future handlers:
-	// Environment *EnvironmentHandler
 	// Profiler    *ProfilerHandler
 	// Alert       *AlertHandler
 	//	APIKey *APIKeyHandler
@@ -28,13 +33,13 @@ type Handlers struct {
 }
 
 // NewHandlers creates all handlers with their service dependencies.
-func NewHandlers(services *service.Services) *Handlers {
+func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Logger) *Handlers {
 	v := validator.New()
 	if err := api.RegisterCustomValidations(v); err != nil {
 		panic(err)
 	}
 
-	base := &BaseHandler{validate: v}
+	base := &BaseHandler{validate: v, logger: logger}
 
 	authSvc, ok := services.Auth.(*service.AuthService)
 	if !ok {
@@ -43,6 +48,7 @@ func NewHandlers(services *service.Services) *Handlers {
 
 	return &Handlers{
 		Auth: NewAuthHandler(authSvc, base),
+		Ws:   NewWsHandler(base, store),
 		// APIKey: NewAPIKeyHandler(services.APIKey, base),
 		// Tenant: NewTenantHandler(services.Tenant, base),
 		// User:   NewUserHandler(services.User, base),
@@ -56,6 +62,7 @@ func NewHandlers(services *service.Services) *Handlers {
 // BaseHandler provides common functionality for all handlers.
 type BaseHandler struct {
 	validate *validator.Validate
+	logger   *zerolog.Logger
 }
 
 // =============================================================================
@@ -193,6 +200,36 @@ func (h *BaseHandler) BearerToken(r *http.Request) string {
 		return after
 	}
 	return ""
+}
+
+func ParseQueryInt32(r *http.Request, key string, defaultVal int32) int32 {
+	raw := r.URL.Query().Get(key)
+	if raw == "" {
+		return defaultVal
+	}
+	v, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil {
+		return defaultVal
+	}
+	return int32(v)
+}
+
+// MustUUIDParam extracts a UUID path parameter. Returns false and writes an
+// error response if the parameter is missing or not a valid UUID.
+func (h *EnvironmentHandler) MustUUIDParam(w http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
+	raw := chi.URLParam(r, param)
+	if raw == "" {
+		h.WriteErr(w, r, api.ErrBadRequest("missing "+param+" path parameter"))
+		return uuid.Nil, false
+	}
+
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		h.WriteErr(w, r, api.ErrBadRequest(param+" must be a valid UUID"))
+		return uuid.Nil, false
+	}
+
+	return id, true
 }
 
 // =============================================================================

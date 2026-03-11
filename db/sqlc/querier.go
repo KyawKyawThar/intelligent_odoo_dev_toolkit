@@ -19,8 +19,12 @@ type Querier interface {
 	AcknowledgeErrorGroup(ctx context.Context, arg AcknowledgeErrorGroupParams) (ErrorGroup, error)
 	// Merge new user IDs into the existing array (deduplicated)
 	AppendAffectedUsers(ctx context.Context, arg AppendAffectedUsersParams) error
+	CheckEnvironmentNameExists(ctx context.Context, arg CheckEnvironmentNameExistsParams) (bool, error)
 	CountAuditLogs(ctx context.Context, tenantID uuid.UUID) (int64, error)
 	CountEnvironmentsByTenant(ctx context.Context, tenantID uuid.UUID) (int64, error)
+	CountEnvironmentsByTenantAndStatus(ctx context.Context, arg CountEnvironmentsByTenantAndStatusParams) (int64, error)
+	CountEnvironmentsByTenantAndType(ctx context.Context, arg CountEnvironmentsByTenantAndTypeParams) (int64, error)
+	CountEnvironmentsByTenantTypeAndStatus(ctx context.Context, arg CountEnvironmentsByTenantTypeAndStatusParams) (int64, error)
 	CountErrorGroupsByEnv(ctx context.Context, envID uuid.UUID) (int64, error)
 	CountErrorGroupsByStatus(ctx context.Context, arg CountErrorGroupsByStatusParams) (int64, error)
 	CountRecordingsByEnv(ctx context.Context, envID uuid.UUID) (int64, error)
@@ -58,7 +62,7 @@ type Querier interface {
 	DeactivateUser(ctx context.Context, arg DeactivateUserParams) error
 	DeleteAPIKey(ctx context.Context, arg DeleteAPIKeyParams) error
 	DeleteAnonProfile(ctx context.Context, arg DeleteAnonProfileParams) error
-	DeleteEnvironment(ctx context.Context, arg DeleteEnvironmentParams) (pgconn.CommandTag, error)
+	DeleteEnvironment(ctx context.Context, arg DeleteEnvironmentParams) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) (pgconn.CommandTag, error)
 	DeleteMigrationScan(ctx context.Context, arg DeleteMigrationScanParams) error
 	DeleteNotificationChannel(ctx context.Context, arg DeleteNotificationChannelParams) error
@@ -141,6 +145,9 @@ type Querier interface {
 	ListBudgetSamples(ctx context.Context, arg ListBudgetSamplesParams) ([]PerfBudgetSample, error)
 	ListBudgetSamplesBetween(ctx context.Context, arg ListBudgetSamplesBetweenParams) ([]PerfBudgetSample, error)
 	ListEnvironmentsByTenant(ctx context.Context, tenantID uuid.UUID) ([]Environment, error)
+	ListEnvironmentsByTenantAndStatus(ctx context.Context, arg ListEnvironmentsByTenantAndStatusParams) ([]Environment, error)
+	ListEnvironmentsByTenantAndType(ctx context.Context, arg ListEnvironmentsByTenantAndTypeParams) ([]Environment, error)
+	ListEnvironmentsByTenantTypeAndStatus(ctx context.Context, arg ListEnvironmentsByTenantTypeAndStatusParams) ([]Environment, error)
 	ListErrorGroups(ctx context.Context, arg ListErrorGroupsParams) ([]ErrorGroup, error)
 	ListErrorGroupsByStatus(ctx context.Context, arg ListErrorGroupsByStatusParams) ([]ErrorGroup, error)
 	ListErrorGroupsByType(ctx context.Context, arg ListErrorGroupsByTypeParams) ([]ErrorGroup, error)
