@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/smtp"
 	"time"
@@ -112,4 +113,53 @@ func (s *AuthService) sendPasswordResetEmail(_ context.Context, email, resetToke
 		return
 	}
 	log.Info().Str("email", email).Str("addr", addr).Msg("sent password reset email")
+}
+func defaultFeatureFlags(envType string) json.RawMessage {
+	switch envType {
+	case "development":
+		return json.RawMessage(`{
+			"sampling_mode": "full",
+			"sample_rate": 1.0,
+			"slow_threshold_ms": 50,
+			"collect_orm": true,
+			"collect_sql": true,
+			"collect_errors": true,
+			"collect_profiler": true,
+			"max_events_per_batch": 1000,
+			"max_bytes_per_minute": 5242880,
+			"flush_interval_sec": 10,
+			"strip_pii": false,
+			"redact_fields": []
+		}`)
+	case "staging":
+		return json.RawMessage(`{
+			"sampling_mode": "sampled",
+			"sample_rate": 0.25,
+			"slow_threshold_ms": 100,
+			"collect_orm": true,
+			"collect_sql": true,
+			"collect_errors": true,
+			"collect_profiler": true,
+			"max_events_per_batch": 500,
+			"max_bytes_per_minute": 1048576,
+			"flush_interval_sec": 30,
+			"strip_pii": true,
+			"redact_fields": ["partner_name", "email", "phone"]
+		}`)
+	default: // production
+		return json.RawMessage(`{
+			"sampling_mode": "aggregated_only",
+			"sample_rate": 0.05,
+			"slow_threshold_ms": 200,
+			"collect_orm": true,
+			"collect_sql": false,
+			"collect_errors": true,
+			"collect_profiler": false,
+			"max_events_per_batch": 200,
+			"max_bytes_per_minute": 524288,
+			"flush_interval_sec": 60,
+			"strip_pii": true,
+			"redact_fields": ["partner_name", "email", "phone", "vat", "street"]
+		}`)
+	}
 }

@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  api.APIError:
+  api.Error:
     properties:
       code:
         $ref: '#/definitions/api.ErrorCode'
@@ -53,6 +53,48 @@ definitions:
     - INVALID_ODOO_VERSION
     - INVALID_DOMAIN
     type: string
+    x-enum-comments:
+      ErrCodeExpiredAPIKey: nolint:gosec // not a credential
+      ErrCodeInvalidAPIKey: nolint:gosec // not a credential
+      ErrCodeInvalidCredentials: nolint:gosec // not a credential
+    x-enum-descriptions:
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - nolint:gosec // not a credential
+    - nolint:gosec // not a credential
+    - ""
+    - ""
+    - nolint:gosec // not a credential
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
+    - ""
     x-enum-varnames:
     - ErrCodeValidation
     - ErrCodeUnauthorized
@@ -111,6 +153,86 @@ definitions:
     required:
     - current_password
     - new_password
+    type: object
+  dto.CreateEnvironmentRequest:
+    properties:
+      db_name:
+        maxLength: 63
+        minLength: 1
+        type: string
+      env_type:
+        enum:
+        - development
+        - staging
+        - production
+        type: string
+      feature_flags:
+        description: |-
+          FeatureFlags holds arbitrary JSON configuration
+          @Description Feature flags as JSON objec
+          @example {"enable_profiling": true, "log_level": "info"}
+        type: object
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      odoo_url:
+        type: string
+      odoo_version:
+        enum:
+        - "14.0"
+        - "15.0"
+        - "16.0"
+        - "17.0"
+        - "18.0"
+        type: string
+    required:
+    - db_name
+    - env_type
+    - name
+    - odoo_url
+    type: object
+  dto.EnvironmentListResponse:
+    properties:
+      environments:
+        items:
+          $ref: '#/definitions/dto.EnvironmentResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  dto.EnvironmentResponse:
+    properties:
+      agent_id:
+        type: string
+      created_at:
+        type: string
+      db_name:
+        type: string
+      env_type:
+        type: string
+      feature_flags:
+        type: object
+      id:
+        type: string
+      last_sync:
+        type: string
+      name:
+        type: string
+      odoo_url:
+        type: string
+      odoo_version:
+        type: string
+      status:
+        type: string
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
     type: object
   dto.ForgotPasswordRequest:
     properties:
@@ -219,6 +341,42 @@ definitions:
       user_agent:
         type: string
     type: object
+  dto.UpdateEnvironmentRequest:
+    properties:
+      db_name:
+        maxLength: 63
+        minLength: 1
+        type: string
+      env_type:
+        enum:
+        - development
+        - staging
+        - production
+        type: string
+      feature_flags:
+        description: '@example {"enable_profiling": true, "log_level": "info"}'
+        type: object
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      odoo_url:
+        type: string
+      odoo_version:
+        enum:
+        - "14.0"
+        - "15.0"
+        - "16.0"
+        - "17.0"
+        - "18.0"
+        type: string
+      status:
+        enum:
+        - active
+        - inactive
+        - maintenance
+        type: string
+    type: object
   dto.UpdateUserRequest:
     properties:
       email:
@@ -269,6 +427,49 @@ info:
   title: OdooDevTools API
   version: 1.0.0
 paths:
+  /api/v1/agent/ws:
+    get:
+      consumes:
+      - application/json
+      description: Upgrades the HTTP connection to a WebSocket connection and handles
+        agent heartbeats.
+      parameters:
+      - description: Agent ID
+        in: query
+        name: agent_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: Switching Protocols
+          schema:
+            type: string
+        "400":
+          description: 'Bad Request: Missing or invalid agent_id'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: 'Unauthorized: Invalid or missing API key'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "403":
+          description: 'Forbidden: Agent does not belong to the tenant'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: 'Not Found: Environment not found for the given agent_id'
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: 'Internal Server Error: Failed to upgrade connection or database
+            error'
+          schema:
+            $ref: '#/definitions/api.Error'
+      summary: WebSocket endpoint for agent communication
+      tags:
+      - Agents
   /auth/change-password:
     post:
       consumes:
@@ -294,15 +495,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       security:
       - BearerAuth: []
       summary: Change password
@@ -334,7 +535,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       summary: Forgot password
       tags:
       - Auth
@@ -361,19 +562,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       security:
       - none: []
       summary: Login
@@ -399,11 +600,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       security:
       - BearerAuth: []
       summary: Logout
@@ -422,15 +623,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       security:
       - BearerAuth: []
       summary: Get current user
@@ -458,19 +659,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       security:
       - BearerAuth: []
       summary: Update current user
@@ -499,15 +700,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       summary: Refresh token
       tags:
       - Auth
@@ -534,15 +735,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       summary: Register a new user
       tags:
       - Auth
@@ -562,15 +763,15 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       security:
       - BearerAuth: []
       summary: Resend verification email
@@ -601,11 +802,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       summary: Reset password
       tags:
       - Auth
@@ -627,11 +828,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       security:
       - BearerAuth: []
       summary: Get active sessions
@@ -655,19 +856,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       security:
       - BearerAuth: []
       summary: Revoke session
@@ -698,14 +899,192 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.APIError'
+            $ref: '#/definitions/api.Error'
       summary: Verify email
       tags:
       - Auth
+  /environments:
+    get:
+      description: Get all environments for the current tenant
+      parameters:
+      - description: Filter by type
+        enum:
+        - development
+        - staging
+        - production
+        in: query
+        name: env_type
+        type: string
+      - description: Filter by status
+        enum:
+        - active
+        - inactive
+        - maintenance
+        in: query
+        name: status
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnvironmentListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List environments
+      tags:
+      - environments
+    post:
+      consumes:
+      - application/json
+      description: Register a new Odoo environment under the current tenant
+      parameters:
+      - description: Environment details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateEnvironmentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.EnvironmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Create environment
+      tags:
+      - environments
+  /environments/{env_id}:
+    delete:
+      description: Permanently delete an environment and its associated data
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Delete environment
+      tags:
+      - environments
+    get:
+      description: Get details of a specific environment
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnvironmentResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get environment
+      tags:
+      - environments
+    patch:
+      consumes:
+      - application/json
+      description: Partially update an environment's configuration
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateEnvironmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnvironmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Update environment
+      tags:
+      - environments
 schemes:
 - http
 - https

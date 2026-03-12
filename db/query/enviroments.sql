@@ -27,6 +27,45 @@ SELECT * FROM environments
 WHERE tenant_id = $1
 ORDER BY created_at;
 
+
+-- name: ListEnvironmentsByTenantAndStatus :many
+SELECT * FROM environments
+WHERE tenant_id = $1
+  AND status = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4;
+
+-- name: ListEnvironmentsByTenantAndType :many
+SELECT * FROM environments
+WHERE tenant_id = $1
+  AND env_type = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4;
+
+-- name: ListEnvironmentsByTenantTypeAndStatus :many
+SELECT * FROM environments
+WHERE tenant_id = $1
+  AND env_type = $2
+  AND status = $3
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5;
+
+-- name: CountEnvironmentsByTenantAndType :one
+SELECT COUNT(*) FROM environments
+WHERE tenant_id = $1
+  AND env_type = $2;
+
+-- name: CountEnvironmentsByTenantAndStatus :one
+SELECT COUNT(*) FROM environments
+WHERE tenant_id = $1
+  AND status = $2;
+
+-- name: CountEnvironmentsByTenantTypeAndStatus :one
+SELECT COUNT(*) FROM environments
+WHERE tenant_id = $1
+  AND env_type = $2
+  AND status = $3;
+
 -- name: CountEnvironmentsByTenant :one
 SELECT count(*) FROM environments
 WHERE tenant_id = $1;
@@ -34,13 +73,15 @@ WHERE tenant_id = $1;
 -- name: UpdateEnvironment :one
 UPDATE environments
 SET
-    name = $2,
-    odoo_url = $3,
-    db_name = $4,
-    odoo_version = $5,
-    env_type = $6,
-    updated_at = now()
-WHERE id = $1 AND tenant_id = $7
+    name          = COALESCE(sqlc.narg('name'), name),
+    odoo_url      = COALESCE(sqlc.narg('odoo_url'), odoo_url),
+    db_name       = COALESCE(sqlc.narg('db_name'), db_name),
+    odoo_version  = COALESCE(sqlc.narg('odoo_version'), odoo_version),
+    env_type      = COALESCE(sqlc.narg('env_type'), env_type),
+    status        = COALESCE(sqlc.narg('status'), status),
+    feature_flags = COALESCE(sqlc.narg('feature_flags'), feature_flags),
+    updated_at    = NOW()
+WHERE id = $1 AND tenant_id = $2
 RETURNING *;
 
 -- name: UpdateEnvironmentStatus :exec
@@ -81,7 +122,7 @@ SELECT feature_flags FROM environments
 WHERE id = $1
 LIMIT 1;
 
--- name: DeleteEnvironment :execresult
+-- name: DeleteEnvironment :execrows
 DELETE FROM environments
 WHERE id = $1 AND tenant_id = $2;
 
@@ -99,6 +140,14 @@ INSERT INTO agent_heartbeats (
 ) VALUES (
     $1, $2, $3, $4, $5
 ) RETURNING *;
+
+-- name: CheckEnvironmentNameExists :one
+SELECT EXISTS(
+    SELECT 1 FROM environments
+    WHERE tenant_id = $1
+      AND name = $2
+      AND id != $3
+) AS exists;
 
 -- name: GetLatestHeartbeat :one
 SELECT * FROM agent_heartbeats

@@ -635,6 +635,10 @@ UPDATE users
 SET
     full_name = COALESCE($1, full_name),
     email = COALESCE($2, email),
+    email_verified = CASE 
+        WHEN $2 IS NOT NULL AND $2 != email THEN false 
+        ELSE email_verified 
+    END,
     updated_at = now()
 WHERE id = $3 AND tenant_id = $4
 RETURNING id, tenant_id, email, password_hash, full_name, email_verified, is_active, last_login_at, created_at, updated_at

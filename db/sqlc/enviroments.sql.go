@@ -15,6 +15,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const checkEnvironmentNameExists = `-- name: CheckEnvironmentNameExists :one
+SELECT EXISTS(
+    SELECT 1 FROM environments
+    WHERE tenant_id = $1
+      AND name = $2
+      AND id != $3
+) AS exists
+`
+
+type CheckEnvironmentNameExistsParams struct {
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	Name     string    `db:"name" json:"name"`
+	ID       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) CheckEnvironmentNameExists(ctx context.Context, arg CheckEnvironmentNameExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, checkEnvironmentNameExists, arg.TenantID, arg.Name, arg.ID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const countEnvironmentsByTenant = `-- name: CountEnvironmentsByTenant :one
 SELECT count(*) FROM environments
 WHERE tenant_id = $1
@@ -22,6 +44,62 @@ WHERE tenant_id = $1
 
 func (q *Queries) CountEnvironmentsByTenant(ctx context.Context, tenantID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countEnvironmentsByTenant, tenantID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countEnvironmentsByTenantAndStatus = `-- name: CountEnvironmentsByTenantAndStatus :one
+SELECT COUNT(*) FROM environments
+WHERE tenant_id = $1
+  AND status = $2
+`
+
+type CountEnvironmentsByTenantAndStatusParams struct {
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	Status   string    `db:"status" json:"status"`
+}
+
+func (q *Queries) CountEnvironmentsByTenantAndStatus(ctx context.Context, arg CountEnvironmentsByTenantAndStatusParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEnvironmentsByTenantAndStatus, arg.TenantID, arg.Status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countEnvironmentsByTenantAndType = `-- name: CountEnvironmentsByTenantAndType :one
+SELECT COUNT(*) FROM environments
+WHERE tenant_id = $1
+  AND env_type = $2
+`
+
+type CountEnvironmentsByTenantAndTypeParams struct {
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	EnvType  string    `db:"env_type" json:"env_type"`
+}
+
+func (q *Queries) CountEnvironmentsByTenantAndType(ctx context.Context, arg CountEnvironmentsByTenantAndTypeParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEnvironmentsByTenantAndType, arg.TenantID, arg.EnvType)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countEnvironmentsByTenantTypeAndStatus = `-- name: CountEnvironmentsByTenantTypeAndStatus :one
+SELECT COUNT(*) FROM environments
+WHERE tenant_id = $1
+  AND env_type = $2
+  AND status = $3
+`
+
+type CountEnvironmentsByTenantTypeAndStatusParams struct {
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	EnvType  string    `db:"env_type" json:"env_type"`
+	Status   string    `db:"status" json:"status"`
+}
+
+func (q *Queries) CountEnvironmentsByTenantTypeAndStatus(ctx context.Context, arg CountEnvironmentsByTenantTypeAndStatusParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEnvironmentsByTenantTypeAndStatus, arg.TenantID, arg.EnvType, arg.Status)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -83,7 +161,7 @@ func (q *Queries) CreateEnvironment(ctx context.Context, arg CreateEnvironmentPa
 	return i, err
 }
 
-const deleteEnvironment = `-- name: DeleteEnvironment :execresult
+const deleteEnvironment = `-- name: DeleteEnvironment :execrows
 DELETE FROM environments
 WHERE id = $1 AND tenant_id = $2
 `
@@ -93,8 +171,12 @@ type DeleteEnvironmentParams struct {
 	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
 }
 
-func (q *Queries) DeleteEnvironment(ctx context.Context, arg DeleteEnvironmentParams) (pgconn.CommandTag, error) {
-	return q.db.Exec(ctx, deleteEnvironment, arg.ID, arg.TenantID)
+func (q *Queries) DeleteEnvironment(ctx context.Context, arg DeleteEnvironmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteEnvironment, arg.ID, arg.TenantID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteOldHeartbeats = `-- name: DeleteOldHeartbeats :execresult
@@ -308,6 +390,171 @@ func (q *Queries) ListEnvironmentsByTenant(ctx context.Context, tenantID uuid.UU
 	return items, nil
 }
 
+const listEnvironmentsByTenantAndStatus = `-- name: ListEnvironmentsByTenantAndStatus :many
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+WHERE tenant_id = $1
+  AND status = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListEnvironmentsByTenantAndStatusParams struct {
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	Status   string    `db:"status" json:"status"`
+	Limit    int32     `db:"limit" json:"limit"`
+	Offset   int32     `db:"offset" json:"offset"`
+}
+
+func (q *Queries) ListEnvironmentsByTenantAndStatus(ctx context.Context, arg ListEnvironmentsByTenantAndStatusParams) ([]Environment, error) {
+	rows, err := q.db.Query(ctx, listEnvironmentsByTenantAndStatus,
+		arg.TenantID,
+		arg.Status,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Environment{}
+	for rows.Next() {
+		var i Environment
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.OdooUrl,
+			&i.DbName,
+			&i.OdooVersion,
+			&i.EnvType,
+			&i.Status,
+			&i.AgentID,
+			&i.FeatureFlags,
+			&i.LastSync,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnvironmentsByTenantAndType = `-- name: ListEnvironmentsByTenantAndType :many
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+WHERE tenant_id = $1
+  AND env_type = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListEnvironmentsByTenantAndTypeParams struct {
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	EnvType  string    `db:"env_type" json:"env_type"`
+	Limit    int32     `db:"limit" json:"limit"`
+	Offset   int32     `db:"offset" json:"offset"`
+}
+
+func (q *Queries) ListEnvironmentsByTenantAndType(ctx context.Context, arg ListEnvironmentsByTenantAndTypeParams) ([]Environment, error) {
+	rows, err := q.db.Query(ctx, listEnvironmentsByTenantAndType,
+		arg.TenantID,
+		arg.EnvType,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Environment{}
+	for rows.Next() {
+		var i Environment
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.OdooUrl,
+			&i.DbName,
+			&i.OdooVersion,
+			&i.EnvType,
+			&i.Status,
+			&i.AgentID,
+			&i.FeatureFlags,
+			&i.LastSync,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnvironmentsByTenantTypeAndStatus = `-- name: ListEnvironmentsByTenantTypeAndStatus :many
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+WHERE tenant_id = $1
+  AND env_type = $2
+  AND status = $3
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5
+`
+
+type ListEnvironmentsByTenantTypeAndStatusParams struct {
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	EnvType  string    `db:"env_type" json:"env_type"`
+	Status   string    `db:"status" json:"status"`
+	Limit    int32     `db:"limit" json:"limit"`
+	Offset   int32     `db:"offset" json:"offset"`
+}
+
+func (q *Queries) ListEnvironmentsByTenantTypeAndStatus(ctx context.Context, arg ListEnvironmentsByTenantTypeAndStatusParams) ([]Environment, error) {
+	rows, err := q.db.Query(ctx, listEnvironmentsByTenantTypeAndStatus,
+		arg.TenantID,
+		arg.EnvType,
+		arg.Status,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Environment{}
+	for rows.Next() {
+		var i Environment
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.OdooUrl,
+			&i.DbName,
+			&i.OdooVersion,
+			&i.EnvType,
+			&i.Status,
+			&i.AgentID,
+			&i.FeatureFlags,
+			&i.LastSync,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listHeartbeats = `-- name: ListHeartbeats :many
 SELECT id, env_id, agent_id, agent_version, status, metadata, received_at FROM agent_heartbeats
 WHERE env_id = $1
@@ -436,35 +683,41 @@ func (q *Queries) RegisterAgent(ctx context.Context, arg RegisterAgentParams) (E
 const updateEnvironment = `-- name: UpdateEnvironment :one
 UPDATE environments
 SET
-    name = $2,
-    odoo_url = $3,
-    db_name = $4,
-    odoo_version = $5,
-    env_type = $6,
-    updated_at = now()
-WHERE id = $1 AND tenant_id = $7
+    name          = COALESCE($3, name),
+    odoo_url      = COALESCE($4, odoo_url),
+    db_name       = COALESCE($5, db_name),
+    odoo_version  = COALESCE($6, odoo_version),
+    env_type      = COALESCE($7, env_type),
+    status        = COALESCE($8, status),
+    feature_flags = COALESCE($9, feature_flags),
+    updated_at    = NOW()
+WHERE id = $1 AND tenant_id = $2
 RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at
 `
 
 type UpdateEnvironmentParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Name        string    `db:"name" json:"name"`
-	OdooUrl     string    `db:"odoo_url" json:"odoo_url"`
-	DbName      string    `db:"db_name" json:"db_name"`
-	OdooVersion *string   `db:"odoo_version" json:"odoo_version"`
-	EnvType     string    `db:"env_type" json:"env_type"`
-	TenantID    uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	ID           uuid.UUID        `db:"id" json:"id"`
+	TenantID     uuid.UUID        `db:"tenant_id" json:"tenant_id"`
+	Name         *string          `db:"name" json:"name"`
+	OdooUrl      *string          `db:"odoo_url" json:"odoo_url"`
+	DbName       *string          `db:"db_name" json:"db_name"`
+	OdooVersion  *string          `db:"odoo_version" json:"odoo_version"`
+	EnvType      *string          `db:"env_type" json:"env_type"`
+	Status       *string          `db:"status" json:"status"`
+	FeatureFlags *json.RawMessage `db:"feature_flags" json:"feature_flags"`
 }
 
 func (q *Queries) UpdateEnvironment(ctx context.Context, arg UpdateEnvironmentParams) (Environment, error) {
 	row := q.db.QueryRow(ctx, updateEnvironment,
 		arg.ID,
+		arg.TenantID,
 		arg.Name,
 		arg.OdooUrl,
 		arg.DbName,
 		arg.OdooVersion,
 		arg.EnvType,
-		arg.TenantID,
+		arg.Status,
+		arg.FeatureFlags,
 	)
 	var i Environment
 	err := row.Scan(

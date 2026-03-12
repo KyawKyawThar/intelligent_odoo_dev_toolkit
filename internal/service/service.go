@@ -13,10 +13,9 @@ import (
 )
 
 type Services struct {
-	Auth AuthServicer
-
+	Auth        AuthServicer
+	Environment EnvironmentServicer
 	// Future services:
-	// Environment EnvironmentServicer
 	// Profiler    ProfilerServicer
 	// Alert       AlertServicer
 	// Audit       AuditServicer
@@ -33,6 +32,10 @@ type AuthService struct {
 	cache      *cache.RedisClient
 	tokenMaker token.Maker
 	config     *AuthConfig
+}
+
+type EnvironmentService struct {
+	store db.Store
 }
 type AuthConfig struct {
 	AccessTokenDuration  time.Duration
@@ -68,6 +71,10 @@ func DefaultConfig() *Config {
 	}
 }
 
+func NewEnvironmentService(store db.Store) *EnvironmentService {
+	return &EnvironmentService{store: store}
+}
+
 func NewAuthService(store db.Store, redisCache *cache.RedisClient, tokenMaker token.Maker, cfg *AuthConfig) *AuthService {
 	if cfg == nil {
 		cfg = DefaultAuthConfig()
@@ -88,8 +95,10 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 
 	// Create the base auth service (implements multiple interfaces)
 	authSvc := NewAuthService(store, redisCache, tokenMaker, &cfg.Auth)
+	envSvc := NewEnvironmentService(store)
 
 	return &Services{
-		Auth: authSvc,
+		Auth:        authSvc,
+		Environment: envSvc,
 	}
 }

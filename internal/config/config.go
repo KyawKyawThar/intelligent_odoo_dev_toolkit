@@ -4,6 +4,7 @@ package config
 import (
 	"Intelligent_Dev_ToolKit_Odoo/utils"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ type Config struct {
 	// ── PostgreSQL ───────────────────────────────────────────────
 	DBSource          string `mapstructure:"DATABASE_URL"`
 	DBPoolMaxConns    int    `mapstructure:"DB_POOL_MAX_CONNS"`
-	DBPoolMinConns    int    `mapstructure:"DB_POOL_MIN_CONNS"`
+	DBPoolMinConns    int    `mapstructure:"DB_POOL_MIN_CONns"`
 	DBPoolMaxConnLife string `mapstructure:"DB_POOL_MAX_CONN_LIFETIME"`
 	DBPoolMaxConnIdle string `mapstructure:"DB_POOL_MAX_CONN_IDLE_TIME"`
 
@@ -88,10 +89,10 @@ type Config struct {
 	APIKeyHashPepper string `mapstructure:"API_KEY_HASH_PEPPER"`
 
 	// ── Workers ──────────────────────────────────────────────────
-	WorkerReplicas          int    `mapstructure:"WORKER_REPLICAS"`
-	IngestWorkerCount       int    `mapstructure:"INGEST_WORKER_COUNT"`
-	IngestBatchSize         int    `mapstructure:"INGEST_BATCH_SIZE"`
-	IngestPollInterval      string `mapstructure:"INGEST_POLL_INTERVAL"`
+	WorkerReplicas    int `mapstructure:"WORKER_REPLICAS"`
+	IngestWorkerCount int `mapstructure:"INGEST_WORKER_COUNT"`
+	IngestBatchSize   int `mapstructure:"INGEST_BATCH_SIZE"`
+
 	IngestMaxRetries        int    `mapstructure:"INGEST_MAX_RETRIES"`
 	AggregatorFlushInterval string `mapstructure:"AGGREGATOR_FLUSH_INTERVAL"`
 	AlertWorkerCount        int    `mapstructure:"ALERT_WORKER_COUNT"`
@@ -159,6 +160,38 @@ func LoadConfig(path string) (config Config, err error) {
 	err = viper.Unmarshal(&config)
 	if err != nil {
 		return config, err
+	}
+
+	// Workaround for viper bug
+	if config.IngestWorkerCount == 0 {
+		ingestWorkerCount, err := strconv.Atoi(viper.GetString("INGEST_WORKER_COUNT"))
+		if err == nil {
+			config.IngestWorkerCount = ingestWorkerCount
+		}
+	}
+	if config.IngestBatchSize == 0 {
+		ingestBatchSize, err := strconv.Atoi(viper.GetString("INGEST_BATCH_SIZE"))
+		if err == nil {
+			config.IngestBatchSize = ingestBatchSize
+		}
+	}
+	if config.AgentRateLimitCloudBytes == 0 {
+		agentRateLimitCloudBytes, err := strconv.ParseInt(viper.GetString("AGENT_RATE_LIMIT_CLOUD_BYTES"), 10, 64)
+		if err == nil {
+			config.AgentRateLimitCloudBytes = agentRateLimitCloudBytes
+		}
+	}
+	if config.AgentRateLimitOnpremBytes == 0 {
+		agentRateLimitOnpremBytes, err := strconv.ParseInt(viper.GetString("AGENT_RATE_LIMIT_ONPREM_BYTES"), 10, 64)
+		if err == nil {
+			config.AgentRateLimitOnpremBytes = agentRateLimitOnpremBytes
+		}
+	}
+	if config.AgentRateLimitEnterpriseBytes == 0 {
+		agentRateLimitEnterpriseBytes, err := strconv.ParseInt(viper.GetString("AGENT_RATE_LIMIT_ENTERPRISE_BYTES"), 10, 64)
+		if err == nil {
+			config.AgentRateLimitEnterpriseBytes = agentRateLimitEnterpriseBytes
+		}
 	}
 
 	// Parse ALLOWED_ORIGINS from comma-separated string

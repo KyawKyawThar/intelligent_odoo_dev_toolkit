@@ -22,6 +22,41 @@ docker_run:
 		-e GIN_MODE=release \
 		odoodevtools:latest
 
+## ── Docker Compose ───────────────────────────────────────────────
+
+COMPOSE_FILE := deploy/docker-compose.yml
+COMPOSE := docker compose --env-file .env -f $(COMPOSE_FILE)
+
+.PHONY: up down restart ps logs logs-f db-shell redis-shell
+
+up: ## Start all containers (detached)
+	$(COMPOSE) up -d
+
+down: ## Stop and remove all containers
+	$(COMPOSE) down
+
+down-v: ## Stop containers and remove volumes (fresh start)
+	$(COMPOSE) down -v
+
+restart: down up ## Restart all containers
+
+ps: ## Show running containers
+	$(COMPOSE) ps
+
+logs: ## Show container logs (last 100 lines)
+	$(COMPOSE) logs --tail=100
+
+logs-f: ## Follow container logs live
+	$(COMPOSE) logs -f
+
+db-shell: ## Open psql shell in postgres container
+	$(COMPOSE) exec postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+
+redis-shell: ## Open redis-cli in redis container
+	$(COMPOSE) exec redis redis-cli -a $(REDIS_PASSWORD)
+
+## ── Migrations ───────────────────────────────────────────────────
+
 new_migration:
 	migrate create -ext sql -dir $(MIGRATIONS_PATH) -seq $(name)
 
@@ -43,7 +78,7 @@ generate:
 	go generate
 
 swagger:
-	swag init -g cmd/server/main.go -d ./
+	swag init --parseDependency -g cmd/server/main.go
 
 
 
@@ -130,4 +165,4 @@ help: ## Show this help
 
 .DEFAULT_GOAL := help
 
-.PHONY: sqlc docker_run new_migration migrate_up migrate_down migrate_goto migrate_force swagger generate lint-new lint-fix check hooks tools
+.PHONY: sqlc docker_run new_migration migrate_up migrate_down migrate_goto migrate_force swagger generate lint-new lint-fix check hooks tools up down down-v restart ps logs logs-f db-shell redis-shell

@@ -34,9 +34,9 @@ func NewAuthHandler(authService *service.AuthService, base *BaseHandler) *AuthHa
 // @Produce      json
 // @Param        request body dto.RegisterRequest true "User registration details"
 // @Success      201  {object}  dto.LoginResponse
-// @Failure      400  {object}  api.APIError
-// @Failure      409  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      400  {object}  api.Error
+// @Failure      409  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/register [post]
 func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	var req dto.RegisterRequest
@@ -66,10 +66,10 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        request body dto.LoginRequest true "Login credentials"
 // @Success      200  {object}  dto.LoginResponse
-// @Failure      400  {object}  api.APIError
-// @Failure      401  {object}  api.APIError
-// @Failure      429  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      400  {object}  api.Error
+// @Failure      401  {object}  api.Error
+// @Failure      429  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Security     none
 // @Router       /auth/login [post]
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -100,9 +100,9 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        request body dto.RefreshTokenRequest true "Refresh token"
 // @Success      200  {object}  dto.RefreshTokenResponse
-// @Failure      400  {object}  api.APIError
-// @Failure      401  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      400  {object}  api.Error
+// @Failure      401  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/refresh [post]
 // and issues a new access + refresh pair.
 func (h *AuthHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
@@ -134,8 +134,8 @@ func (h *AuthHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request)
 // @Security     BearerAuth
 // @Param        request body dto.LogoutRequest false "Logout options (optional)"
 // @Success      204
-// @Failure      401  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      401  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/logout [post]
 func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	BearerToken := h.BearerToken(r)
@@ -170,7 +170,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        request body dto.ForgotPasswordRequest true "Email address"
 // @Success      200  {object}  map[string]string
-// @Failure      400  {object}  api.APIError
+// @Failure      400  {object}  api.Error
 // @Router       /auth/forgot-password [post]
 func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Request) {
 	var req dto.ForgotPasswordRequest
@@ -199,8 +199,8 @@ func (h *AuthHandler) HandleForgotPassword(w http.ResponseWriter, r *http.Reques
 // @Produce      json
 // @Param        request body dto.ResetPasswordRequest true "Reset token and new password"
 // @Success      200  {object}  map[string]string
-// @Failure      400  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      400  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/reset-password [post]
 func (h *AuthHandler) HandleResetPassword(w http.ResponseWriter, r *http.Request) {
 	var req dto.ResetPasswordRequest
@@ -233,9 +233,9 @@ func (h *AuthHandler) HandleResetPassword(w http.ResponseWriter, r *http.Request
 // @Security     BearerAuth
 // @Param        request body dto.ChangePasswordRequest true "Current and new password"
 // @Success      200  {object}  map[string]string
-// @Failure      400  {object}  api.APIError
-// @Failure      401  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      400  {object}  api.Error
+// @Failure      401  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/change-password [post]
 func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
@@ -275,8 +275,8 @@ func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Reques
 // @Produce      json
 // @Param        request body dto.VerifyEmailRequest true "Verification token"
 // @Success      200  {object}  map[string]string
-// @Failure      400  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      400  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/verify-email [post]
 func (h *AuthHandler) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	var req dto.VerifyEmailRequest
@@ -306,9 +306,9 @@ func (h *AuthHandler) HandleVerifyEmail(w http.ResponseWriter, r *http.Request) 
 // @Produce      json
 // @Security     BearerAuth
 // @Success      200  {object}  map[string]string
-// @Failure      401  {object}  api.APIError
-// @Failure      409  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      401  {object}  api.Error
+// @Failure      409  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/resend-verification [post]
 func (h *AuthHandler) HandleResendVerification(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
@@ -341,9 +341,9 @@ func (h *AuthHandler) HandleResendVerification(w http.ResponseWriter, r *http.Re
 // @Produce      json
 // @Security     BearerAuth
 // @Success      200  {object}  dto.UserResponse
-// @Failure      401  {object}  api.APIError
-// @Failure      404  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      401  {object}  api.Error
+// @Failure      404  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/me [get]
 func (h *AuthHandler) HandleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
@@ -378,10 +378,10 @@ func (h *AuthHandler) HandleGetCurrentUser(w http.ResponseWriter, r *http.Reques
 // @Security     BearerAuth
 // @Param        request body dto.UpdateUserRequest true "Fields to update"
 // @Success      200  {object}  dto.UserResponse
-// @Failure      400  {object}  api.APIError
-// @Failure      401  {object}  api.APIError
-// @Failure      409  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      400  {object}  api.Error
+// @Failure      401  {object}  api.Error
+// @Failure      409  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/me [patch]
 func (h *AuthHandler) HandleUpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
@@ -419,8 +419,8 @@ func (h *AuthHandler) HandleUpdateCurrentUser(w http.ResponseWriter, r *http.Req
 // @Produce      json
 // @Security     BearerAuth
 // @Success      200  {object}  map[string][]dto.SessionResponse
-// @Failure      401  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      401  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/sessions [get]
 func (h *AuthHandler) HandleGetSessions(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)
@@ -450,10 +450,10 @@ func (h *AuthHandler) HandleGetSessions(w http.ResponseWriter, r *http.Request) 
 // @Security     BearerAuth
 // @Param        session_id path string true "Session ID to revoke"
 // @Success      204
-// @Failure      400  {object}  api.APIError
-// @Failure      401  {object}  api.APIError
-// @Failure      404  {object}  api.APIError
-// @Failure      500  {object}  api.APIError
+// @Failure      400  {object}  api.Error
+// @Failure      401  {object}  api.Error
+// @Failure      404  {object}  api.Error
+// @Failure      500  {object}  api.Error
 // @Router       /auth/sessions/{session_id} [delete]
 func (h *AuthHandler) HandleRevokeSession(w http.ResponseWriter, r *http.Request) {
 	userID, ok := h.MustUserID(w, r)

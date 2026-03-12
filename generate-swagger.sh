@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 
 # Generate Swagger documentation
 echo "Generating Swagger documentation..."
-swag init -g cmd/server/main.go -d ./
+swag init --parseDependency -g cmd/server/main.go
 
 if [ $? -eq 0 ]; then
     echo "✅ Swagger documentation generated successfully!"

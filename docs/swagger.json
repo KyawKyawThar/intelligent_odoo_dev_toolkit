@@ -21,6 +21,68 @@
     "host": "localhost:8080",
     "basePath": "/api/v1",
     "paths": {
+        "/api/v1/agent/ws": {
+            "get": {
+                "description": "Upgrades the HTTP connection to a WebSocket connection and handles agent heartbeats.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "WebSocket endpoint for agent communication",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Agent ID",
+                        "name": "agent_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request: Missing or invalid agent_id",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized: Invalid or missing API key",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden: Agent does not belong to the tenant",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found: Environment not found for the given agent_id",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error: Failed to upgrade connection or database error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/change-password": {
             "post": {
                 "security": [
@@ -63,19 +125,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -118,7 +180,7 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -163,25 +225,25 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -222,13 +284,13 @@
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -259,19 +321,19 @@
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -314,25 +376,25 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -372,19 +434,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -424,19 +486,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -470,19 +532,19 @@
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -525,13 +587,13 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -568,13 +630,13 @@
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -611,25 +673,25 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -672,13 +734,290 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.APIError"
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all environments for the current tenant",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "environments"
+                ],
+                "summary": "List environments",
+                "parameters": [
+                    {
+                        "enum": [
+                            "development",
+                            "staging",
+                            "production"
+                        ],
+                        "type": "string",
+                        "description": "Filter by type",
+                        "name": "env_type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "active",
+                            "inactive",
+                            "maintenance"
+                        ],
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EnvironmentListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Register a new Odoo environment under the current tenant",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "environments"
+                ],
+                "summary": "Create environment",
+                "parameters": [
+                    {
+                        "description": "Environment details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateEnvironmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EnvironmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get details of a specific environment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "environments"
+                ],
+                "summary": "Get environment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID (UUID)",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EnvironmentResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Permanently delete an environment and its associated data",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "environments"
+                ],
+                "summary": "Delete environment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID (UUID)",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Partially update an environment's configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "environments"
+                ],
+                "summary": "Update environment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID (UUID)",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateEnvironmentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.EnvironmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
                         }
                     }
                 }
@@ -686,7 +1025,7 @@
         }
     },
     "definitions": {
-        "api.APIError": {
+        "api.Error": {
             "type": "object",
             "properties": {
                 "code": {
@@ -746,6 +1085,50 @@
                 "ANON_JOB_NOT_FOUND",
                 "INVALID_ODOO_VERSION",
                 "INVALID_DOMAIN"
+            ],
+            "x-enum-comments": {
+                "ErrCodeExpiredAPIKey": "nolint:gosec // not a credential",
+                "ErrCodeInvalidAPIKey": "nolint:gosec // not a credential",
+                "ErrCodeInvalidCredentials": "nolint:gosec // not a credential"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "nolint:gosec // not a credential",
+                "nolint:gosec // not a credential",
+                "",
+                "",
+                "nolint:gosec // not a credential",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
             ],
             "x-enum-varnames": [
                 "ErrCodeValidation",
@@ -815,6 +1198,116 @@
                 "new_password": {
                     "type": "string",
                     "minLength": 8
+                }
+            }
+        },
+        "dto.CreateEnvironmentRequest": {
+            "type": "object",
+            "required": [
+                "db_name",
+                "env_type",
+                "name",
+                "odoo_url"
+            ],
+            "properties": {
+                "db_name": {
+                    "type": "string",
+                    "maxLength": 63,
+                    "minLength": 1
+                },
+                "env_type": {
+                    "type": "string",
+                    "enum": [
+                        "development",
+                        "staging",
+                        "production"
+                    ]
+                },
+                "feature_flags": {
+                    "description": "FeatureFlags holds arbitrary JSON configuration\n@Description Feature flags as JSON objec\n@example {\"enable_profiling\": true, \"log_level\": \"info\"}",
+                    "type": "object"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "odoo_url": {
+                    "type": "string"
+                },
+                "odoo_version": {
+                    "type": "string",
+                    "enum": [
+                        "14.0",
+                        "15.0",
+                        "16.0",
+                        "17.0",
+                        "18.0"
+                    ]
+                }
+            }
+        },
+        "dto.EnvironmentListResponse": {
+            "type": "object",
+            "properties": {
+                "environments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.EnvironmentResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.EnvironmentResponse": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "db_name": {
+                    "type": "string"
+                },
+                "env_type": {
+                    "type": "string"
+                },
+                "feature_flags": {
+                    "type": "object"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_sync": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "odoo_url": {
+                    "type": "string"
+                },
+                "odoo_version": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         },
@@ -973,6 +1466,54 @@
                 },
                 "user_agent": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.UpdateEnvironmentRequest": {
+            "type": "object",
+            "properties": {
+                "db_name": {
+                    "type": "string",
+                    "maxLength": 63,
+                    "minLength": 1
+                },
+                "env_type": {
+                    "type": "string",
+                    "enum": [
+                        "development",
+                        "staging",
+                        "production"
+                    ]
+                },
+                "feature_flags": {
+                    "description": "@example {\"enable_profiling\": true, \"log_level\": \"info\"}",
+                    "type": "object"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                },
+                "odoo_url": {
+                    "type": "string"
+                },
+                "odoo_version": {
+                    "type": "string",
+                    "enum": [
+                        "14.0",
+                        "15.0",
+                        "16.0",
+                        "17.0",
+                        "18.0"
+                    ]
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "inactive",
+                        "maintenance"
+                    ]
                 }
             }
         },
