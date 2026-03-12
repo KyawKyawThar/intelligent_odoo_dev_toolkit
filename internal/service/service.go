@@ -95,8 +95,10 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 
 	// Create the base auth service (implements multiple interfaces)
 	authSvc := NewAuthService(store, redisCache, tokenMaker, &cfg.Auth)
+	envSvc := NewEnvironmentService(store)
 
 	return &Services{
-		Auth: authSvc,
+		Auth:        authSvc,
+		Environment: envSvc,
 	}
 }

@@ -170,6 +170,7 @@ definitions:
         description: |-
           FeatureFlags holds arbitrary JSON configuration
           @Description Feature flags as JSON objec
+          @example {"enable_profiling": true, "log_level": "info"}
         type: object
       name:
         maxLength: 100
@@ -353,6 +354,7 @@ definitions:
         - production
         type: string
       feature_flags:
+        description: '@example {"enable_profiling": true, "log_level": "info"}'
         type: object
       name:
         maxLength: 100
@@ -468,184 +470,6 @@ paths:
       summary: WebSocket endpoint for agent communication
       tags:
       - Agents
-  /api/v1/environments:
-    get:
-      description: Get all environments for the current tenant
-      parameters:
-      - description: Filter by type
-        enum:
-        - development
-        - staging
-        - production
-        in: query
-        name: env_type
-        type: string
-      - description: Filter by status
-        enum:
-        - active
-        - inactive
-        - maintenance
-        in: query
-        name: status
-        type: string
-      - description: Page size (default 20, max 100)
-        in: query
-        name: limit
-        type: integer
-      - description: Offset for pagination
-        in: query
-        name: offset
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.EnvironmentListResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - BearerAuth: []
-      summary: List environments
-      tags:
-      - environments
-    post:
-      consumes:
-      - application/json
-      description: Register a new Odoo environment under the current tenant
-      parameters:
-      - description: Environment details
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateEnvironmentRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/dto.EnvironmentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - BearerAuth: []
-      summary: Create environment
-      tags:
-      - environments
-  /api/v1/environments/{env_id}:
-    delete:
-      description: Permanently delete an environment and its associated data
-      parameters:
-      - description: Environment ID (UUID)
-        in: path
-        name: env_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - BearerAuth: []
-      summary: Delete environment
-      tags:
-      - environments
-    get:
-      description: Get details of a specific environment
-      parameters:
-      - description: Environment ID (UUID)
-        in: path
-        name: env_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.EnvironmentResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - BearerAuth: []
-      summary: Get environment
-      tags:
-      - environments
-    patch:
-      consumes:
-      - application/json
-      description: Partially update an environment's configuration
-      parameters:
-      - description: Environment ID (UUID)
-        in: path
-        name: env_id
-        required: true
-        type: string
-      - description: Fields to update
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.UpdateEnvironmentRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/dto.EnvironmentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/api.Error'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/api.Error'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/api.Error'
-      security:
-      - BearerAuth: []
-      summary: Update environment
-      tags:
-      - environments
   /auth/change-password:
     post:
       consumes:
@@ -1083,6 +907,184 @@ paths:
       summary: Verify email
       tags:
       - Auth
+  /environments:
+    get:
+      description: Get all environments for the current tenant
+      parameters:
+      - description: Filter by type
+        enum:
+        - development
+        - staging
+        - production
+        in: query
+        name: env_type
+        type: string
+      - description: Filter by status
+        enum:
+        - active
+        - inactive
+        - maintenance
+        in: query
+        name: status
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnvironmentListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List environments
+      tags:
+      - environments
+    post:
+      consumes:
+      - application/json
+      description: Register a new Odoo environment under the current tenant
+      parameters:
+      - description: Environment details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateEnvironmentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.EnvironmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Create environment
+      tags:
+      - environments
+  /environments/{env_id}:
+    delete:
+      description: Permanently delete an environment and its associated data
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Delete environment
+      tags:
+      - environments
+    get:
+      description: Get details of a specific environment
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnvironmentResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get environment
+      tags:
+      - environments
+    patch:
+      consumes:
+      - application/json
+      description: Partially update an environment's configuration
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateEnvironmentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnvironmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Update environment
+      tags:
+      - environments
 schemes:
 - http
 - https

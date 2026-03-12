@@ -49,9 +49,9 @@ func TestMain(m *testing.M) {
 	exitCode := m.Run()
 
 	// Optional: Drop everything for a clean slate next time
-	if err = migration.Down(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		log.Fatal("failed to run migrate down:", err)
-	}
+	// if err = migration.Down(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	// 	log.Fatal("failed to run migrate down:", err)
+	// }
 
 	os.Exit(exitCode)
 }

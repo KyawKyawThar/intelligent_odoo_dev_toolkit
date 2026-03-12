@@ -35,7 +35,7 @@ func NewEnviromentHandler(envService service.EnvironmentService, base *BaseHandl
 //	@Failure      400   {object}  api.Error
 //	@Failure      401   {object}  api.Error
 //	@Failure      409   {object}  api.Error
-//	@Router       /api/v1/environments [post]
+//	@Router       /environments [post]
 //	@Security     BearerAuth
 func (h *EnvironmentHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	tennantID, ok := h.MustTenantID(w, r)
@@ -74,7 +74,7 @@ func (h *EnvironmentHandler) HandleCreate(w http.ResponseWriter, r *http.Request
 //	@Param        offset    query     int     false  "Offset for pagination"
 //	@Success      200       {object}  dto.EnvironmentListResponse
 //	@Failure      401       {object}  api.Error
-//	@Router       /api/v1/environments [get]
+//	@Router       /environments [get]
 //	@Security     BearerAuth
 func (h *EnvironmentHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := h.MustTenantID(w, r)
@@ -112,7 +112,7 @@ func (h *EnvironmentHandler) HandleList(w http.ResponseWriter, r *http.Request) 
 //	@Success      200     {object}  dto.EnvironmentResponse
 //	@Failure      401     {object}  api.Error
 //	@Failure      404     {object}  api.Error
-//	@Router       /api/v1/environments/{env_id} [get]
+//	@Router       /environments/{env_id} [get]
 //	@Security     BearerAuth
 func (h *EnvironmentHandler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := h.MustTenantID(w, r)
@@ -152,7 +152,7 @@ func (h *EnvironmentHandler) HandleGet(w http.ResponseWriter, r *http.Request) {
 //	@Failure      401     {object}  api.Error
 //	@Failure      404     {object}  api.Error
 //	@Failure      409     {object}  api.Error
-//	@Router       /api/v1/environments/{env_id} [patch]
+//	@Router       /environments/{env_id} [patch]
 //	@Security     BearerAuth
 func (h *EnvironmentHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := h.MustTenantID(w, r)
@@ -194,7 +194,7 @@ func (h *EnvironmentHandler) HandleUpdate(w http.ResponseWriter, r *http.Request
 //	@Success      204
 //	@Failure      401  {object}  api.Error
 //	@Failure      404  {object}  api.Error
-//	@Router       /api/v1/environments/{env_id} [delete]
+//	@Router       /environments/{env_id} [delete]
 //	@Security     BearerAuth
 func (h *EnvironmentHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := h.MustTenantID(w, r)

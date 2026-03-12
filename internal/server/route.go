@@ -86,6 +86,28 @@ func (s *Server) setupRoutes() {
 			httpSwagger.URL("/docs/doc.json"),
 			httpSwagger.DeepLinking(true),
 			httpSwagger.DocExpansion("list"),
+			httpSwagger.UIConfig(map[string]string{
+
+				"responseInterceptor": `function(response) {
+					console.log('[swagger] responseInterceptor fired', {
+						status: response.status,
+						url: response.url,
+						obj: response.obj,
+						body: response.body,
+					});
+					if (response.status === 200 || response.status === 201) {
+						var url = response.url || '';
+						if (url.indexOf('/auth/login') !== -1 || url.indexOf('/auth/register') !== -1) {
+							var data = response.obj && response.obj.data;
+							console.log('[swagger] auth response data', data);
+							if (data && data.access_token) {
+								window.ui.preauthorizeApiKey('BearerAuth', 'Bearer ' + data.access_token);
+							}
+						}
+					}
+					return response;
+				}`,
+			}),
 		))
 	})
 
@@ -165,9 +187,11 @@ func (s *Server) setupRoutes() {
 		// Environments (protected — requires JWT + Tenant)
 		// ------------------------------------------------------------------
 		if s.handler.Environment != nil {
+
 			r.Route("/api/v1/environments", func(r chi.Router) {
+
 				r.Post("/", s.handler.Environment.HandleCreate)
-				r.Get("/", s.handler.Environment.HandleList)
+				// r.Get("/", s.handler.Environment.HandleList)
 
 				r.Route("/{env_id}", func(r chi.Router) {
 					r.Get("/", s.handler.Environment.HandleGet)

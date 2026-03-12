@@ -45,10 +45,15 @@ func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Log
 	if !ok {
 		panic("invalid auth service type")
 	}
+	envSvc, ok := services.Environment.(*service.EnvironmentService)
+	if !ok {
+		panic("invalid environment service type")
+	}
 
 	return &Handlers{
-		Auth: NewAuthHandler(authSvc, base),
-		Ws:   NewWsHandler(base, store),
+		Auth:        NewAuthHandler(authSvc, base),
+		Environment: NewEnviromentHandler(*envSvc, base),
+		Ws:          NewWsHandler(base, store),
 		// APIKey: NewAPIKeyHandler(services.APIKey, base),
 		// Tenant: NewTenantHandler(services.Tenant, base),
 		// User:   NewUserHandler(services.User, base),

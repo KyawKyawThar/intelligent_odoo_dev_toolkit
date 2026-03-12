@@ -424,7 +424,7 @@ func TestGetLatestHeartbeat(t *testing.T) {
 	env := createTestEnvironment(t, reg.Tenant.ID, "production")
 
 	// Insert 3 heartbeats
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		_, err := testStore.InsertHeartbeat(context.Background(), InsertHeartbeatParams{
 			EnvID:    env.ID,
 			AgentID:  "agent_latest",
@@ -996,7 +996,7 @@ func TestListEnvironmentsByTenantAndStatus_Pagination(t *testing.T) {
 func TestListEnvironmentsByTenantAndStatus_OrderedByCreatedAtDesc(t *testing.T) {
 	reg := createRegisteredTenant(t)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		createTestEnvironment(t, reg.Tenant.ID, "production")
 	}
 

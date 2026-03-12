@@ -22,6 +22,7 @@ type CreateEnvironmentRequest struct {
 	EnvType     string  `json:"env_type" validate:"required,oneof=development staging production"`
 	// FeatureFlags holds arbitrary JSON configuration
 	// @Description Feature flags as JSON objec
+	// @example {"enable_profiling": true, "log_level": "info"}
 	FeatureFlags json.RawMessage `json:"feature_flags,omitempty" swaggertype:"object"`
 }
 
@@ -34,6 +35,7 @@ type UpdateEnvironmentRequest struct {
 	OdooVersion  *string         `json:"odoo_version,omitempty" validate:"omitempty,oneof=14.0 15.0 16.0 17.0 18.0"`
 	EnvType      *string         `json:"env_type,omitempty" validate:"omitempty,oneof=development staging production"`
 	Status       *string         `json:"status,omitempty" validate:"omitempty,oneof=active inactive maintenance"`
+	// @example {"enable_profiling": true, "log_level": "info"}
 	FeatureFlags json.RawMessage `json:"feature_flags,omitempty" swaggertype:"object"`
 }
 
