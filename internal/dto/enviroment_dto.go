@@ -29,12 +29,12 @@ type CreateEnvironmentRequest struct {
 // UpdateEnvironmentRequest is the payload for PATCH /api/v1/environments/{env_id}.
 // All fields are optional — only non-nil fields are updated.
 type UpdateEnvironmentRequest struct {
-	Name         *string         `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
-	OdooURL      *string         `json:"odoo_url,omitempty" validate:"omitempty,url"`
-	DbName       *string         `json:"db_name,omitempty" validate:"omitempty,min=1,max=63"`
-	OdooVersion  *string         `json:"odoo_version,omitempty" validate:"omitempty,oneof=14.0 15.0 16.0 17.0 18.0"`
-	EnvType      *string         `json:"env_type,omitempty" validate:"omitempty,oneof=development staging production"`
-	Status       *string         `json:"status,omitempty" validate:"omitempty,oneof=active inactive maintenance"`
+	Name        *string `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
+	OdooURL     *string `json:"odoo_url,omitempty" validate:"omitempty,url"`
+	DbName      *string `json:"db_name,omitempty" validate:"omitempty,min=1,max=63"`
+	OdooVersion *string `json:"odoo_version,omitempty" validate:"omitempty,oneof=14.0 15.0 16.0 17.0 18.0"`
+	EnvType     *string `json:"env_type,omitempty" validate:"omitempty,oneof=development staging production"`
+	Status      *string `json:"status,omitempty" validate:"omitempty,oneof=active inactive maintenance"`
 	// @example {"enable_profiling": true, "log_level": "info"}
 	FeatureFlags json.RawMessage `json:"feature_flags,omitempty" swaggertype:"object"`
 }
