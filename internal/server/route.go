@@ -191,7 +191,7 @@ func (s *Server) setupRoutes() {
 			r.Route("/api/v1/environments", func(r chi.Router) {
 
 				r.Post("/", s.handler.Environment.HandleCreate)
-				// r.Get("/", s.handler.Environment.HandleList)
+				r.Get("/", s.handler.Environment.HandleList)
 
 				r.Route("/{env_id}", func(r chi.Router) {
 					r.Get("/", s.handler.Environment.HandleGet)
