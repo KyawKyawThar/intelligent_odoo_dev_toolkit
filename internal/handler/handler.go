@@ -237,7 +237,7 @@ func ParseQueryInt32(r *http.Request, key string, defaultVal int32) int32 {
 
 // MustUUIDParam extracts a UUID path parameter. Returns false and writes an
 // error response if the parameter is missing or not a valid UUID.
-func (h *EnvironmentHandler) MustUUIDParam(w http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
+func (h *BaseHandler) MustUUIDParam(w http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
 	raw := chi.URLParam(r, param)
 	if raw == "" {
 		h.WriteErr(w, r, api.ErrBadRequest("missing "+param+" path parameter"))

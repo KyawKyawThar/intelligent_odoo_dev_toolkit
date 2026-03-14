@@ -54,8 +54,8 @@ type IrModelAccess struct {
 type IrRule struct {
 	ID         int    `xmlrpc:"id"`
 	Name       string `xmlrpc:"name"`
-	ModelID    int    `xmlrpc:"model_id"`    // many2one: parsed ID only
-	Groups     []int  `xmlrpc:"groups"`      // many2many: list of group IDs
+	ModelID    int    `xmlrpc:"model_id"` // many2one: parsed ID only
+	Groups     []int  `xmlrpc:"groups"`   // many2many: list of group IDs
 	Domain     string `xmlrpc:"domain_force"`
 	PermRead   bool   `xmlrpc:"perm_read"`
 	PermWrite  bool   `xmlrpc:"perm_write"`

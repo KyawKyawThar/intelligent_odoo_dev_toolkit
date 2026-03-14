@@ -2,6 +2,7 @@ package odoo
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -77,7 +78,7 @@ func newMockServer(t *testing.T, pathResp map[string]string) *httptest.Server {
 		}
 		w.Header().Set("Content-Type", "text/xml")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(body)) //nolint:errcheck
+		w.Write([]byte(body))
 	}))
 }
 
@@ -85,7 +86,7 @@ func authenticatedClient(t *testing.T, srv *httptest.Server) *Client {
 	t.Helper()
 	c, err := NewClient(srv.URL, "testdb", "admin", "apikey123")
 	require.NoError(t, err)
-	require.NoError(t, c.Authenticate())
+	require.NoError(t, c.Authenticate(context.Background()))
 	require.Equal(t, 2, c.UID)
 	return c
 }
@@ -193,7 +194,7 @@ func TestAuthenticate_Success(t *testing.T) {
 	c, err := NewClient(srv.URL, "testdb", "admin", "apikey123")
 	require.NoError(t, err)
 
-	require.NoError(t, c.Authenticate())
+	require.NoError(t, c.Authenticate(context.Background()))
 	require.Equal(t, 2, c.UID)
 }
 
@@ -206,7 +207,7 @@ func TestAuthenticate_InvalidCredentials(t *testing.T) {
 	c, err := NewClient(srv.URL, "testdb", "admin", "wrong-key")
 	require.NoError(t, err)
 
-	err = c.Authenticate()
+	err = c.Authenticate(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid credentials")
 	require.Equal(t, 0, c.UID, "UID must remain 0 on auth failure")
@@ -221,7 +222,7 @@ func TestAuthenticate_Fault(t *testing.T) {
 	c, err := NewClient(srv.URL, "testdb", "admin", "apikey123")
 	require.NoError(t, err)
 
-	err = c.Authenticate()
+	err = c.Authenticate(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Access Denied")
 }
@@ -235,7 +236,7 @@ func TestAuthenticate_HTTPError(t *testing.T) {
 	c, err := NewClient(srv.URL, "testdb", "admin", "apikey123")
 	require.NoError(t, err)
 
-	err = c.Authenticate()
+	err = c.Authenticate(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "500")
 }
@@ -246,7 +247,7 @@ func TestExecuteKw_RequiresAuthentication(t *testing.T) {
 	c, err := NewClient("http://localhost:8069", "testdb", "admin", "apikey123")
 	require.NoError(t, err)
 
-	_, err = c.ExecuteKw("ir.model", "search_read", []any{[]any{}}, nil)
+	_, err = c.ExecuteKw(context.Background(), "ir.model", "search_read", []any{[]any{}}, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not authenticated")
 }
@@ -261,6 +262,7 @@ func TestExecuteKw_Success(t *testing.T) {
 	c := authenticatedClient(t, srv)
 
 	result, err := c.ExecuteKw(
+		context.Background(),
 		"ir.model", "search_read",
 		[]any{[]any{}}, // empty domain
 		map[string]any{
@@ -276,16 +278,16 @@ func TestExecuteKw_NilKwargsUsesEmptyStruct(t *testing.T) {
 	var capturedBody []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/xmlrpc/2/common" {
-			w.Write([]byte(authSuccessResp)) //nolint:errcheck
+			w.Write([]byte(authSuccessResp))
 			return
 		}
 		capturedBody, _ = io.ReadAll(r.Body)
-		w.Write([]byte(executeKwResp)) //nolint:errcheck
+		w.Write([]byte(executeKwResp))
 	}))
 	defer srv.Close()
 
 	c := authenticatedClient(t, srv)
-	_, err := c.ExecuteKw("res.partner", "search_read", []any{[]any{}}, nil)
+	_, err := c.ExecuteKw(context.Background(), "res.partner", "search_read", []any{[]any{}}, nil)
 	require.NoError(t, err)
 	require.Contains(t, string(capturedBody), "<struct></struct>", "nil kwargs must send empty struct")
 }

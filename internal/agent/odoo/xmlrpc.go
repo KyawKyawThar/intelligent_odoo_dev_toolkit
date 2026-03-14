@@ -2,6 +2,7 @@ package odoo
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -13,13 +14,13 @@ import (
 // ─── request building ─────────────────────────────────────────────────────────
 
 // call sends an XML-RPC request to endpoint and returns the raw response body.
-func (c *Client) call(endpoint, method string, params []any) ([]byte, error) {
+func (c *Client) call(ctx context.Context, endpoint, method string, params []any) ([]byte, error) {
 	body, err := buildRequest(method, params)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -77,6 +78,32 @@ func writeValue(buf *bytes.Buffer, v any) error {
 	return nil
 }
 
+func writeArray[T any](buf *bytes.Buffer, v []T) error {
+	buf.WriteString(`<array><data>`)
+	for _, elem := range v {
+		if err := writeValue(buf, elem); err != nil {
+			return err
+		}
+	}
+	buf.WriteString(`</data></array>`)
+	return nil
+}
+
+func writeStruct(buf *bytes.Buffer, v map[string]any) error {
+	buf.WriteString(`<struct>`)
+	for k, val := range v {
+		buf.WriteString(`<member><name>`)
+		xml.EscapeText(buf, []byte(k)) //nolint:errcheck // writing to bytes.Buffer never fails
+		buf.WriteString(`</name>`)
+		if err := writeValue(buf, val); err != nil {
+			return err
+		}
+		buf.WriteString(`</member>`)
+	}
+	buf.WriteString(`</struct>`)
+	return nil
+}
+
 func writeInner(buf *bytes.Buffer, v any) error {
 	switch t := v.(type) {
 	case nil:
@@ -104,35 +131,13 @@ func writeInner(buf *bytes.Buffer, v any) error {
 		buf.WriteString(`</string>`)
 
 	case []any:
-		buf.WriteString(`<array><data>`)
-		for _, elem := range t {
-			if err := writeValue(buf, elem); err != nil {
-				return err
-			}
-		}
-		buf.WriteString(`</data></array>`)
+		return writeArray(buf, t)
 
 	case []string:
-		buf.WriteString(`<array><data>`)
-		for _, s := range t {
-			if err := writeValue(buf, s); err != nil {
-				return err
-			}
-		}
-		buf.WriteString(`</data></array>`)
+		return writeArray(buf, t)
 
 	case map[string]any:
-		buf.WriteString(`<struct>`)
-		for k, val := range t {
-			buf.WriteString(`<member><name>`)
-			xml.EscapeText(buf, []byte(k)) //nolint:errcheck
-			buf.WriteString(`</name>`)
-			if err := writeValue(buf, val); err != nil {
-				return err
-			}
-			buf.WriteString(`</member>`)
-		}
-		buf.WriteString(`</struct>`)
+		return writeStruct(buf, t)
 
 	default:
 		return fmt.Errorf("xmlrpc: unsupported type %T", v)
@@ -220,10 +225,10 @@ func extractFaultString(data []byte) string {
 
 // Authenticate calls /xmlrpc/2/common → authenticate and stores the UID on the client.
 // Must be called before ExecuteKw.
-func (c *Client) Authenticate() error {
+func (c *Client) Authenticate(ctx context.Context) error {
 	endpoint := fmt.Sprintf("%s/xmlrpc/2/common", c.URL.String())
 
-	data, err := c.call(endpoint, "authenticate", []any{
+	data, err := c.call(ctx, endpoint, "authenticate", []any{
 		c.DB,
 		c.Username,
 		c.Password,
@@ -250,7 +255,7 @@ func (c *Client) Authenticate() error {
 //   - kwargs: keyword arguments, e.g. map[string]any{"fields": []any{"id","model"}}
 //
 // Returns the raw XML-RPC response body. Authenticate must be called first.
-func (c *Client) ExecuteKw(model, method string, args []any, kwargs map[string]any) ([]byte, error) {
+func (c *Client) ExecuteKw(ctx context.Context, model, method string, args []any, kwargs map[string]any) ([]byte, error) {
 	if c.UID == 0 {
 		return nil, fmt.Errorf("not authenticated: call Authenticate() first")
 	}
@@ -262,7 +267,7 @@ func (c *Client) ExecuteKw(model, method string, args []any, kwargs map[string]a
 		kw = kwargs
 	}
 
-	return c.call(endpoint, "execute_kw", []any{
+	return c.call(ctx, endpoint, "execute_kw", []any{
 		c.DB,
 		c.UID,
 		c.Password,

@@ -2,6 +2,7 @@ package collector
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -73,11 +74,12 @@ func newMockACLServerCorrect(t *testing.T) *httptest.Server {
 		case "/xmlrpc/2/common":
 			w.Write([]byte(authSuccessResp))
 		case "/xmlrpc/2/object":
-			if strings.Contains(body, "ir.model.access") {
+			switch {
+			case strings.Contains(body, "ir.model.access"):
 				w.Write([]byte(irModelAccessRespCorrect))
-			} else if strings.Contains(body, "ir.rule") {
+			case strings.Contains(body, "ir.rule"):
 				w.Write([]byte(irRuleRespCorrect))
-			} else {
+			default:
 				http.Error(w, "unexpected model request for ACL", http.StatusBadRequest)
 			}
 		default:
@@ -92,10 +94,10 @@ func TestCollectACLAndRules(t *testing.T) {
 
 	client, err := odoo.NewClient(srv.URL, "testdb", "admin", "password")
 	require.NoError(t, err)
-	err = client.Authenticate()
+	err = client.Authenticate(context.Background())
 	require.NoError(t, err)
 
-	accessList, ruleList, err := CollectACLAndRules(client)
+	accessList, ruleList, err := CollectACLAndRules(context.Background(), client)
 	require.NoError(t, err)
 
 	require.Len(t, accessList, 1)

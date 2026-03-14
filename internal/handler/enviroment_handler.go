@@ -3,7 +3,10 @@ package handler
 import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
+	"context"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 type EnvironmentHandler struct {
@@ -17,6 +20,36 @@ func NewEnviromentHandler(envService service.EnvironmentService, base *BaseHandl
 		BaseHandler: base,
 		svc:         envService,
 	}
+}
+
+func handleEnvironmentUpdate[ReqT any](
+	h *EnvironmentHandler,
+	w http.ResponseWriter,
+	r *http.Request,
+	svcFunc func(context.Context, uuid.UUID, uuid.UUID, *ReqT) (*dto.EnvironmentResponse, error),
+) {
+	tenantID, ok := h.MustTenantID(w, r)
+	if !ok {
+		return
+	}
+
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
+	if !ok {
+		return
+	}
+
+	var req ReqT
+	if !h.DecodeAndValidate(w, r, &req) {
+		return
+	}
+
+	resp, err := svcFunc(r.Context(), tenantID, envID, &req)
+	if err != nil {
+		h.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, resp)
 }
 
 // =============================================================================
@@ -155,29 +188,7 @@ func (h *EnvironmentHandler) HandleGet(w http.ResponseWriter, r *http.Request) {
 //	@Router       /environments/{env_id} [patch]
 //	@Security     BearerAuth
 func (h *EnvironmentHandler) HandleUpdate(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := h.MustTenantID(w, r)
-
-	if !ok {
-		return
-	}
-
-	envID, ok := h.MustUUIDParam(w, r, "env_id")
-
-	if !ok {
-		return
-	}
-	var req dto.UpdateEnvironmentRequest
-
-	if !h.DecodeAndValidate(w, r, &req) {
-		return
-	}
-	resp, err := h.svc.Update(r.Context(), tenantID, envID, &req)
-
-	if err != nil {
-		h.HandleErr(w, r, err)
-		return
-	}
-	dto.WriteSuccess(w, r, resp)
+	handleEnvironmentUpdate(h, w, r, h.svc.Update)
 }
 
 // =============================================================================
@@ -200,28 +211,7 @@ func (h *EnvironmentHandler) HandleUpdate(w http.ResponseWriter, r *http.Request
 //	@Router       /environments/{env_id}/agent [post]
 //	@Security     BearerAuth
 func (h *EnvironmentHandler) HandleRegisterAgent(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := h.MustTenantID(w, r)
-	if !ok {
-		return
-	}
-
-	envID, ok := h.MustUUIDParam(w, r, "env_id")
-	if !ok {
-		return
-	}
-
-	var req dto.RegisterAgentRequest
-	if !h.DecodeAndValidate(w, r, &req) {
-		return
-	}
-
-	resp, err := h.svc.RegisterAgent(r.Context(), tenantID, envID, &req)
-	if err != nil {
-		h.HandleErr(w, r, err)
-		return
-	}
-
-	dto.WriteSuccess(w, r, resp)
+	handleEnvironmentUpdate(h, w, r, h.svc.RegisterAgent)
 }
 
 // =============================================================================

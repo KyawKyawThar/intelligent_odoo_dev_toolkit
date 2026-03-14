@@ -109,7 +109,7 @@ func (f *Flusher) Flush(ctx context.Context) error {
 	return nil
 }
 
-// RunLoop flushes on interval until ctx is cancelled.
+// RunLoop flushes on interval until ctx is canceled.
 // A final flush is attempted on shutdown.
 func (f *Flusher) RunLoop(ctx context.Context, interval time.Duration) {
 	f.logger.Info().Dur("interval", interval).Msg("starting error batch flusher")
@@ -121,7 +121,7 @@ func (f *Flusher) RunLoop(ctx context.Context, interval time.Duration) {
 		select {
 		case <-ctx.Done():
 			// Best-effort final flush.
-			flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			if err := f.Flush(flushCtx); err != nil {
 				f.logger.Error().Err(err).Msg("final flush failed")
 			}

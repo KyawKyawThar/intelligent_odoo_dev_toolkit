@@ -3,12 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"Intelligent_Dev_ToolKit_Odoo/internal/api"
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 // APIKeyHandler handles CRUD operations for agent API keys.
@@ -19,20 +15,6 @@ type APIKeyHandler struct {
 
 func NewAPIKeyHandler(svc *service.APIKeyService, base *BaseHandler) *APIKeyHandler {
 	return &APIKeyHandler{BaseHandler: base, svc: svc}
-}
-
-func (h *APIKeyHandler) mustUUIDParam(w http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
-	raw := chi.URLParam(r, param)
-	if raw == "" {
-		h.WriteErr(w, r, api.ErrBadRequest("missing "+param+" path parameter"))
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		h.WriteErr(w, r, api.ErrBadRequest(param+" must be a valid UUID"))
-		return uuid.Nil, false
-	}
-	return id, true
 }
 
 // HandleCreate generates a new API key for an environment.
@@ -59,7 +41,7 @@ func (h *APIKeyHandler) HandleCreate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	envID, ok := h.mustUUIDParam(w, r, "env_id")
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
 	if !ok {
 		return
 	}
@@ -95,7 +77,7 @@ func (h *APIKeyHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	envID, ok := h.mustUUIDParam(w, r, "env_id")
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
 	if !ok {
 		return
 	}
@@ -127,7 +109,7 @@ func (h *APIKeyHandler) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	keyID, ok := h.mustUUIDParam(w, r, "key_id")
+	keyID, ok := h.MustUUIDParam(w, r, "key_id")
 	if !ok {
 		return
 	}

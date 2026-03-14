@@ -7,7 +7,6 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -21,21 +20,6 @@ func NewSchemaHandler(svc *service.SchemaService, base *BaseHandler) *SchemaHand
 		BaseHandler: base,
 		svc:         svc,
 	}
-}
-
-// mustUUIDParam extracts a UUID path parameter; writes 400 and returns false on failure.
-func (h *SchemaHandler) mustUUIDParam(w http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
-	raw := chi.URLParam(r, param)
-	if raw == "" {
-		h.WriteErr(w, r, api.ErrBadRequest("missing "+param+" path parameter"))
-		return uuid.Nil, false
-	}
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		h.WriteErr(w, r, api.ErrBadRequest(param+" must be a valid UUID"))
-		return uuid.Nil, false
-	}
-	return id, true
 }
 
 // mustTenantID reads tenant_id from context (works for both JWT and API-key auth paths).
@@ -113,7 +97,7 @@ func (h *SchemaHandler) HandleGetLatest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	envID, ok := h.mustUUIDParam(w, r, "env_id")
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
 	if !ok {
 		return
 	}
@@ -150,7 +134,7 @@ func (h *SchemaHandler) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	envID, ok := h.mustUUIDParam(w, r, "env_id")
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
 	if !ok {
 		return
 	}
@@ -191,7 +175,7 @@ func (h *SchemaHandler) HandleSearchModels(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	envID, ok := h.mustUUIDParam(w, r, "env_id")
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
 	if !ok {
 		return
 	}

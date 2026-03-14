@@ -1,3 +1,4 @@
+// Package main is the entry point for the Odoo agent.
 package main
 
 import (
@@ -57,7 +58,8 @@ func main() {
 	// ── 5. Connect + authenticate (with retry for slow Odoo startup) ──────────
 	client, err := odoo.NewClient(cfg.OdooURL, cfg.OdooDB, cfg.OdooUser, cfg.OdooPassword)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to create Odoo client")
+		log.Error().Err(err).Msg("failed to create Odoo client")
+		return
 	}
 
 	log.Info().
@@ -67,7 +69,8 @@ func main() {
 		Msg("connecting to Odoo")
 
 	if err := authenticateWithRetry(ctx, client); err != nil {
-		log.Fatal().Err(err).Msg("Odoo authentication failed")
+		log.Error().Err(err).Msg("Odoo authentication failed")
+		return
 	}
 
 	log.Info().Int("uid", client.UID).Msg("authenticated with Odoo")
@@ -84,7 +87,8 @@ func main() {
 
 	// ── 7. Wait for server to be ready ───────────────────────────────────────
 	if err := waitForServer(ctx, httpBase); err != nil {
-		log.Fatal().Err(err).Msg("server did not become ready")
+		log.Error().Err(err).Msg("server did not become ready")
+		return
 	}
 
 	// ── 8. Error pipeline ─────────────────────────────────────────────────────
@@ -162,13 +166,13 @@ func parseInterval(s string, defaultVal time.Duration) time.Duration {
 // authenticateWithRetry retries Odoo authentication with exponential backoff.
 // It stops immediately on credential failures (HTTP 401 / wrong password),
 // and retries on server errors (HTTP 500 / connection refused) which happen
-// while Odoo is still initialising its database on first start.
+// while Odoo is still initializing its database on first start.
 func authenticateWithRetry(ctx context.Context, client *odoo.Client) error {
 	const maxAttempts = 15
 	const maxDelay = 30 * time.Second
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		err := client.Authenticate()
+		err := client.Authenticate(ctx)
 		if err == nil {
 			return nil
 		}
@@ -180,7 +184,7 @@ func authenticateWithRetry(ctx context.Context, client *odoo.Client) error {
 		}
 
 		if attempt == maxAttempts {
-			return fmt.Errorf("Odoo not ready after %d attempts: %w", maxAttempts, err)
+			return fmt.Errorf("odoo not ready after %d attempts: %w", maxAttempts, err)
 		}
 
 		// Exponential back-off: 1s, 2s, 4s, 8s … capped at 30s
@@ -191,7 +195,7 @@ func authenticateWithRetry(ctx context.Context, client *odoo.Client) error {
 			Int("attempt", attempt).
 			Int("max", maxAttempts).
 			Dur("retry_in", delay).
-			Msg("Odoo not ready yet, will retry (Odoo may still be initialising)")
+			Msg("Odoo not ready yet, will retry (Odoo may still be initializing)")
 
 		select {
 		case <-ctx.Done():

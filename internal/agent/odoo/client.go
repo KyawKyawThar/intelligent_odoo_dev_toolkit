@@ -1,3 +1,4 @@
+// Package odoo provides a client for the Odoo XML-RPC API.
 package odoo
 
 import (

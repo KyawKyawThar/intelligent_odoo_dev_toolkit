@@ -3,6 +3,7 @@ package collector
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -90,11 +91,12 @@ func newMockCollectorServer(t *testing.T) *httptest.Server {
 		case "/xmlrpc/2/common":
 			w.Write([]byte(authSuccessResp))
 		case "/xmlrpc/2/object":
-			if strings.Contains(body, "ir.model.fields") {
+			switch {
+			case strings.Contains(body, "ir.model.fields"):
 				w.Write([]byte(irModelFieldsResp))
-			} else if strings.Contains(body, "ir.model") {
+			case strings.Contains(body, "ir.model"):
 				w.Write([]byte(irModelResp))
-			} else {
+			default:
 				http.Error(w, "unexpected model request", http.StatusBadRequest)
 			}
 		default:
@@ -109,10 +111,10 @@ func TestCollectModels(t *testing.T) {
 
 	client, err := odoo.NewClient(srv.URL, "testdb", "admin", "password")
 	require.NoError(t, err)
-	err = client.Authenticate()
+	err = client.Authenticate(context.Background())
 	require.NoError(t, err)
 
-	models, err := CollectModels(client)
+	models, err := CollectModels(context.Background(), client)
 	require.NoError(t, err)
 	require.Len(t, models, 2)
 
@@ -187,9 +189,9 @@ func TestCollectAndSendWebSocket(t *testing.T) {
 
 	client, err := odoo.NewClient(odooSrv.URL, "testdb", "admin", "password")
 	require.NoError(t, err)
-	err = client.Authenticate()
+	err = client.Authenticate(context.Background())
 	require.NoError(t, err)
-	models, err := CollectModels(client)
+	models, err := CollectModels(context.Background(), client)
 	require.NoError(t, err)
 
 	// ── 3. Serialize + Gzip ─────────────────────────────────────────────────
@@ -205,8 +207,11 @@ func TestCollectAndSendWebSocket(t *testing.T) {
 
 	// ── 4. Send via WebSocket client ────────────────────────────────────────
 	wsURL := "ws" + strings.TrimPrefix(wsSrv.URL, "http")
-	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	defer ws.Close()
 
 	err = ws.WriteMessage(websocket.BinaryMessage, compressedData.Bytes())

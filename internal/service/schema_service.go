@@ -33,7 +33,7 @@ func (s *SchemaService) StoreSchema(ctx context.Context, tenantID uuid.UUID, req
 	snapshot, err := s.store.CreateSchemaSnapshot(ctx, db.CreateSchemaSnapshotParams{
 		EnvID:       req.EnvID,
 		Models:      req.Models,
-		AclRules:    req.AclRules,
+		AclRules:    req.ACLRules,
 		RecordRules: req.RecordRules,
 		ModelCount:  req.ModelCount,
 		FieldCount:  req.FieldCount,
@@ -142,7 +142,8 @@ func (s *SchemaService) SearchModels(ctx context.Context, tenantID, envID uuid.U
 	if limit <= 0 {
 		limit = 50
 	}
-	if offset >= int32(total) {
+	offsetAsInt := int(offset)
+	if offsetAsInt >= total {
 		return &dto.SearchModelsResponse{
 			Models: []json.RawMessage{},
 			Total:  total,
@@ -150,11 +151,12 @@ func (s *SchemaService) SearchModels(ctx context.Context, tenantID, envID uuid.U
 			Offset: offset,
 		}, nil
 	}
-	end := offset + limit
-	if int(end) > total {
-		end = int32(total)
+
+	end := offsetAsInt + int(limit)
+	if end > total {
+		end = total
 	}
-	page := filtered[offset:end]
+	page := filtered[offsetAsInt:end]
 
 	return &dto.SearchModelsResponse{
 		Models: page,

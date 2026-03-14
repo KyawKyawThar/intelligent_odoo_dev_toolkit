@@ -25,7 +25,7 @@ import (
 type schemaPayload struct {
 	EnvID       string `json:"env_id"`
 	Models      any    `json:"models"`
-	AclRules    any    `json:"acl_rules"`
+	ACLRules    any    `json:"acl_rules"`
 	RecordRules any    `json:"record_rules"`
 	ModelCount  int    `json:"model_count"`
 	FieldCount  int    `json:"field_count"`
@@ -64,13 +64,13 @@ func (s *Syncer) RunOnce(ctx context.Context) error {
 	s.logger.Info().Msg("collecting schema from Odoo")
 
 	// ── 1. Collect models + fields ─────────────────────────────────────────
-	models, err := collector.CollectModels(s.odooClient)
+	models, err := collector.CollectModels(ctx, s.odooClient)
 	if err != nil {
 		return fmt.Errorf("collect models: %w", err)
 	}
 
 	// ── 2. Collect ACL + record rules ──────────────────────────────────────
-	aclRules, recordRules, err := collector.CollectACLAndRules(s.odooClient)
+	aclRules, recordRules, err := collector.CollectACLAndRules(ctx, s.odooClient)
 	if err != nil {
 		return fmt.Errorf("collect acl: %w", err)
 	}
@@ -82,7 +82,7 @@ func (s *Syncer) RunOnce(ctx context.Context) error {
 	payload := schemaPayload{
 		EnvID:       s.envID,
 		Models:      models,
-		AclRules:    aclRules,
+		ACLRules:    aclRules,
 		RecordRules: recordRules,
 		ModelCount:  modelCount,
 	}
@@ -121,7 +121,7 @@ func (s *Syncer) RunOnce(ctx context.Context) error {
 }
 
 // RunLoop runs RunOnce immediately then repeats every interval until ctx is
-// cancelled. Errors from individual cycles are logged but do not stop the loop.
+// canceled. Errors from individual cycles are logged but do not stop the loop.
 func (s *Syncer) RunLoop(ctx context.Context, interval time.Duration) {
 	s.logger.Info().Dur("interval", interval).Msg("starting periodic schema sync")
 
@@ -146,7 +146,7 @@ func (s *Syncer) RunLoop(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// push sends the marshalled payload to POST /api/v1/agent/schema.
+// push sends the marshaled payload to POST /api/v1/agent/schema.
 func (s *Syncer) push(ctx context.Context, body []byte) error {
 	endpoint := s.serverURL + "/api/v1/agent/schema"
 

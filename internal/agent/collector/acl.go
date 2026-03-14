@@ -1,6 +1,8 @@
+// Package collector contains the code for collecting data from Odoo.
 package collector
 
 import (
+	"context"
 	"fmt"
 
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/odoo"
@@ -14,13 +16,13 @@ import (
 // ir.rule         — record-level rules (domain-filtered access restrictions).
 //
 // Both are required by the ACL Debugger to answer "why can't user X see record Y?".
-func CollectACLAndRules(client *odoo.Client) ([]odoo.IrModelAccess, []odoo.IrRule, error) {
-	accessList, err := collectModelAccess(client)
+func CollectACLAndRules(ctx context.Context, client *odoo.Client) ([]odoo.IrModelAccess, []odoo.IrRule, error) {
+	accessList, err := collectModelAccess(ctx, client)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	ruleList, err := collectRecordRules(client)
+	ruleList, err := collectRecordRules(ctx, client)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -30,8 +32,8 @@ func CollectACLAndRules(client *odoo.Client) ([]odoo.IrModelAccess, []odoo.IrRul
 
 // ─── ir.model.access ─────────────────────────────────────────────────────────
 
-func collectModelAccess(client *odoo.Client) ([]odoo.IrModelAccess, error) {
-	raw, err := fetchRecords(client, "ir.model.access", []string{
+func collectModelAccess(ctx context.Context, client *odoo.Client) ([]odoo.IrModelAccess, error) {
+	raw, err := fetchRecords(ctx, client, "ir.model.access", []string{
 		"id", "name", "model_id", "group_id",
 		"perm_read", "perm_write", "perm_create", "perm_unlink",
 	})
@@ -80,14 +82,14 @@ func parseIrModelAccess(r map[string]interface{}) odoo.IrModelAccess {
 
 // ─── ir.rule ─────────────────────────────────────────────────────────────────
 
-func collectRecordRules(client *odoo.Client) ([]odoo.IrRule, error) {
+func collectRecordRules(ctx context.Context, client *odoo.Client) ([]odoo.IrRule, error) {
 	// Include active=false so the ACL debugger can explain why a rule
 	// exists but is currently disabled.
-	domain := []interface{}{
-		[]interface{}{"active", "in", []interface{}{true, false}},
+	domain := []any{
+		[]any{"active", "in", []any{true, false}},
 	}
 
-	raw, err := fetchRecordsWithDomain(client, "ir.rule", []string{
+	raw, err := fetchRecordsWithDomain(ctx, client, "ir.rule", []string{
 		"id", "name", "model_id", "groups",
 		"domain_force", "perm_read", "perm_write", "perm_create", "perm_unlink",
 		"global", "active",
@@ -158,7 +160,10 @@ func stringVal(v interface{}) string {
 	if v == nil {
 		return ""
 	}
-	s, _ := v.(string)
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
 	return s
 }
 
@@ -167,7 +172,10 @@ func boolVal(v interface{}) bool {
 	if v == nil {
 		return false
 	}
-	b, _ := v.(bool)
+	b, ok := v.(bool)
+	if !ok {
+		return false
+	}
 	return b
 }
 

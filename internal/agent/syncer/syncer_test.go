@@ -59,7 +59,7 @@ const irModelFieldsResp = `<?xml version='1.0'?>
   </params>
 </methodResponse>`
 
-const emptyAclResp = `<?xml version='1.0'?>
+const emptyACLResp = `<?xml version='1.0'?>
 <methodResponse>
   <params>
     <param>
@@ -95,15 +95,17 @@ func TestDeltaDetection(t *testing.T) {
 	odooSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bodyBytes, _ := io.ReadAll(r.Body)
 		body := string(bodyBytes)
-		if r.URL.Path == "/xmlrpc/2/object" {
-			if strings.Contains(body, "ir.model.fields") {
+		switch r.URL.Path {
+		case "/xmlrpc/2/object":
+			switch {
+			case strings.Contains(body, "ir.model.fields"):
 				w.Write([]byte(irModelFieldsResp))
-			} else if strings.Contains(body, "ir.model") {
+			case strings.Contains(body, "ir.model"):
 				w.Write([]byte(irModelResp))
-			} else if strings.Contains(body, "ir.rule") || strings.Contains(body, "ir.model.access") {
-				w.Write([]byte(emptyAclResp))
+			case strings.Contains(body, "ir.rule") || strings.Contains(body, "ir.model.access"):
+				w.Write([]byte(emptyACLResp))
 			}
-		} else if r.URL.Path == "/xmlrpc/2/common" {
+		case "/xmlrpc/2/common":
 			w.Write([]byte(authSuccessResp))
 		}
 	}))
@@ -111,7 +113,7 @@ func TestDeltaDetection(t *testing.T) {
 
 	client, err := odoo.NewClient(odooSrv.URL, "test", "admin", "pw")
 	require.NoError(t, err)
-	err = client.Authenticate()
+	err = client.Authenticate(context.Background())
 	require.NoError(t, err)
 
 	// ── 3. Create Syncer and run checks ──────────────────────────────

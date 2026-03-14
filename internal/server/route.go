@@ -20,63 +20,47 @@ import (
 )
 
 func (s *Server) setupRoutes() {
-
 	r := chi.NewRouter()
 
-	// Create logger
+	s.configureLogger()
+	s.setupMiddleware(r)
+	s.setupSwagger(r)
+	s.setupPublicRoutes(r)
+	s.setupProtectedRoutes(r)
+	s.setupAgentRoutes(r)
+
+	s.router = r
+}
+
+func (s *Server) configureLogger() {
 	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
 	if s.config.Environment == config.EnvironmentDevelopment {
 		logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
 	}
 	s.logger = &logger
+}
 
-	// ==========================================================================
-	// Global Middleware Stack (order matters!)
-	// ==========================================================================
-
-	// 1. Real IP - Extract real client IP from headers
+func (s *Server) setupMiddleware(r chi.Router) {
 	r.Use(mw.RealIP)
-
-	// 2. Request ID - Add unique ID to each request
 	r.Use(mw.RequestID)
+	r.Use(mw.Recoverer(s.logger))
 
-	// 3. Panic Recovery - Catch panics and return 500
-	r.Use(mw.Recoverer(&logger))
-
-	// 4. Request Logging - Log all requests (health-check probes are excluded)
 	healthPaths := []string{"/api/v1/ready", "/api/v1/health"}
-	if s.config.Environment == config.EnvironmentDevelopment {
-		r.Use(mw.SkipPaths(&logger, healthPaths...)) // pretty + skip health
-	} else {
-		r.Use(mw.SkipPaths(&logger, healthPaths...)) // JSON + skip health
-	}
+	r.Use(mw.SkipPaths(s.logger, healthPaths...))
 
-	// 5. CORS - Handle Cross-Origin requests
 	if s.config.Environment == config.EnvironmentDevelopment {
-		r.Use(mw.SimpleCORS) // Allow all origins in development
+		r.Use(mw.SimpleCORS)
 	} else {
 		corsConfig := mw.ProductionCORSConfig(s.config.AllowedOrigins)
 		r.Use(mw.CORS(corsConfig))
 	}
 
-	// 6. Security Headers
 	r.Use(mw.SecurityHeaders)
-
-	// 7. Request Timeout - Prevent long-running requests
 	r.Use(mw.Timeout(30 * time.Second))
+	r.Use(mw.MaxBodySize(1 << 20))
+}
 
-	// 8. Max Body Size - Prevent large payloads (1MB default)
-	r.Use(mw.MaxBodySize(1 << 20)) // 1MB
-
-	// ==========================================================================
-	// Public Routes (no authentication required)
-	// ==========================================================================
-
-	// Health checks
-	r.Get("/api/v1/ready", s.handleReady)
-	r.Get("/api/v1/not_implement", s.handler.Auth.HandleNotImplement)
-
-	// Swagger docs
+func (s *Server) setupSwagger(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(mw.SwaggerCSP)
 		r.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +71,6 @@ func (s *Server) setupRoutes() {
 			httpSwagger.DeepLinking(true),
 			httpSwagger.DocExpansion("list"),
 			httpSwagger.UIConfig(map[string]string{
-
 				"responseInterceptor": `function(response) {
 					console.log('[swagger] responseInterceptor fired', {
 						status: response.status,
@@ -110,8 +93,12 @@ func (s *Server) setupRoutes() {
 			}),
 		))
 	})
+}
 
-	// Root
+func (s *Server) setupPublicRoutes(r chi.Router) {
+	r.Get("/api/v1/ready", s.handleReady)
+	r.Get("/api/v1/not_implement", s.handler.Auth.HandleNotImplement)
+
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		dto.WriteJSON(w, http.StatusOK, map[string]string{
 			"service": "OdooDevTools API",
@@ -121,14 +108,10 @@ func (s *Server) setupRoutes() {
 		})
 	})
 
-	// ==========================================================================
-	// API v1 — Public endpoints
-	// ==========================================================================
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", s.handleHealth)
 		r.Get("/version", s.handleVersion)
 
-		// Authentication (public — no auth required)
 		r.Route("/auth", func(r chi.Router) {
 			if s.handler.Auth != nil {
 				r.Post("/register", s.handler.Auth.HandleRegister)
@@ -138,7 +121,6 @@ func (s *Server) setupRoutes() {
 				r.Post("/reset-password", s.handler.Auth.HandleResetPassword)
 				r.Post("/verify-email", s.handler.Auth.HandleVerifyEmail)
 			} else {
-				// Fallback to not implemented
 				r.Post("/register", s.handleRegister)
 				r.Post("/login", s.handleLogin)
 				r.Post("/refresh", s.handleRefreshToken)
@@ -147,27 +129,19 @@ func (s *Server) setupRoutes() {
 			}
 		})
 	})
+}
 
-	// ==========================================================================
-	// Protected endpoints (JWT auth + Tenant resolution)
-	// ==========================================================================
+func (s *Server) setupProtectedRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
-		// JWT Authentication - use service-based auth if available (checks Redis blacklist)
 		if s.services != nil {
 			r.Use(mw.JWTAuthWithService(s.services.Auth))
 		} else {
 			r.Use(mw.JWTAuth(s.tokenMaker))
 		}
 
-		// Tenant Resolution
 		r.Use(mw.TenantResolver(mw.DatabaseTenantLookup(s.store)))
-
-		// Rate Limiting
 		r.Use(mw.TieredRateLimit(mw.DefaultPlanLimits))
 
-		// ------------------------------------------------------------------
-		// Auth (protected)
-		// ------------------------------------------------------------------
 		if s.handler.Auth != nil {
 			r.Post("/api/v1/auth/logout", s.handler.Auth.HandleLogout)
 			r.Get("/api/v1/auth/me", s.handler.Auth.HandleGetCurrentUser)
@@ -183,13 +157,8 @@ func (s *Server) setupRoutes() {
 			r.Post("/api/v1/auth/change-password", s.handleChangePassword)
 		}
 
-		// ------------------------------------------------------------------
-		// Environments (protected — requires JWT + Tenant)
-		// ------------------------------------------------------------------
 		if s.handler.Environment != nil {
-
 			r.Route("/api/v1/environments", func(r chi.Router) {
-
 				r.Post("/", s.handler.Environment.HandleCreate)
 				r.Get("/", s.handler.Environment.HandleList)
 
@@ -198,7 +167,6 @@ func (s *Server) setupRoutes() {
 					r.Patch("/", s.handler.Environment.HandleUpdate)
 					r.Delete("/", s.handler.Environment.HandleDelete)
 
-					// Schema snapshots (index by env)
 					if s.handler.Schema != nil {
 						r.Route("/schema", func(r chi.Router) {
 							r.Get("/", s.handler.Schema.HandleList)
@@ -207,10 +175,8 @@ func (s *Server) setupRoutes() {
 						})
 					}
 
-					// Agent registration
 					r.Post("/agent", s.handler.Environment.HandleRegisterAgent)
 
-					// API key management
 					if s.handler.APIKey != nil {
 						r.Route("/api-keys", func(r chi.Router) {
 							r.Post("/", s.handler.APIKey.HandleCreate)
@@ -222,30 +188,24 @@ func (s *Server) setupRoutes() {
 			})
 		}
 	})
+}
 
-	// ==========================================================================
-	// Agent endpoints (API Key auth)
-	// ==========================================================================
+func (s *Server) setupAgentRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(mw.AgentAPIKeyAuth(s.store))
 
 		r.Route("/api/v1/agent", func(r chi.Router) {
-			// websocket connection
 			r.Get("/ws", s.handler.Ws.HandleWebSocket)
 
-			// Schema ingestion — agent POSTs collected schema here
 			if s.handler.Schema != nil {
 				r.Post("/schema", s.handler.Schema.HandleStore)
 			}
 
-			// Error ingestion — agent POSTs error batches here
 			if s.handler.Error != nil {
 				r.Post("/errors", s.handler.Error.HandleIngestErrors)
 			}
 		})
 	})
-
-	s.router = r
 }
 
 // =============================================================================

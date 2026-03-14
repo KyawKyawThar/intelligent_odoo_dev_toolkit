@@ -132,7 +132,7 @@ type Config struct {
 	// ── Odoo XML-RPC (agent → Odoo application) ─────────────────
 	// ODOO_URL     : HTTP base URL, e.g. http://localhost:8069
 	// ODOO_ADMIN_USER / ODOO_ADMIN_PASSWORD : Odoo application user credentials
-	//                created when Odoo initialises the database (default: admin/admin).
+	//                created when Odoo initializes the database (default: admin/admin).
 	//                These are NOT the PostgreSQL credentials below.
 	OdooURL      string `mapstructure:"ODOO_URL"`
 	OdooDB       string `mapstructure:"PG_ODOO_DB"`

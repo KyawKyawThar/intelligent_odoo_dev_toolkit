@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"maps"
@@ -51,15 +52,15 @@ type Fault struct {
 // ─── Public Functions ────────────────────────────────────────────────────────
 
 // CollectModels fetches ir.model and ir.model.fields and returns them as a
-// combined slice of raw record maps ready for JSON serialisation.
+// combined slice of raw record maps ready for JSON serialization.
 // Each model entry includes a "fields" key containing its field definitions.
-func CollectModels(client *odoo.Client) ([]map[string]any, error) {
-	models, err := fetchRecords(client, "ir.model", []string{"id", "model", "name"})
+func CollectModels(ctx context.Context, client *odoo.Client) ([]map[string]any, error) {
+	models, err := fetchRecords(ctx, client, "ir.model", []string{"id", "model", "name"})
 	if err != nil {
 		return nil, fmt.Errorf("fetch ir.model: %w", err)
 	}
 
-	fields, err := fetchRecords(client, "ir.model.fields", []string{
+	fields, err := fetchRecords(ctx, client, "ir.model.fields", []string{
 		"id", "name", "model", "ttype", "relation",
 		"required", "readonly", "store", "index",
 	})
@@ -70,12 +71,18 @@ func CollectModels(client *odoo.Client) ([]map[string]any, error) {
 	// Index fields by model name for O(1) lookup.
 	byModel := make(map[string][]map[string]any, len(models))
 	for _, f := range fields {
-		modelName, _ := f["model"].(string)
+		modelName, ok := f["model"].(string)
+		if !ok {
+			continue
+		}
 		byModel[modelName] = append(byModel[modelName], f)
 	}
 
 	for i, m := range models {
-		modelName, _ := m["model"].(string)
+		modelName, ok := m["model"].(string)
+		if !ok {
+			continue
+		}
 		models[i]["fields"] = byModel[modelName]
 	}
 
@@ -88,11 +95,11 @@ func CollectModels(client *odoo.Client) ([]map[string]any, error) {
 }
 
 // CollectModelsAndFields fetches all ir.model and ir.model.fields records.
-func CollectModelsAndFields(client *odoo.Client) error {
+func CollectModelsAndFields(ctx context.Context, client *odoo.Client) error {
 	log.Info().Msg("starting schema collection for ir.model and ir.model.fields")
 
 	// 1. Fetch all ir.model records
-	models, err := fetchRecords(client, "ir.model", []string{"id", "model", "name"})
+	models, err := fetchRecords(ctx, client, "ir.model", []string{"id", "model", "name"})
 	if err != nil {
 		return fmt.Errorf("failed to fetch ir.model: %w", err)
 	}
@@ -102,7 +109,7 @@ func CollectModelsAndFields(client *odoo.Client) error {
 	}
 
 	// 2. Fetch all ir.model.fields records
-	fields, err := fetchRecords(client, "ir.model.fields", []string{"id", "name", "model", "ttype"})
+	fields, err := fetchRecords(ctx, client, "ir.model.fields", []string{"id", "name", "model", "ttype"})
 	if err != nil {
 		return fmt.Errorf("failed to fetch ir.model.fields: %w", err)
 	}
@@ -120,6 +127,7 @@ func CollectModelsAndFields(client *odoo.Client) error {
 // domain, fields, kwargs options (e.g. "order", "limit"). It is exported so
 // other agent packages (e.g. errors) can reuse the XML-RPC parsing logic.
 func FetchRecordsWithDomain(
+	ctx context.Context,
 	client *odoo.Client,
 	modelName string,
 	fields []string,
@@ -129,7 +137,7 @@ func FetchRecordsWithDomain(
 	kwargs := map[string]any{"fields": fields}
 	maps.Copy(kwargs, extra)
 
-	body, err := client.ExecuteKw(modelName, "search_read", []any{domain}, kwargs)
+	body, err := client.ExecuteKw(ctx, modelName, "search_read", []any{domain}, kwargs)
 	if err != nil {
 		return nil, err
 	}
@@ -144,8 +152,8 @@ func FetchRecordsWithDomain(
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
 // fetchRecords performs a search_read on the given model with an empty domain.
-func fetchRecords(client *odoo.Client, modelName string, fields []string) ([]map[string]any, error) {
-	return fetchRecordsWithDomain(client, modelName, fields, []any{})
+func fetchRecords(ctx context.Context, client *odoo.Client, modelName string, fields []string) ([]map[string]any, error) {
+	return fetchRecordsWithDomain(ctx, client, modelName, fields, []any{})
 }
 
 // fetchRecordsWithDomain performs a search_read with a caller-supplied domain.
@@ -153,6 +161,7 @@ func fetchRecords(client *odoo.Client, modelName string, fields []string) ([]map
 //
 //	[]any{[]any{"active", "in", []any{true, false}}}
 func fetchRecordsWithDomain(
+	ctx context.Context,
 	client *odoo.Client,
 	modelName string,
 	fields []string,
@@ -162,7 +171,7 @@ func fetchRecordsWithDomain(
 		"fields": fields,
 	}
 
-	body, err := client.ExecuteKw(modelName, "search_read", []any{domain}, kwargs)
+	body, err := client.ExecuteKw(ctx, modelName, "search_read", []any{domain}, kwargs)
 	if err != nil {
 		return nil, err
 	}

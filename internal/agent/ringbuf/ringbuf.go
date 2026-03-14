@@ -16,11 +16,11 @@ type RingBuffer[T any] struct {
 
 // New returns a RingBuffer with the given capacity.
 // Panics if cap ≤ 0.
-func New[T any](cap int) *RingBuffer[T] {
-	if cap <= 0 {
+func New[T any](capacity int) *RingBuffer[T] {
+	if capacity <= 0 {
 		panic("ringbuf: capacity must be > 0")
 	}
-	return &RingBuffer[T]{items: make([]T, cap)}
+	return &RingBuffer[T]{items: make([]T, capacity)}
 }
 
 // Cap returns the fixed capacity of the buffer.

@@ -44,7 +44,7 @@ func NewCollector(
 
 // Poll fetches new ir.logging records since the last call and pushes them into
 // the ring buffer. Safe to call from a ticker goroutine.
-func (c *Collector) Poll(_ context.Context) error {
+func (c *Collector) Poll(ctx context.Context) error {
 	domain := []any{
 		[]any{"level", "in", []any{"ERROR", "CRITICAL"}},
 		[]any{"type", "=", "server"},
@@ -52,7 +52,7 @@ func (c *Collector) Poll(_ context.Context) error {
 	}
 
 	records, err := collector.FetchRecordsWithDomain(
-		c.client, "ir.logging", irLoggingFields, domain,
+		ctx, c.client, "ir.logging", irLoggingFields, domain,
 		map[string]any{"order": "id asc", "limit": 200},
 	)
 	if err != nil {
@@ -83,7 +83,7 @@ func (c *Collector) Poll(_ context.Context) error {
 	return nil
 }
 
-// RunLoop polls on interval until ctx is cancelled.
+// RunLoop polls on interval until ctx is canceled.
 func (c *Collector) RunLoop(ctx context.Context, interval time.Duration) {
 	c.logger.Info().Dur("interval", interval).Msg("starting error log collector")
 
@@ -181,6 +181,9 @@ func stringVal(v any) string {
 	if v == nil {
 		return ""
 	}
-	s, _ := v.(string)
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
 	return s
 }

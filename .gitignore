@@ -5,6 +5,7 @@ cmd/server/tmp
 .env.agent
 deploy/.env
 *.md
-.air.toml
+*.toml
+*.json
 # Never ignore example/template env files
-!*.example
+*.example

@@ -16,7 +16,7 @@ import (
 type StoreSchemaRequest struct {
 	EnvID       uuid.UUID       `json:"env_id" validate:"required"`
 	Models      json.RawMessage `json:"models" validate:"required" swaggertype:"object"`
-	AclRules    json.RawMessage `json:"acl_rules" validate:"required" swaggertype:"object"`
+	ACLRules    json.RawMessage `json:"acl_rules" validate:"required" swaggertype:"object"`
 	RecordRules json.RawMessage `json:"record_rules" validate:"required" swaggertype:"object"`
 	ModelCount  *int32          `json:"model_count,omitempty"`
 	FieldCount  *int32          `json:"field_count,omitempty"`
@@ -32,7 +32,7 @@ type SchemaSnapshotResponse struct {
 	EnvID       uuid.UUID       `json:"env_id"`
 	CapturedAt  time.Time       `json:"captured_at"`
 	Models      json.RawMessage `json:"models" swaggertype:"object"`
-	AclRules    json.RawMessage `json:"acl_rules" swaggertype:"object"`
+	ACLRules    json.RawMessage `json:"acl_rules" swaggertype:"object"`
 	RecordRules json.RawMessage `json:"record_rules" swaggertype:"object"`
 	ModelCount  *int32          `json:"model_count,omitempty"`
 	FieldCount  *int32          `json:"field_count,omitempty"`
@@ -75,7 +75,7 @@ func ToSchemaSnapshotResponse(s *db.SchemaSnapshot) *SchemaSnapshotResponse {
 		EnvID:       s.EnvID,
 		CapturedAt:  s.CapturedAt,
 		Models:      s.Models,
-		AclRules:    s.AclRules,
+		ACLRules:    s.AclRules,
 		RecordRules: s.RecordRules,
 		ModelCount:  s.ModelCount,
 		FieldCount:  s.FieldCount,
