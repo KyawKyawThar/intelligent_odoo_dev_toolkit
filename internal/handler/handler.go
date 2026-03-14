@@ -23,11 +23,13 @@ type Handlers struct {
 	Auth        *AuthHandler
 	Ws          *WsHandler
 	Environment *EnvironmentHandler
+	Schema      *SchemaHandler
+	Error       *ErrorHandler
+	APIKey      *APIKeyHandler
 
 	// Future handlers:
 	// Profiler    *ProfilerHandler
 	// Alert       *AlertHandler
-	//	APIKey *APIKeyHandler
 	// Tenant *TenantHandler
 	// User   *UserHandler
 }
@@ -49,12 +51,26 @@ func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Log
 	if !ok {
 		panic("invalid environment service type")
 	}
+	schemaSvc, ok := services.Schema.(*service.SchemaService)
+	if !ok {
+		panic("invalid schema service type")
+	}
+	errorSvc, ok := services.Error.(*service.ErrorService)
+	if !ok {
+		panic("invalid error service type")
+	}
+	apiKeySvc, ok := services.APIKey.(*service.APIKeyService)
+	if !ok {
+		panic("invalid api key service type")
+	}
 
 	return &Handlers{
 		Auth:        NewAuthHandler(authSvc, base),
 		Environment: NewEnviromentHandler(*envSvc, base),
+		Schema:      NewSchemaHandler(schemaSvc, base),
+		Error:       NewErrorHandler(errorSvc, base),
+		APIKey:      NewAPIKeyHandler(apiKeySvc, base),
 		Ws:          NewWsHandler(base, store),
-		// APIKey: NewAPIKeyHandler(services.APIKey, base),
 		// Tenant: NewTenantHandler(services.Tenant, base),
 		// User:   NewUserHandler(services.User, base),
 	}

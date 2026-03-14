@@ -34,4 +34,29 @@ type EnvironmentServicer interface {
 	List(ctx context.Context, tenantID uuid.UUID, req *dto.ListEnvironmentsRequest) (*dto.EnvironmentListResponse, error)
 	Update(ctx context.Context, tenantID, envID uuid.UUID, req *dto.UpdateEnvironmentRequest) (*dto.EnvironmentResponse, error)
 	Delete(ctx context.Context, tenantID, envID uuid.UUID) error
+	RegisterAgent(ctx context.Context, tenantID, envID uuid.UUID, req *dto.RegisterAgentRequest) (*dto.EnvironmentResponse, error)
+}
+
+// ErrorServicer defines the agent error ingestion operations.
+type ErrorServicer interface {
+	IngestBatch(ctx context.Context, tenantID uuid.UUID, req *dto.IngestErrorsRequest) error
+}
+
+// APIKeyServicer defines operations for managing agent API keys.
+type APIKeyServicer interface {
+	Create(ctx context.Context, tenantID, envID, userID uuid.UUID, req *dto.CreateAPIKeyRequest) (*dto.APIKeyCreatedResponse, error)
+	List(ctx context.Context, tenantID, envID uuid.UUID) (*dto.APIKeyListResponse, error)
+	Revoke(ctx context.Context, tenantID, keyID uuid.UUID) error
+}
+
+// SchemaServicer defines the business operations for schema snapshots.
+type SchemaServicer interface {
+	// StoreSchema is called by the agent to persist a collected schema snapshot.
+	StoreSchema(ctx context.Context, tenantID uuid.UUID, req *dto.StoreSchemaRequest) (*dto.SchemaSnapshotResponse, error)
+	// GetLatest returns the most recent snapshot for an environment.
+	GetLatest(ctx context.Context, tenantID, envID uuid.UUID) (*dto.SchemaSnapshotResponse, error)
+	// ListSnapshots returns a lightweight list of snapshots for an environment.
+	ListSnapshots(ctx context.Context, tenantID, envID uuid.UUID, limit int32) (*dto.SchemaSnapshotListResponse, error)
+	// SearchModels searches models within the latest snapshot for an environment.
+	SearchModels(ctx context.Context, tenantID, envID uuid.UUID, q string, limit, offset int32) (*dto.SearchModelsResponse, error)
 }

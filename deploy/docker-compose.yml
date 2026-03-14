@@ -44,6 +44,46 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Odoo (local dev, odoo-dev profile) ──────
+  odoo-db:
+    image: postgres:18-alpine
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_USER: ${PG_ODOO_USER}
+      POSTGRES_PASSWORD: ${PG_ODOO_PASSWORD}
+      POSTGRES_DB: ${PG_ODOO_DB}
+    volumes:
+      - odoo_db_data:/var/lib/postgresql/data
+    networks: [backend]
+    profiles: [odoo-dev]
+    ports:
+      - "${PG_ODOO_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_ODOO_USER} -d ${PG_ODOO_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  odoo:
+    image: odoo:17
+    depends_on:
+      odoo-db:
+        condition: service_healthy # wait until Postgres is actually ready
+    ports:
+      - "8069:8069"
+    environment:
+      HOST: ${PG_HOST}
+      USER: ${PG_ODOO_USER}
+      PASSWORD: ${PG_ODOO_PASSWORD}
+    # -d  : target database (created by odoo-db Postgres service)
+    # -i base : install base module on first start (idempotent on restarts)
+    # --without-demo : skip demo data — faster cold start
+    command: ["-d", "${PG_ODOO_DB}", "-i", "base", "--without-demo=all"]
+    networks: [backend]
+    profiles: [odoo-dev]
+
   mailhog:
     image: mailhog/mailhog:latest
     platform: linux/amd64
@@ -248,3 +288,4 @@ volumes:
   redis_data:
   minio_data:
   nats_data:
+  odoo_db_data:

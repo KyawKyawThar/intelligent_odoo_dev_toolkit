@@ -49,6 +49,7 @@ type HeartbeatPayload struct {
 // @Failure 404 {object} api.Error "Not Found: Environment not found for the given agent_id"
 // @Failure 500 {object} api.Error "Internal Server Error: Failed to upgrade connection or database error"
 // @Router /api/v1/agent/ws [get]
+// @Security ApiKeyAuth
 func (h *WsHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

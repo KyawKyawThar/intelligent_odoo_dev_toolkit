@@ -4,6 +4,7 @@ package config
 import (
 	"Intelligent_Dev_ToolKit_Odoo/utils"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -127,6 +128,16 @@ type Config struct {
 	AgentSchemaInterval        string `mapstructure:"AGENT_SCHEMA_INTERVAL"`
 	AgentErrorBufferSize       int    `mapstructure:"AGENT_ERROR_BUFFER_SIZE"`
 	AgentProfilerBatchInterval string `mapstructure:"AGENT_PROFILER_BATCH_INTERVAL"`
+
+	// ── Odoo XML-RPC (agent → Odoo application) ─────────────────
+	// ODOO_URL     : HTTP base URL, e.g. http://localhost:8069
+	// ODOO_ADMIN_USER / ODOO_ADMIN_PASSWORD : Odoo application user credentials
+	//                created when Odoo initialises the database (default: admin/admin).
+	//                These are NOT the PostgreSQL credentials below.
+	OdooURL      string `mapstructure:"ODOO_URL"`
+	OdooDB       string `mapstructure:"PG_ODOO_DB"`
+	OdooUser     string `mapstructure:"ODOO_ADMIN_USER"`
+	OdooPassword string `mapstructure:"ODOO_ADMIN_PASSWORD"`
 }
 
 // LoadConfig loads the configuration from the given path.
@@ -161,6 +172,13 @@ func LoadConfig(path string) (config Config, err error) {
 	if err != nil {
 		return config, err
 	}
+
+	// Makefile `include .env` exports values with trailing whitespace when the
+	// .env line has an inline comment (e.g. APP_ENV=development  # hint).
+	// Trim string fields used for equality comparisons so they always match.
+	config.Environment = strings.TrimSpace(config.Environment)
+	config.LogLevel = strings.TrimSpace(config.LogLevel)
+	config.LogFormat = strings.TrimSpace(config.LogFormat)
 
 	// Workaround for viper bug
 	if config.IngestWorkerCount == 0 {
@@ -227,4 +245,64 @@ func (c *Config) IsDevelopment() bool {
 // IsProduction returns true if running in production mode.
 func (c *Config) IsProduction() bool {
 	return c.Environment == EnvironmentProduction
+}
+
+// LoadAgentConfig loads the base config from .env then merges in .env.agent
+// overrides. The overlay file is optional — if it does not exist the base
+// config is returned unchanged. This lets the agent binary run locally with
+// localhost URLs while the Docker stack still uses the service-name URLs in .env.
+func LoadAgentConfig(path string) (Config, error) {
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		return cfg, err
+	}
+
+	v := viper.New()
+	v.AddConfigPath(path)
+	v.SetConfigName(".env.agent")
+	v.SetConfigType("env")
+	// Do NOT call v.AutomaticEnv() — the Makefile exports .env vars into the OS
+	// environment before running the agent, and AutomaticEnv gives env vars higher
+	// priority than the config file, which would make .env.agent overrides invisible.
+
+	if err := v.ReadInConfig(); err != nil {
+		var notFound viper.ConfigFileNotFoundError
+		if errors.As(err, &notFound) {
+			return cfg, nil // overlay is optional
+		}
+		return cfg, fmt.Errorf("read .env.agent: %w", err)
+	}
+
+	// Apply only the keys that are present in .env.agent.
+	if s := v.GetString("AGENT_CLOUD_URL"); s != "" {
+		cfg.AgentCloudURL = s
+	}
+	if s := v.GetString("AGENT_API_KEY"); s != "" {
+		cfg.AgentAPIKey = s
+	}
+	if s := v.GetString("AGENT_ID"); s != "" {
+		cfg.AgentID = s
+	}
+	if s := v.GetString("AGENT_SCHEMA_INTERVAL"); s != "" {
+		cfg.AgentSchemaInterval = s
+	}
+	if s := v.GetString("AGENT_ERROR_BUFFER_SIZE"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil {
+			cfg.AgentErrorBufferSize = n
+		}
+	}
+	if s := v.GetString("ODOO_URL"); s != "" {
+		cfg.OdooURL = s
+	}
+	if s := v.GetString("ODOO_ADMIN_USER"); s != "" {
+		cfg.OdooUser = s
+	}
+	if s := v.GetString("ODOO_ADMIN_PASSWORD"); s != "" {
+		cfg.OdooPassword = s
+	}
+	if s := v.GetString("PG_ODOO_DB"); s != "" {
+		cfg.OdooDB = s
+	}
+
+	return cfg, nil
 }

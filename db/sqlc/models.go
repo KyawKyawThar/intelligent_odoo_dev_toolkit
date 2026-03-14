@@ -63,17 +63,18 @@ type AnonProfile struct {
 }
 
 type ApiKey struct {
-	ID        uuid.UUID  `db:"id" json:"id"`
-	TenantID  uuid.UUID  `db:"tenant_id" json:"tenant_id"`
-	CreatedBy *uuid.UUID `db:"created_by" json:"created_by"`
-	KeyHash   string     `db:"key_hash" json:"key_hash"`
-	KeyPrefix string     `db:"key_prefix" json:"key_prefix"`
-	Name      string     `db:"name" json:"name"`
-	Scopes    []string   `db:"scopes" json:"scopes"`
-	LastUsed  *time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt *time.Time `db:"expires_at" json:"expires_at"`
-	IsActive  bool       `db:"is_active" json:"is_active"`
-	CreatedAt time.Time  `db:"created_at" json:"created_at"`
+	ID          uuid.UUID  `db:"id" json:"id"`
+	TenantID    uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	CreatedBy   *uuid.UUID `db:"created_by" json:"created_by"`
+	KeyHash     string     `db:"key_hash" json:"key_hash"`
+	KeyPrefix   string     `db:"key_prefix" json:"key_prefix"`
+	Name        string     `db:"name" json:"name"`
+	Scopes      []string   `db:"scopes" json:"scopes"`
+	LastUsed    *time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt   *time.Time `db:"expires_at" json:"expires_at"`
+	IsActive    bool       `db:"is_active" json:"is_active"`
+	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	Description string     `db:"description" json:"description"`
 }
 
 type AuditLog struct {

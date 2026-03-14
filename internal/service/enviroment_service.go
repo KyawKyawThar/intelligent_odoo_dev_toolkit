@@ -184,6 +184,19 @@ func (s *EnvironmentService) Update(ctx context.Context, tenantID, envID uuid.UU
 	return dto.ToEnvironmentResponse(&env), nil
 }
 
+func (s *EnvironmentService) RegisterAgent(ctx context.Context, tenantID, envID uuid.UUID, req *dto.RegisterAgentRequest) (*dto.EnvironmentResponse, error) {
+	env, err := s.store.RegisterAgent(ctx, db.RegisterAgentParams{
+		ID:       envID,
+		AgentID:  &req.AgentID,
+		TenantID: tenantID,
+	})
+	if err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	return dto.ToEnvironmentResponse(&env), nil
+}
+
 func (s *EnvironmentService) Delete(ctx context.Context, tenantID, envID uuid.UUID) error {
 	rows, err := s.store.DeleteEnvironment(ctx, db.DeleteEnvironmentParams{
 		ID:       envID,

@@ -27,10 +27,16 @@ docker_run:
 COMPOSE_FILE := deploy/docker-compose.yml
 COMPOSE := docker compose --env-file .env -f $(COMPOSE_FILE)
 
-.PHONY: up down restart ps logs logs-f db-shell redis-shell
+.PHONY: up down restart ps logs logs-f db-shell redis-shell dev-up dev-down
 
 up: ## Start all containers (detached)
 	$(COMPOSE) up -d
+
+dev-up: ## Start dev stack with odoo-dev profile
+	$(COMPOSE) --profile odoo-dev up -d
+
+dev-down: ## Stop dev stack (odoo-dev profile)
+	$(COMPOSE) --profile odoo-dev down
 
 down: ## Stop and remove all containers
 	$(COMPOSE) down
@@ -54,6 +60,18 @@ db-shell: ## Open psql shell in postgres container
 
 redis-shell: ## Open redis-cli in redis container
 	$(COMPOSE) exec redis redis-cli -a $(REDIS_PASSWORD)
+
+## ── Dev Seed ─────────────────────────────────────────────────────
+
+.PHONY: seed-dev-agent
+
+seed-dev-agent: ## Seed a local-dev environment + API key, then patch .env.agent (idempotent)
+	@psql "$(DB_URL)" -f scripts/seed_dev_agent.sql -q
+	@env_uuid=$$(psql "$(DB_URL)" -tAq -c "SELECT id FROM environments WHERE agent_id='local-dev-agent' LIMIT 1"); \
+	if [ -n "$$env_uuid" ] && [ -f .env.agent ]; then \
+		sed -i.bak "s|^AGENT_ID=.*|AGENT_ID=$$env_uuid|" .env.agent && rm -f .env.agent.bak; \
+		echo "  → AGENT_ID=$$env_uuid written to .env.agent"; \
+	fi
 
 ## ── Migrations ───────────────────────────────────────────────────
 
@@ -130,11 +148,29 @@ test: ## Run unit tests (short mode, no external deps)
 test-integration: ## Run all tests including integration
 	go test -v -race -coverprofile=coverage.out ./...
 
+## ── Dev (live reload) ────────────────────────────────────────────
+
+.PHONY: dev dev-server dev-agent
+dev: migrate_up seed-dev-agent ## Run migrations + seed, then start server + agent with live reload
+	@trap 'kill 0' SIGINT SIGTERM; \
+	air -c .air.toml & \
+	air -c .air.agent.toml & \
+	wait
+
+dev-server: ## Run server only with live reload
+	air -c .air.toml
+
+dev-agent: ## Run agent only with live reload
+	air -c .air.agent.toml
+
 ## ── Build ────────────────────────────────────────────────────────
 
-.PHONY: build
+.PHONY: build build-agent
 build: ## Build server binary
 	go build -o bin/server ./cmd/server
+
+build-agent: ## Build agent binary
+	go build -o bin/agent ./cmd/agent
 
 ## ── Format ───────────────────────────────────────────────────────
 
@@ -165,4 +201,4 @@ help: ## Show this help
 
 .DEFAULT_GOAL := help
 
-.PHONY: sqlc docker_run new_migration migrate_up migrate_down migrate_goto migrate_force swagger generate lint-new lint-fix check hooks tools up down down-v restart ps logs logs-f db-shell redis-shell
+.PHONY: sqlc docker_run new_migration migrate_up migrate_down migrate_goto migrate_force swagger generate lint-new lint-fix check hooks tools up down down-v restart ps logs logs-f db-shell redis-shell dev-up dev-down dev dev-server dev-agent build-agent

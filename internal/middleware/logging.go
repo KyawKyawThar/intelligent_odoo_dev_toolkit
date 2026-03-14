@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 	"time"
 
@@ -31,6 +33,11 @@ func (rw *responseWriter) WriteHeader(code int) {
 func (rw *responseWriter) Write(b []byte) (int, error) {
 	rw.size += len(b)
 	return rw.ResponseWriter.Write(b)
+}
+
+// Hijack implements http.Hijacker so WebSocket upgrades work through this wrapper.
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return rw.ResponseWriter.(http.Hijacker).Hijack()
 }
 
 // Status returns the HTTP status code

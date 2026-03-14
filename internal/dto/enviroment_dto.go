@@ -39,6 +39,11 @@ type UpdateEnvironmentRequest struct {
 	FeatureFlags json.RawMessage `json:"feature_flags,omitempty" swaggertype:"object"`
 }
 
+// RegisterAgentRequest is the payload for POST /api/v1/environments/{env_id}/agent.
+type RegisterAgentRequest struct {
+	AgentID string `json:"agent_id" validate:"required,min=1,max=255"`
+}
+
 // ListEnvironmentsRequest holds query parameters for GET /api/v1/environments.
 type ListEnvironmentsRequest struct {
 	EnvType string `json:"env_type" validate:"omitempty,oneof=development staging production"`

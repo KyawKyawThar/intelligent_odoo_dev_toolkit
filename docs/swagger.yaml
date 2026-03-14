@@ -143,6 +143,64 @@ definitions:
         type: string
       value: {}
     type: object
+  dto.APIKeyCreatedResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      env_id:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      key_prefix:
+        type: string
+      name:
+        type: string
+      raw_key:
+        description: shown once; not stored in plaintext
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      tenant_id:
+        type: string
+    type: object
+  dto.APIKeyItem:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      key_prefix:
+        type: string
+      last_used:
+        type: string
+      name:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.APIKeyListResponse:
+    properties:
+      keys:
+        items:
+          $ref: '#/definitions/dto.APIKeyItem'
+        type: array
+      total:
+        type: integer
+    type: object
   dto.ChangePasswordRequest:
     properties:
       current_password:
@@ -153,6 +211,25 @@ definitions:
     required:
     - current_password
     - new_password
+    type: object
+  dto.CreateAPIKeyRequest:
+    properties:
+      description:
+        maxLength: 255
+        type: string
+      expires_at:
+        description: RFC3339; defaults to 90 days from now if omitted
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+    required:
+    - name
     type: object
   dto.CreateEnvironmentRequest:
     properties:
@@ -234,12 +311,51 @@ definitions:
       updated_at:
         type: string
     type: object
+  dto.ErrorEventPayload:
+    properties:
+      affected_uid:
+        type: integer
+      captured_at:
+        type: string
+      error_type:
+        type: string
+      message:
+        type: string
+      model:
+        type: string
+      module:
+        type: string
+      signature:
+        type: string
+      traceback:
+        type: string
+    required:
+    - captured_at
+    - error_type
+    - message
+    - signature
+    type: object
   dto.ForgotPasswordRequest:
     properties:
       email:
         type: string
     required:
     - email
+    type: object
+  dto.IngestErrorsRequest:
+    properties:
+      env_id:
+        type: string
+      events:
+        items:
+          $ref: '#/definitions/dto.ErrorEventPayload'
+        minItems: 1
+        type: array
+      spike_threshold:
+        type: integer
+    required:
+    - env_id
+    - events
     type: object
   dto.LoginRequest:
     properties:
@@ -291,6 +407,15 @@ definitions:
       token_type:
         type: string
     type: object
+  dto.RegisterAgentRequest:
+    properties:
+      agent_id:
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - agent_id
+    type: object
   dto.RegisterRequest:
     properties:
       email:
@@ -326,6 +451,66 @@ definitions:
     - new_password
     - token
     type: object
+  dto.SchemaSnapshotListItem:
+    properties:
+      captured_at:
+        type: string
+      diff_ref:
+        type: string
+      env_id:
+        type: string
+      field_count:
+        type: integer
+      id:
+        type: string
+      model_count:
+        type: integer
+    type: object
+  dto.SchemaSnapshotListResponse:
+    properties:
+      limit:
+        type: integer
+      snapshots:
+        items:
+          $ref: '#/definitions/dto.SchemaSnapshotListItem'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.SchemaSnapshotResponse:
+    properties:
+      acl_rules:
+        type: object
+      captured_at:
+        type: string
+      diff_ref:
+        type: string
+      env_id:
+        type: string
+      field_count:
+        type: integer
+      id:
+        type: string
+      model_count:
+        type: integer
+      models:
+        type: object
+      record_rules:
+        type: object
+    type: object
+  dto.SearchModelsResponse:
+    properties:
+      limit:
+        type: integer
+      models:
+        items:
+          type: object
+        type: array
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
   dto.SessionResponse:
     properties:
       created_at:
@@ -340,6 +525,26 @@ definitions:
         type: string
       user_agent:
         type: string
+    type: object
+  dto.StoreSchemaRequest:
+    properties:
+      acl_rules:
+        type: object
+      env_id:
+        type: string
+      field_count:
+        type: integer
+      model_count:
+        type: integer
+      models:
+        type: object
+      record_rules:
+        type: object
+    required:
+    - acl_rules
+    - env_id
+    - models
+    - record_rules
     type: object
   dto.UpdateEnvironmentRequest:
     properties:
@@ -427,6 +632,76 @@ info:
   title: OdooDevTools API
   version: 1.0.0
 paths:
+  /api/v1/agent/errors:
+    post:
+      consumes:
+      - application/json
+      description: 'Agent endpoint: receive a batch of Odoo error/exception events'
+      parameters:
+      - description: Error batch
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.IngestErrorsRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - ApiKeyAuth: []
+      summary: Ingest error events
+      tags:
+      - agent
+  /api/v1/agent/schema:
+    post:
+      consumes:
+      - application/json
+      description: 'Agent endpoint: persist a collected Odoo schema snapshot'
+      parameters:
+      - description: Schema payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.StoreSchemaRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.SchemaSnapshotResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - ApiKeyAuth: []
+      summary: Store schema snapshot
+      tags:
+      - agent
   /api/v1/agent/ws:
     get:
       consumes:
@@ -467,6 +742,8 @@ paths:
             error'
           schema:
             $ref: '#/definitions/api.Error'
+      security:
+      - ApiKeyAuth: []
       summary: WebSocket endpoint for agent communication
       tags:
       - Agents
@@ -1085,10 +1362,268 @@ paths:
       summary: Update environment
       tags:
       - environments
+  /environments/{env_id}/agent:
+    post:
+      consumes:
+      - application/json
+      description: Assign an agent ID to an environment, setting its status to connected
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Agent details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterAgentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.EnvironmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Register agent
+      tags:
+      - environments
+  /environments/{env_id}/api-keys:
+    get:
+      description: Return all API keys for the given environment. Raw key values are
+        never included.
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.APIKeyListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List API keys
+      tags:
+      - api-keys
+    post:
+      consumes:
+      - application/json
+      description: Generate a new agent API key for the given environment. The raw
+        key is returned once and never shown again. If expires_at is omitted the key
+        expires in 90 days. If scopes is omitted it defaults to ["agent:write"].
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Key options
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.APIKeyCreatedResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Create API key
+      tags:
+      - api-keys
+  /environments/{env_id}/api-keys/{key_id}:
+    delete:
+      description: Mark an API key as inactive. The agent using it will receive 401
+        on the next request.
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: API Key ID (UUID)
+        in: path
+        name: key_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Revoke API key
+      tags:
+      - api-keys
+  /environments/{env_id}/schema:
+    get:
+      description: Return schema snapshot summaries for the given environment, newest
+        first
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Max results (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SchemaSnapshotListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List schema snapshots
+      tags:
+      - schema
+  /environments/{env_id}/schema/latest:
+    get:
+      description: Return the most recently captured schema snapshot for the given
+        environment
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SchemaSnapshotResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get latest schema snapshot
+      tags:
+      - schema
+  /environments/{env_id}/schema/models:
+    get:
+      description: Filter models in the latest snapshot by technical name or display
+        label
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Search term (substring, case-insensitive)
+        in: query
+        name: q
+        type: string
+      - description: Page size (default 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SearchModelsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Search schema models
+      tags:
+      - schema
 schemes:
 - http
 - https
 securityDefinitions:
+  ApiKeyAuth:
+    description: Type "ApiKey" followed by a space and your API key (e.g. "ApiKey
+      odt_xxx...").
+    in: header
+    name: Authorization
+    type: apiKey
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.
     in: header

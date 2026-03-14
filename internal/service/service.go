@@ -15,6 +15,9 @@ import (
 type Services struct {
 	Auth        AuthServicer
 	Environment EnvironmentServicer
+	Schema      SchemaServicer
+	Error       ErrorServicer
+	APIKey      APIKeyServicer
 	// Future services:
 	// Profiler    ProfilerServicer
 	// Alert       AlertServicer
@@ -96,9 +99,15 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 	// Create the base auth service (implements multiple interfaces)
 	authSvc := NewAuthService(store, redisCache, tokenMaker, &cfg.Auth)
 	envSvc := NewEnvironmentService(store)
+	schemaSvc := NewSchemaService(store)
+	errorSvc := NewErrorService(store)
+	apiKeySvc := NewAPIKeyService(store)
 
 	return &Services{
 		Auth:        authSvc,
 		Environment: envSvc,
+		Schema:      schemaSvc,
+		Error:       errorSvc,
+		APIKey:      apiKeySvc,
 	}
 }

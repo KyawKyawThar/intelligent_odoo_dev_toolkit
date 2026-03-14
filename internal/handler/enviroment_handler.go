@@ -181,6 +181,50 @@ func (h *EnvironmentHandler) HandleUpdate(w http.ResponseWriter, r *http.Request
 }
 
 // =============================================================================
+// POST /api/v1/environments/{env_id}/agent
+// =============================================================================
+
+// HandleRegisterAgent registers an agent to an environment.
+//
+//	@Summary      Register agent
+//	@Description  Assign an agent ID to an environment, setting its status to connected
+//	@Tags         environments
+//	@Accept       json
+//	@Produce      json
+//	@Param        env_id  path      string                     true  "Environment ID (UUID)"
+//	@Param        body    body      dto.RegisterAgentRequest   true  "Agent details"
+//	@Success      200     {object}  dto.EnvironmentResponse
+//	@Failure      400     {object}  api.Error
+//	@Failure      401     {object}  api.Error
+//	@Failure      404     {object}  api.Error
+//	@Router       /environments/{env_id}/agent [post]
+//	@Security     BearerAuth
+func (h *EnvironmentHandler) HandleRegisterAgent(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := h.MustTenantID(w, r)
+	if !ok {
+		return
+	}
+
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
+	if !ok {
+		return
+	}
+
+	var req dto.RegisterAgentRequest
+	if !h.DecodeAndValidate(w, r, &req) {
+		return
+	}
+
+	resp, err := h.svc.RegisterAgent(r.Context(), tenantID, envID, &req)
+	if err != nil {
+		h.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, resp)
+}
+
+// =============================================================================
 // DELETE /api/v1/environments/{env_id}
 // =============================================================================
 

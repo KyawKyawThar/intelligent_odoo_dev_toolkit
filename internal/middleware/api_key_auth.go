@@ -5,13 +5,13 @@ import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
 	"context"
-	"database/sql"
 	"errors"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -58,7 +58,7 @@ func AgentAPIKeyAuth(store APIKeyAuthenticator) func(http.Handler) http.Handler 
 
 			apiKeyRecord, err := store.GetAPIKeyByHash(r.Context(), hashedAPIKey)
 			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
+				if errors.Is(err, pgx.ErrNoRows) {
 					api.HandleError(w, r, api.ErrInvalidAPIKey())
 					return
 				}

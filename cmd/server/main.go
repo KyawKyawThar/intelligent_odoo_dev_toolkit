@@ -37,7 +37,12 @@ import (
 // @name Authorization
 // @description Type "Bearer" followed by a space and JWT token.
 
-//go:generate swag init -g main.go -d ../../ --output ../../docs
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
+// @description Type "ApiKey" followed by a space and your API key (e.g. "ApiKey odt_xxx...").
+
+//go:generate swag init -g cmd/server/main.go -d ../../ --output ../../docs
 
 // Version info (set via ldflags during build)
 var (
@@ -60,6 +65,7 @@ func main() {
 	// 2. Setup Logger (BEFORE anything else)
 	// ==========================================================================
 	setupLogger(cfg.Environment)
+	printBanner(version, cfg.Environment)
 
 	log.Info().
 		Str("environment", cfg.Environment).
@@ -160,12 +166,26 @@ func main() {
 // =============================================================================
 
 func setupLogger(environment string) {
-	if environment == config.EnvironmentDevelopment {
+	isDev := environment == config.EnvironmentDevelopment || environment == "dev"
+
+	if isDev {
 		// Pretty console output for development
 		log.Logger = zerolog.New(zerolog.ConsoleWriter{
 			Out:        os.Stderr,
-			TimeFormat: time.RFC3339,
-		}).With().Timestamp().Caller().Logger()
+			TimeFormat: "15:04:05",
+			FormatLevel: func(i interface{}) string {
+				return fmt.Sprintf("| %-6s|", fmt.Sprintf("%s", i))
+			},
+			FormatMessage: func(i interface{}) string {
+				return fmt.Sprintf("%-45s", i)
+			},
+			FormatFieldName: func(i interface{}) string {
+				return fmt.Sprintf("\n    %-15s", fmt.Sprintf("%s=", i))
+			},
+			FormatFieldValue: func(i interface{}) string {
+				return fmt.Sprintf("%s", i)
+			},
+		}).With().Timestamp().Logger()
 
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	} else {
@@ -178,6 +198,15 @@ func setupLogger(environment string) {
 
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
+}
+
+func printBanner(v, environment string) {
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "  ╔══════════════════════════════════════════╗\n")
+	fmt.Fprintf(os.Stderr, "  ║         OdooDevTools Server              ║\n")
+	fmt.Fprintf(os.Stderr, "  ║  version: %-10s  env: %-12s║\n", v, environment)
+	fmt.Fprintf(os.Stderr, "  ╚══════════════════════════════════════════╝\n")
+	fmt.Fprintf(os.Stderr, "\n")
 }
 
 func setupDatabase(dbSource string) (*pgxpool.Pool, error) {

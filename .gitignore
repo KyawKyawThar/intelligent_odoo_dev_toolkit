@@ -2,5 +2,9 @@
 deploy/db-data/postgres_data
 cmd/server/tmp
 .env
+.env.agent
+deploy/.env
 *.md
 .air.toml
+# Never ignore example/template env files
+!*.example

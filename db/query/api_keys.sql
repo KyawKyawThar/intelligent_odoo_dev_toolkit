@@ -5,10 +5,11 @@ INSERT INTO api_keys (
     key_hash,
     key_prefix,
     name,
+    description,
     scopes,
     expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6, $7, $8
 ) RETURNING *;
 
 -- name: GetAPIKeyByHash :one
@@ -24,7 +25,7 @@ WHERE id = $1 AND tenant_id = $2
 LIMIT 1;
 
 -- name: ListAPIKeysByTenant :many
-SELECT id, tenant_id, created_by, key_prefix, name, scopes,
+SELECT id, tenant_id, created_by, key_prefix, name, description, scopes,
        last_used, expires_at, is_active, created_at
 FROM api_keys
 WHERE tenant_id = $1
