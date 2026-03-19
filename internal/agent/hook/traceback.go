@@ -31,6 +31,11 @@ var logLineRe = regexp.MustCompile(
 	`^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})\s+(\d+)\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s+(\S+)\s+(\S+?):\s(.*)$`,
 )
 
+const (
+	// LogLevelError identifies ERROR-level log entries.
+	LogLevelError = "ERROR"
+)
+
 // LogEntry is a parsed, possibly multi-line Odoo log entry.
 type LogEntry struct {
 	Timestamp  time.Time
@@ -52,7 +57,7 @@ func (e *LogEntry) FullMessage() string {
 
 // IsError returns true for ERROR and CRITICAL levels.
 func (e *LogEntry) IsError() bool {
-	return e.Level == "ERROR" || e.Level == "CRITICAL"
+	return e.Level == LogLevelError || e.Level == "CRITICAL"
 }
 
 // ────────────────────────────────────────────────────────────────────────────
