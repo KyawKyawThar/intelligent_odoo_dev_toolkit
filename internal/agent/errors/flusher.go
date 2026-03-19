@@ -5,24 +5,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
+	"Intelligent_Dev_ToolKit_Odoo/internal/agent/creds"
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/ringbuf"
 
 	"github.com/rs/zerolog"
 )
 
+// eventContext holds request-scoped metadata captured at the time of the error.
+type eventContext struct {
+	UID        int    `json:"uid,omitempty"`
+	RequestURL string `json:"request_url,omitempty"`
+}
+
 // eventPayload mirrors the server's ErrorEventPayload JSON structure.
 type eventPayload struct {
-	Signature   string    `json:"signature"`
-	ErrorType   string    `json:"error_type"`
-	Message     string    `json:"message"`
-	Module      string    `json:"module,omitempty"`
-	Model       string    `json:"model,omitempty"`
-	Traceback   string    `json:"traceback,omitempty"`
-	AffectedUID int       `json:"affected_uid,omitempty"`
-	CapturedAt  time.Time `json:"captured_at"`
+	Signature string        `json:"signature"`
+	Type      string        `json:"type"`
+	Message   string        `json:"message"`
+	Module    string        `json:"module,omitempty"`
+	Model     string        `json:"model,omitempty"`
+	Timestamp time.Time     `json:"timestamp"`
+	Traceback string        `json:"traceback,omitempty"`
+	Context   *eventContext `json:"context,omitempty"`
 }
 
 // batchPayload is the body sent to POST /api/v1/agent/errors.
@@ -38,7 +46,7 @@ type Flusher struct {
 	buf            *ringbuf.RingBuffer[ErrorEvent]
 	httpClient     *http.Client
 	serverURL      string
-	apiKey         string
+	creds          creds.Provider
 	envID          string
 	spikeThreshold int // 0 = disabled
 	logger         zerolog.Logger
@@ -48,7 +56,9 @@ type Flusher struct {
 // spikeThreshold controls when the server triggers a spike alert; 0 disables it.
 func NewFlusher(
 	buf *ringbuf.RingBuffer[ErrorEvent],
-	serverURL, apiKey, envID string,
+	serverURL string,
+	cp creds.Provider,
+	envID string,
 	spikeThreshold int,
 	logger zerolog.Logger,
 ) *Flusher {
@@ -56,7 +66,7 @@ func NewFlusher(
 		buf:            buf,
 		httpClient:     &http.Client{Timeout: 15 * time.Second},
 		serverURL:      serverURL,
-		apiKey:         apiKey,
+		creds:          cp,
 		envID:          envID,
 		spikeThreshold: spikeThreshold,
 		logger:         logger.With().Str("component", "error-flusher").Logger(),
@@ -77,16 +87,22 @@ func (f *Flusher) Flush(ctx context.Context) error {
 		Events:         make([]eventPayload, 0, len(events)),
 	}
 	for _, ev := range events {
-		payload.Events = append(payload.Events, eventPayload{
-			Signature:   ev.Signature,
-			ErrorType:   ev.ErrorType,
-			Message:     ev.Message,
-			Module:      ev.Module,
-			Model:       ev.Model,
-			Traceback:   ev.Traceback,
-			AffectedUID: ev.UserID,
-			CapturedAt:  ev.CapturedAt,
-		})
+		ep := eventPayload{
+			Signature: ev.Signature,
+			Type:      ev.ErrorType,
+			Message:   ev.Message,
+			Module:    ev.Module,
+			Model:     ev.Model,
+			Timestamp: ev.CapturedAt,
+			Traceback: ev.Traceback,
+		}
+		if ev.UserID != 0 || ev.RequestURL != "" {
+			ep.Context = &eventContext{
+				UID:        ev.UserID,
+				RequestURL: ev.RequestURL,
+			}
+		}
+		payload.Events = append(payload.Events, ep)
 	}
 
 	body, err := json.Marshal(payload)
@@ -137,22 +153,49 @@ func (f *Flusher) RunLoop(ctx context.Context, interval time.Duration) {
 }
 
 func (f *Flusher) post(ctx context.Context, body []byte) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		f.serverURL+"/api/v1/agent/errors", bytes.NewReader(body))
+	endpoint := f.serverURL + "/api/v1/agent/errors"
+
+	status, err := f.doPost(ctx, endpoint, body, f.creds.APIKey())
 	if err != nil {
 		return err
 	}
+
+	// Auto-refresh on 401 and retry once.
+	if status == http.StatusUnauthorized {
+		newKey, refreshErr := f.creds.RefreshOnUnauthorized()
+		if refreshErr != nil {
+			f.logger.Error().Err(refreshErr).Msg("credential refresh failed")
+			return fmt.Errorf("server returned 401 and refresh failed: %w", refreshErr)
+		}
+		f.logger.Info().Msg("credentials refreshed, retrying error flush")
+		status, err = f.doPost(ctx, endpoint, body, newKey)
+		if err != nil {
+			return err
+		}
+	}
+
+	if status < 200 || status >= 300 {
+		return fmt.Errorf("server returned %d", status)
+	}
+	return nil
+}
+
+func (f *Flusher) doPost(ctx context.Context, endpoint string, body []byte, apiKey string) (int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return 0, err
+	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "ApiKey "+f.apiKey)
+	req.Header.Set("Authorization", "ApiKey "+apiKey)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("server returned %d", resp.StatusCode)
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		f.logger.Warn().Err(err).Msg("failed to discard response body")
 	}
-	return nil
+	return resp.StatusCode, nil
 }

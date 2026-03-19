@@ -30,13 +30,22 @@ func (s *SchemaService) StoreSchema(ctx context.Context, tenantID uuid.UUID, req
 		return nil, api.FromPgError(err)
 	}
 
+	modelsJSON, err := json.Marshal(req.Models)
+	if err != nil {
+		return nil, api.ErrBadRequest("invalid 'models' json")
+	}
+
+	var version *string
+	if req.Version != "" {
+		version = &req.Version
+	}
+
 	snapshot, err := s.store.CreateSchemaSnapshot(ctx, db.CreateSchemaSnapshotParams{
-		EnvID:       req.EnvID,
-		Models:      req.Models,
-		AclRules:    req.ACLRules,
-		RecordRules: req.RecordRules,
-		ModelCount:  req.ModelCount,
-		FieldCount:  req.FieldCount,
+		EnvID:      req.EnvID,
+		Version:    version,
+		Models:     modelsJSON,
+		ModelCount: req.ModelCount,
+		FieldCount: req.FieldCount,
 	})
 	if err != nil {
 		return nil, api.FromPgError(err)
@@ -118,18 +127,24 @@ func (s *SchemaService) SearchModels(ctx context.Context, tenantID, envID uuid.U
 		return nil, api.FromPgError(err)
 	}
 
-	// Unmarshal the models JSONB into a generic slice so we can filter in Go.
-	var all []json.RawMessage
+	// Unmarshal the models JSONB into a generic map so we can filter in Go.
+	var all map[string]json.RawMessage
 	if err := json.Unmarshal(snapshot.Models, &all); err != nil {
 		return nil, api.ErrInternal(err)
 	}
 
+	// Convert map values to slice for filtering/pagination.
+	allSlice := make([]json.RawMessage, 0, len(all))
+	for _, v := range all {
+		allSlice = append(allSlice, v)
+	}
+
 	// Filter: if q is empty return all; otherwise match against "model" / "name".
 	q = strings.ToLower(strings.TrimSpace(q))
-	filtered := all
+	filtered := allSlice
 	if q != "" {
 		filtered = filtered[:0]
-		for _, raw := range all {
+		for _, raw := range allSlice {
 			if modelMatches(raw, q) {
 				filtered = append(filtered, raw)
 			}

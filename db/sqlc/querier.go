@@ -20,6 +20,7 @@ type Querier interface {
 	// Merge new user IDs into the existing array (deduplicated)
 	AppendAffectedUsers(ctx context.Context, arg AppendAffectedUsersParams) error
 	CheckEnvironmentNameExists(ctx context.Context, arg CheckEnvironmentNameExistsParams) (bool, error)
+	ClearRegistrationToken(ctx context.Context, arg ClearRegistrationTokenParams) error
 	CountAuditLogs(ctx context.Context, tenantID uuid.UUID) (int64, error)
 	CountEnvironmentsByTenant(ctx context.Context, tenantID uuid.UUID) (int64, error)
 	CountEnvironmentsByTenantAndStatus(ctx context.Context, arg CountEnvironmentsByTenantAndStatusParams) (int64, error)
@@ -93,6 +94,7 @@ type Querier interface {
 	GetBudgetAverage7d(ctx context.Context, budgetID uuid.UUID) (GetBudgetAverage7dRow, error)
 	GetEnvironmentByAgentID(ctx context.Context, agentID *string) (Environment, error)
 	GetEnvironmentByID(ctx context.Context, arg GetEnvironmentByIDParams) (Environment, error)
+	GetEnvironmentByRegistrationToken(ctx context.Context, registrationToken *string) (Environment, error)
 	GetErrorGroupByID(ctx context.Context, arg GetErrorGroupByIDParams) (ErrorGroup, error)
 	GetErrorGroupBySignature(ctx context.Context, arg GetErrorGroupBySignatureParams) (ErrorGroup, error)
 	GetFeatureFlags(ctx context.Context, id uuid.UUID) (json.RawMessage, error)
@@ -130,6 +132,7 @@ type Querier interface {
 	// ════════════════════════════════════════════
 	InsertHeartbeat(ctx context.Context, arg InsertHeartbeatParams) (AgentHeartbeat, error)
 	InsertORMStat(ctx context.Context, arg InsertORMStatParams) (OrmStat, error)
+	ListAPIKeysByEnvironment(ctx context.Context, arg ListAPIKeysByEnvironmentParams) ([]ListAPIKeysByEnvironmentRow, error)
 	ListAPIKeysByTenant(ctx context.Context, tenantID uuid.UUID) ([]ListAPIKeysByTenantRow, error)
 	ListActiveNotificationChannels(ctx context.Context, tenantID uuid.UUID) ([]NotificationChannel, error)
 	ListAlertDeliveries(ctx context.Context, alertID uuid.UUID) ([]AlertDelivery, error)
@@ -180,6 +183,7 @@ type Querier interface {
 	RevokeAllSessions(ctx context.Context, userID uuid.UUID) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) error
 	SearchErrorGroups(ctx context.Context, arg SearchErrorGroupsParams) ([]ErrorGroup, error)
+	SetRegistrationToken(ctx context.Context, arg SetRegistrationTokenParams) (Environment, error)
 	TouchAPIKey(ctx context.Context, id uuid.UUID) error
 	TouchSession(ctx context.Context, id uuid.UUID) error
 	UnverifyUserEmail(ctx context.Context, arg UnverifyUserEmailParams) error

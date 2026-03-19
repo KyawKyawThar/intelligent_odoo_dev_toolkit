@@ -234,6 +234,21 @@ func Timeout(timeout time.Duration) func(http.Handler) http.Handler {
 }
 
 // =============================================================================
+// ClearTimeout Middleware — removes any deadline set by the Timeout middleware.
+// Use this on long-lived connections (e.g. WebSocket) that must outlive the
+// global request timeout.
+// =============================================================================
+
+func ClearTimeout(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Derive a context that carries all values (tenant, request-id, …)
+		// but has no deadline.
+		ctx := context.WithoutCancel(r.Context())
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// =============================================================================
 // Real IP Middleware
 // =============================================================================
 

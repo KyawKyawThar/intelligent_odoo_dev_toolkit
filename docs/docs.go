@@ -23,7 +23,64 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/agent/errors": {
+        "/agent/batch": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Agent endpoint: receive an aggregated batch of ORM stats and critical events.\nThe batch is pushed onto a Redis stream for asynchronous processing by the ingest worker.\nSupports gzip-compressed bodies (Content-Encoding: gzip). Max body size: 5 MB.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent"
+                ],
+                "summary": "Ingest aggregated batch",
+                "parameters": [
+                    {
+                        "description": "Aggregated batch payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.IngestBatchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/dto.IngestBatchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/agent/errors": {
             "post": {
                 "security": [
                     {
@@ -77,7 +134,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/agent/schema": {
+        "/agent/schema": {
             "post": {
                 "security": [
                     {
@@ -134,7 +191,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/agent/ws": {
+        "/agent/ws": {
             "get": {
                 "security": [
                     {
@@ -1148,17 +1205,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Assign an agent ID to an environment, setting its status to connected",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Generate a one-time token that an agent uses to self-register and obtain API credentials",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "environments"
                 ],
-                "summary": "Register agent",
+                "summary": "Generate agent registration token",
                 "parameters": [
                     {
                         "type": "string",
@@ -1166,28 +1220,13 @@ const docTemplate = `{
                         "name": "env_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "description": "Agent details",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/dto.RegisterAgentRequest"
-                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.EnvironmentResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/api.Error"
+                            "$ref": "#/definitions/dto.RegisterAgentResponse"
                         }
                     },
                     "401": {
@@ -1347,6 +1386,217 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/errors": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns aggregated error groups for the given environment, sorted by occurrence count",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "errors"
+                ],
+                "summary": "List error groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default 25, max 100)",
+                        "name": "per_page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status: open, acknowledged, resolved",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by error type",
+                        "name": "error_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Free-text search in message/module/model",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorGroupListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/errors/{error_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a single error group with optional raw traceback from S3",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "errors"
+                ],
+                "summary": "Get error group",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Error group ID",
+                        "name": "error_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include raw traceback from S3 (default false)",
+                        "name": "trace",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErrorGroupDetailResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/flags": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update feature flags for an environment and push to connected agent",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "environments"
+                ],
+                "summary": "Update feature flags",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Feature flags",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateFlagsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateFlagsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
                     },
                     "401": {
                         "description": "Unauthorized",
@@ -1775,6 +2025,124 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.BatchORMStat": {
+            "type": "object",
+            "properties": {
+                "avg_ms": {
+                    "type": "number",
+                    "example": 6.01
+                },
+                "call_count": {
+                    "type": "integer",
+                    "example": 148
+                },
+                "max_ms": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "method": {
+                    "type": "string",
+                    "example": "search_read"
+                },
+                "model": {
+                    "type": "string",
+                    "example": "res.partner"
+                },
+                "n1_detected": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "p95_ms": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "sample_sql": {
+                    "type": "string",
+                    "example": "SELECT id, name FROM res_partner WHERE active = true"
+                },
+                "total_ms": {
+                    "type": "integer",
+                    "example": 890
+                }
+            }
+        },
+        "dto.BatchRawEvent": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "example": "error"
+                },
+                "duration_ms": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "is_error": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "is_n1": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "message": {
+                    "type": "string",
+                    "example": "ValidationError: No warehouse configured"
+                },
+                "method": {
+                    "type": "string",
+                    "example": "action_confirm"
+                },
+                "model": {
+                    "type": "string",
+                    "example": "sale.order"
+                },
+                "module": {
+                    "type": "string",
+                    "example": "sale"
+                },
+                "sql": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string",
+                    "example": "2026-03-19T10:00:15Z"
+                },
+                "traceback": {
+                    "type": "string",
+                    "example": "Traceback (most recent call last):\n  File ..."
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "dto.BatchSummary": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "n1_patterns": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "slow_queries": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "total_duration_ms": {
+                    "type": "integer",
+                    "example": 1200
+                },
+                "total_queries": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
         "dto.ChangePasswordRequest": {
             "type": "object",
             "required": [
@@ -1928,23 +2296,28 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ErrorEventContext": {
+            "type": "object",
+            "properties": {
+                "request_url": {
+                    "type": "string"
+                },
+                "uid": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.ErrorEventPayload": {
             "type": "object",
             "required": [
-                "captured_at",
-                "error_type",
                 "message",
-                "signature"
+                "signature",
+                "timestamp",
+                "type"
             ],
             "properties": {
-                "affected_uid": {
-                    "type": "integer"
-                },
-                "captured_at": {
-                    "type": "string"
-                },
-                "error_type": {
-                    "type": "string"
+                "context": {
+                    "$ref": "#/definitions/dto.ErrorEventContext"
                 },
                 "message": {
                     "type": "string"
@@ -1958,7 +2331,142 @@ const docTemplate = `{
                 "signature": {
                     "type": "string"
                 },
+                "timestamp": {
+                    "type": "string"
+                },
                 "traceback": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ErrorGroupDetailResponse": {
+            "type": "object",
+            "properties": {
+                "affected_users": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "env_id": {
+                    "type": "string"
+                },
+                "error_type": {
+                    "type": "string"
+                },
+                "first_seen": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "module": {
+                    "type": "string"
+                },
+                "occurrence_count": {
+                    "type": "integer"
+                },
+                "raw_trace": {
+                    "type": "string"
+                },
+                "raw_trace_ref": {
+                    "type": "string"
+                },
+                "resolved_at": {
+                    "type": "string"
+                },
+                "resolved_by": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ErrorGroupListResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ErrorGroupResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/dto.Meta"
+                }
+            }
+        },
+        "dto.ErrorGroupResponse": {
+            "type": "object",
+            "properties": {
+                "affected_users": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "env_id": {
+                    "type": "string"
+                },
+                "error_type": {
+                    "type": "string"
+                },
+                "first_seen": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "module": {
+                    "type": "string"
+                },
+                "occurrence_count": {
+                    "type": "integer"
+                },
+                "raw_trace_ref": {
+                    "type": "string"
+                },
+                "resolved_at": {
+                    "type": "string"
+                },
+                "resolved_by": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -1974,10 +2482,53 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.IngestBatchRequest": {
+            "type": "object",
+            "required": [
+                "env_id"
+            ],
+            "properties": {
+                "duration_ms": {
+                    "type": "integer",
+                    "example": 30000
+                },
+                "env_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "orm_stats": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BatchORMStat"
+                    }
+                },
+                "period": {
+                    "type": "string",
+                    "example": "2026-03-19T10:00:00Z"
+                },
+                "raw_events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BatchRawEvent"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/dto.BatchSummary"
+                }
+            }
+        },
+        "dto.IngestBatchResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "example": "queued"
+                }
+            }
+        },
         "dto.IngestErrorsRequest": {
             "type": "object",
             "required": [
-                "env_id",
                 "events"
             ],
             "properties": {
@@ -2044,6 +2595,32 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.Meta": {
+            "type": "object",
+            "properties": {
+                "has_next": {
+                    "type": "boolean"
+                },
+                "has_prev": {
+                    "type": "boolean"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "per_page": {
+                    "type": "integer"
+                },
+                "took": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.RefreshTokenRequest": {
             "type": "object",
             "required": [
@@ -2072,16 +2649,14 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.RegisterAgentRequest": {
+        "dto.RegisterAgentResponse": {
             "type": "object",
-            "required": [
-                "agent_id"
-            ],
             "properties": {
-                "agent_id": {
-                    "type": "string",
-                    "maxLength": 255,
-                    "minLength": 1
+                "expires_at": {
+                    "type": "string"
+                },
+                "registration_token": {
+                    "type": "string"
                 }
             }
         },
@@ -2133,6 +2708,93 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.SchemaAccessRule": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string"
+                },
+                "perm_create": {
+                    "type": "boolean"
+                },
+                "perm_read": {
+                    "type": "boolean"
+                },
+                "perm_unlink": {
+                    "type": "boolean"
+                },
+                "perm_write": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dto.SchemaModel": {
+            "type": "object",
+            "properties": {
+                "accesses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.SchemaAccessRule"
+                    }
+                },
+                "fields": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/dto.SchemaModelField"
+                    }
+                },
+                "model": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.SchemaRecordRule"
+                    }
+                }
+            }
+        },
+        "dto.SchemaModelField": {
+            "type": "object",
+            "properties": {
+                "default": {},
+                "required": {
+                    "type": "boolean"
+                },
+                "string": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SchemaRecordRule": {
+            "type": "object",
+            "properties": {
+                "domain": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "perm_create": {
+                    "type": "boolean"
+                },
+                "perm_read": {
+                    "type": "boolean"
+                },
+                "perm_unlink": {
+                    "type": "boolean"
+                },
+                "perm_write": {
+                    "type": "boolean"
+                }
+            }
+        },
         "dto.SchemaSnapshotListItem": {
             "type": "object",
             "properties": {
@@ -2153,6 +2815,9 @@ const docTemplate = `{
                 },
                 "model_count": {
                     "type": "integer"
+                },
+                "version": {
+                    "type": "string"
                 }
             }
         },
@@ -2176,9 +2841,6 @@ const docTemplate = `{
         "dto.SchemaSnapshotResponse": {
             "type": "object",
             "properties": {
-                "acl_rules": {
-                    "type": "object"
-                },
                 "captured_at": {
                     "type": "string"
                 },
@@ -2200,8 +2862,8 @@ const docTemplate = `{
                 "models": {
                     "type": "object"
                 },
-                "record_rules": {
-                    "type": "object"
+                "version": {
+                    "type": "string"
                 }
             }
         },
@@ -2251,15 +2913,10 @@ const docTemplate = `{
         "dto.StoreSchemaRequest": {
             "type": "object",
             "required": [
-                "acl_rules",
-                "env_id",
                 "models",
-                "record_rules"
+                "version"
             ],
             "properties": {
-                "acl_rules": {
-                    "type": "object"
-                },
                 "env_id": {
                     "type": "string"
                 },
@@ -2270,10 +2927,13 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "models": {
-                    "type": "object"
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/dto.SchemaModel"
+                    }
                 },
-                "record_rules": {
-                    "type": "object"
+                "version": {
+                    "type": "string"
                 }
             }
         },
@@ -2322,6 +2982,35 @@ const docTemplate = `{
                         "inactive",
                         "maintenance"
                     ]
+                }
+            }
+        },
+        "dto.UpdateFlagsRequest": {
+            "type": "object",
+            "required": [
+                "flags"
+            ],
+            "properties": {
+                "flags": {
+                    "description": "Flags holds the complete feature-flag object to store.\n@Description Feature flags as JSON object\n@example {\"sampling_mode\":\"sampled\",\"sample_rate\":0.25}",
+                    "type": "object"
+                }
+            }
+        },
+        "dto.UpdateFlagsResponse": {
+            "type": "object",
+            "properties": {
+                "agent_connected": {
+                    "type": "boolean"
+                },
+                "feature_flags": {
+                    "type": "object"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "pushed": {
+                    "type": "boolean"
                 }
             }
         },

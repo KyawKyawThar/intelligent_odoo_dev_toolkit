@@ -15,6 +15,7 @@ import (
 const createAPIKey = `-- name: CreateAPIKey :one
 INSERT INTO api_keys (
     tenant_id,
+    environment_id,
     created_by,
     key_hash,
     key_prefix,
@@ -23,24 +24,26 @@ INSERT INTO api_keys (
     scopes,
     expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
-) RETURNING id, tenant_id, created_by, key_hash, key_prefix, name, scopes, last_used, expires_at, is_active, created_at, description
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING id, tenant_id, created_by, key_hash, key_prefix, name, scopes, last_used, expires_at, is_active, created_at, description, environment_id
 `
 
 type CreateAPIKeyParams struct {
-	TenantID    uuid.UUID  `db:"tenant_id" json:"tenant_id"`
-	CreatedBy   *uuid.UUID `db:"created_by" json:"created_by"`
-	KeyHash     string     `db:"key_hash" json:"key_hash"`
-	KeyPrefix   string     `db:"key_prefix" json:"key_prefix"`
-	Name        string     `db:"name" json:"name"`
-	Description string     `db:"description" json:"description"`
-	Scopes      []string   `db:"scopes" json:"scopes"`
-	ExpiresAt   *time.Time `db:"expires_at" json:"expires_at"`
+	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	EnvironmentID *uuid.UUID `db:"environment_id" json:"environment_id"`
+	CreatedBy     *uuid.UUID `db:"created_by" json:"created_by"`
+	KeyHash       string     `db:"key_hash" json:"key_hash"`
+	KeyPrefix     string     `db:"key_prefix" json:"key_prefix"`
+	Name          string     `db:"name" json:"name"`
+	Description   string     `db:"description" json:"description"`
+	Scopes        []string   `db:"scopes" json:"scopes"`
+	ExpiresAt     *time.Time `db:"expires_at" json:"expires_at"`
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
 	row := q.db.QueryRow(ctx, createAPIKey,
 		arg.TenantID,
+		arg.EnvironmentID,
 		arg.CreatedBy,
 		arg.KeyHash,
 		arg.KeyPrefix,
@@ -63,6 +66,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.Description,
+		&i.EnvironmentID,
 	)
 	return i, err
 }
@@ -83,7 +87,7 @@ func (q *Queries) DeleteAPIKey(ctx context.Context, arg DeleteAPIKeyParams) erro
 }
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
-SELECT id, tenant_id, created_by, key_hash, key_prefix, name, scopes, last_used, expires_at, is_active, created_at, description FROM api_keys
+SELECT id, tenant_id, created_by, key_hash, key_prefix, name, scopes, last_used, expires_at, is_active, created_at, description, environment_id FROM api_keys
 WHERE key_hash = $1
   AND is_active = true
   AND (expires_at IS NULL OR expires_at > now())
@@ -106,12 +110,13 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.Description,
+		&i.EnvironmentID,
 	)
 	return i, err
 }
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
-SELECT id, tenant_id, created_by, key_hash, key_prefix, name, scopes, last_used, expires_at, is_active, created_at, description FROM api_keys
+SELECT id, tenant_id, created_by, key_hash, key_prefix, name, scopes, last_used, expires_at, is_active, created_at, description, environment_id FROM api_keys
 WHERE id = $1 AND tenant_id = $2
 LIMIT 1
 `
@@ -137,12 +142,74 @@ func (q *Queries) GetAPIKeyByID(ctx context.Context, arg GetAPIKeyByIDParams) (A
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.Description,
+		&i.EnvironmentID,
 	)
 	return i, err
 }
 
+const listAPIKeysByEnvironment = `-- name: ListAPIKeysByEnvironment :many
+SELECT id, tenant_id, environment_id, created_by, key_prefix, name, description, scopes,
+       last_used, expires_at, is_active, created_at
+FROM api_keys
+WHERE tenant_id = $1 AND environment_id = $2
+ORDER BY created_at DESC
+`
+
+type ListAPIKeysByEnvironmentParams struct {
+	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	EnvironmentID *uuid.UUID `db:"environment_id" json:"environment_id"`
+}
+
+type ListAPIKeysByEnvironmentRow struct {
+	ID            uuid.UUID  `db:"id" json:"id"`
+	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	EnvironmentID *uuid.UUID `db:"environment_id" json:"environment_id"`
+	CreatedBy     *uuid.UUID `db:"created_by" json:"created_by"`
+	KeyPrefix     string     `db:"key_prefix" json:"key_prefix"`
+	Name          string     `db:"name" json:"name"`
+	Description   string     `db:"description" json:"description"`
+	Scopes        []string   `db:"scopes" json:"scopes"`
+	LastUsed      *time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt     *time.Time `db:"expires_at" json:"expires_at"`
+	IsActive      bool       `db:"is_active" json:"is_active"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+}
+
+func (q *Queries) ListAPIKeysByEnvironment(ctx context.Context, arg ListAPIKeysByEnvironmentParams) ([]ListAPIKeysByEnvironmentRow, error) {
+	rows, err := q.db.Query(ctx, listAPIKeysByEnvironment, arg.TenantID, arg.EnvironmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAPIKeysByEnvironmentRow{}
+	for rows.Next() {
+		var i ListAPIKeysByEnvironmentRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.EnvironmentID,
+			&i.CreatedBy,
+			&i.KeyPrefix,
+			&i.Name,
+			&i.Description,
+			&i.Scopes,
+			&i.LastUsed,
+			&i.ExpiresAt,
+			&i.IsActive,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAPIKeysByTenant = `-- name: ListAPIKeysByTenant :many
-SELECT id, tenant_id, created_by, key_prefix, name, description, scopes,
+SELECT id, tenant_id, environment_id, created_by, key_prefix, name, description, scopes,
        last_used, expires_at, is_active, created_at
 FROM api_keys
 WHERE tenant_id = $1
@@ -150,17 +217,18 @@ ORDER BY created_at DESC
 `
 
 type ListAPIKeysByTenantRow struct {
-	ID          uuid.UUID  `db:"id" json:"id"`
-	TenantID    uuid.UUID  `db:"tenant_id" json:"tenant_id"`
-	CreatedBy   *uuid.UUID `db:"created_by" json:"created_by"`
-	KeyPrefix   string     `db:"key_prefix" json:"key_prefix"`
-	Name        string     `db:"name" json:"name"`
-	Description string     `db:"description" json:"description"`
-	Scopes      []string   `db:"scopes" json:"scopes"`
-	LastUsed    *time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt   *time.Time `db:"expires_at" json:"expires_at"`
-	IsActive    bool       `db:"is_active" json:"is_active"`
-	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+	ID            uuid.UUID  `db:"id" json:"id"`
+	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	EnvironmentID *uuid.UUID `db:"environment_id" json:"environment_id"`
+	CreatedBy     *uuid.UUID `db:"created_by" json:"created_by"`
+	KeyPrefix     string     `db:"key_prefix" json:"key_prefix"`
+	Name          string     `db:"name" json:"name"`
+	Description   string     `db:"description" json:"description"`
+	Scopes        []string   `db:"scopes" json:"scopes"`
+	LastUsed      *time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt     *time.Time `db:"expires_at" json:"expires_at"`
+	IsActive      bool       `db:"is_active" json:"is_active"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
 }
 
 func (q *Queries) ListAPIKeysByTenant(ctx context.Context, tenantID uuid.UUID) ([]ListAPIKeysByTenantRow, error) {
@@ -175,6 +243,7 @@ func (q *Queries) ListAPIKeysByTenant(ctx context.Context, tenantID uuid.UUID) (
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
+			&i.EnvironmentID,
 			&i.CreatedBy,
 			&i.KeyPrefix,
 			&i.Name,

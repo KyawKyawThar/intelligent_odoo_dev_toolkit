@@ -38,7 +38,7 @@ func (h *SchemaHandler) mustTenantID(w http.ResponseWriter, r *http.Request) (uu
 }
 
 // =============================================================================
-// POST /api/v1/agent/schema
+// POST /agent/schema
 // =============================================================================
 
 // HandleStore accepts a schema snapshot pushed by an agent.
@@ -53,7 +53,7 @@ func (h *SchemaHandler) mustTenantID(w http.ResponseWriter, r *http.Request) (uu
 //	@Failure      400   {object}  api.Error
 //	@Failure      401   {object}  api.Error
 //	@Failure      404   {object}  api.Error
-//	@Router       /api/v1/agent/schema [post]
+//	@Router       /agent/schema [post]
 //	@Security     ApiKeyAuth
 func (h *SchemaHandler) HandleStore(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := h.mustTenantID(w, r)
@@ -63,6 +63,21 @@ func (h *SchemaHandler) HandleStore(w http.ResponseWriter, r *http.Request) {
 
 	var req dto.StoreSchemaRequest
 	if !h.DecodeAndValidate(w, r, &req) {
+		return
+	}
+
+	// If the payload env_id is empty, fall back to the env_id from the API key.
+	if req.EnvID == uuid.Nil {
+		envIDStr := middleware.GetEnvID(r.Context())
+		if envIDStr != "" {
+			if parsed, err := uuid.Parse(envIDStr); err == nil {
+				req.EnvID = parsed
+			}
+		}
+	}
+
+	if req.EnvID == uuid.Nil {
+		h.WriteErr(w, r, api.ErrBadRequest("env_id is required (provide in payload or use an environment-scoped API key)"))
 		return
 	}
 

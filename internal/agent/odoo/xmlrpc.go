@@ -223,6 +223,41 @@ func extractFaultString(data []byte) string {
 
 // ─── public API ───────────────────────────────────────────────────────────────
 
+// Version calls /xmlrpc/2/common → version() and returns the server_version
+// string (e.g. "17.0").
+func (c *Client) Version(ctx context.Context) (string, error) {
+	endpoint := fmt.Sprintf("%s/xmlrpc/2/common", c.URL.String())
+
+	data, err := c.call(ctx, endpoint, "version", nil)
+	if err != nil {
+		return "", fmt.Errorf("version: %w", err)
+	}
+
+	// The response is a struct with a "server_version" string member.
+	type member struct {
+		Name  string `xml:"name"`
+		Value struct {
+			String string `xml:"string"`
+		} `xml:"value"`
+	}
+	type methodResp struct {
+		XMLName xml.Name `xml:"methodResponse"`
+		Members []member `xml:"params>param>value>struct>member"`
+	}
+
+	var r methodResp
+	if err := xml.Unmarshal(data, &r); err != nil {
+		return "", fmt.Errorf("parse version response: %w", err)
+	}
+
+	for _, m := range r.Members {
+		if m.Name == "server_version" {
+			return m.Value.String, nil
+		}
+	}
+	return "", fmt.Errorf("server_version not found in response")
+}
+
 // Authenticate calls /xmlrpc/2/common → authenticate and stores the UID on the client.
 // Must be called before ExecuteKw.
 func (c *Client) Authenticate(ctx context.Context) error {

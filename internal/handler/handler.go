@@ -15,17 +15,20 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 )
 
 // Handlers is the main container for all HTTP handlers.
 type Handlers struct {
-	Auth        *AuthHandler
-	Ws          *WsHandler
-	Environment *EnvironmentHandler
-	Schema      *SchemaHandler
-	Error       *ErrorHandler
-	APIKey      *APIKeyHandler
+	Auth          *AuthHandler
+	Ws            *WsHandler
+	Environment   *EnvironmentHandler
+	Schema        *SchemaHandler
+	Error         *ErrorHandler
+	APIKey        *APIKeyHandler
+	Batch         *BatchHandler
+	AgentRegister *AgentRegisterHandler
 
 	// Future handlers:
 	// Profiler    *ProfilerHandler
@@ -34,8 +37,17 @@ type Handlers struct {
 	// User   *UserHandler
 }
 
+// HandlerDeps holds optional dependencies for handler construction.
+type HandlerDeps struct {
+	// RedisClient is the underlying redis.Client for stream-based handlers.
+	// If nil, stream-based handlers (e.g. BatchHandler) will not be created.
+	RedisClient *redis.Client
+	// IngestStreamName overrides the Redis stream name for batch ingestion.
+	IngestStreamName string
+}
+
 // NewHandlers creates all handlers with their service dependencies.
-func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Logger) *Handlers {
+func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Logger, deps *HandlerDeps) *Handlers {
 	v := validator.New()
 	if err := api.RegisterCustomValidations(v); err != nil {
 		panic(err)
@@ -63,17 +75,27 @@ func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Log
 	if !ok {
 		panic("invalid api key service type")
 	}
-
-	return &Handlers{
-		Auth:        NewAuthHandler(authSvc, base),
-		Environment: NewEnviromentHandler(*envSvc, base),
-		Schema:      NewSchemaHandler(schemaSvc, base),
-		Error:       NewErrorHandler(errorSvc, base),
-		APIKey:      NewAPIKeyHandler(apiKeySvc, base),
-		Ws:          NewWsHandler(base, store),
-		// Tenant: NewTenantHandler(services.Tenant, base),
-		// User:   NewUserHandler(services.User, base),
+	agentRegSvc, ok := services.AgentRegister.(*service.AgentRegisterService)
+	if !ok {
+		panic("invalid agent register service type")
 	}
+
+	h := &Handlers{
+		Auth:          NewAuthHandler(authSvc, base),
+		Environment:   NewEnviromentHandler(*envSvc, base),
+		Schema:        NewSchemaHandler(schemaSvc, base),
+		Error:         NewErrorHandler(errorSvc, base),
+		APIKey:        NewAPIKeyHandler(apiKeySvc, base),
+		Ws:            NewWsHandler(base, store),
+		AgentRegister: NewAgentRegisterHandler(agentRegSvc, base),
+	}
+
+	// Wire up stream-based handlers when Redis is available.
+	if deps != nil && deps.RedisClient != nil {
+		h.Batch = NewBatchHandler(base, deps.RedisClient, deps.IngestStreamName)
+	}
+
+	return h
 }
 
 // =============================================================================
@@ -118,6 +140,9 @@ func (h *BaseHandler) DecodeJSON(r *http.Request, v any) *api.Error {
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(v); err != nil {
+		h.logger.Error().Err(err).
+			Str("path", r.URL.Path).
+			Msg("JSON decode failed")
 		return api.ErrInvalidJSON(err)
 	}
 	return nil

@@ -102,6 +102,32 @@ SET
 WHERE id = $1 AND tenant_id = $3
 RETURNING *;
 
+-- name: SetRegistrationToken :one
+UPDATE environments
+SET
+    registration_token = $2,
+    registration_token_expires_at = $3,
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $4
+RETURNING *;
+
+-- name: GetEnvironmentByRegistrationToken :one
+SELECT * FROM environments
+WHERE registration_token = $1
+  AND registration_token_expires_at > now()
+LIMIT 1;
+
+-- name: ClearRegistrationToken :exec
+UPDATE environments
+SET
+    registration_token = NULL,
+    registration_token_expires_at = NULL,
+    agent_id = $2,
+    status = 'connected',
+    last_sync = now(),
+    updated_at = now()
+WHERE id = $1;
+
 -- name: DisconnectAgent :exec
 UPDATE environments
 SET

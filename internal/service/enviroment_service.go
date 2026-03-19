@@ -1,11 +1,15 @@
 package service
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"net/http"
+	"time"
+
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
-	"context"
-	"net/http"
 
 	"github.com/google/uuid"
 )
@@ -184,17 +188,36 @@ func (s *EnvironmentService) Update(ctx context.Context, tenantID, envID uuid.UU
 	return dto.ToEnvironmentResponse(&env), nil
 }
 
-func (s *EnvironmentService) RegisterAgent(ctx context.Context, tenantID, envID uuid.UUID, req *dto.RegisterAgentRequest) (*dto.EnvironmentResponse, error) {
-	env, err := s.store.RegisterAgent(ctx, db.RegisterAgentParams{
+func (s *EnvironmentService) RegisterAgent(ctx context.Context, tenantID, envID uuid.UUID, _ *dto.RegisterAgentRequest) (*dto.RegisterAgentResponse, error) {
+	// Verify environment exists and belongs to tenant.
+	if _, err := s.store.GetEnvironmentByID(ctx, db.GetEnvironmentByIDParams{
 		ID:       envID,
-		AgentID:  &req.AgentID,
 		TenantID: tenantID,
-	})
-	if err != nil {
+	}); err != nil {
+		return nil, api.ErrNotFound("environment not found")
+	}
+
+	// Generate a one-time registration token.
+	rawBytes := make([]byte, 32)
+	if _, err := rand.Read(rawBytes); err != nil {
+		return nil, api.ErrInternal(err)
+	}
+	token := "reg_" + base64.RawURLEncoding.EncodeToString(rawBytes)
+	expiresAt := time.Now().UTC().Add(1 * time.Hour)
+
+	if _, err := s.store.SetRegistrationToken(ctx, db.SetRegistrationTokenParams{
+		ID:                         envID,
+		RegistrationToken:          &token,
+		RegistrationTokenExpiresAt: &expiresAt,
+		TenantID:                   tenantID,
+	}); err != nil {
 		return nil, api.FromPgError(err)
 	}
 
-	return dto.ToEnvironmentResponse(&env), nil
+	return &dto.RegisterAgentResponse{
+		RegistrationToken: token,
+		ExpiresAt:         expiresAt,
+	}, nil
 }
 
 func (s *EnvironmentService) Delete(ctx context.Context, tenantID, envID uuid.UUID) error {
