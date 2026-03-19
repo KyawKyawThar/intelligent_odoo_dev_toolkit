@@ -275,7 +275,7 @@ func TestFlagReceiver_ReceivesFlagsFromServer(t *testing.T) {
 	}
 }
 
-func TestFlagReceiver_ApplierUpdatessampler(t *testing.T) {
+func TestFlagReceiver_ApplierUpdatesSampler(t *testing.T) {
 	flagsJSON := `{"sampling_mode":"sampled","sample_rate":0.3,"slow_threshold_ms":150}`
 
 	server := testWSServer(t, flagsJSON)

@@ -154,6 +154,8 @@ type FlagReceiver struct {
 
 	mu      sync.RWMutex
 	current FeatureFlags
+
+	wsMu sync.Mutex // protects concurrent WebSocket writes
 }
 
 // NewFlagReceiver creates a receiver. applier is called on every flag update.
@@ -289,7 +291,10 @@ func (r *FlagReceiver) handleMessage(conn *websocket.Conn, raw []byte) {
 			r.logger.Error().Err(err).Msg("failed to marshal pong")
 			return
 		}
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		r.wsMu.Lock()
+		err = conn.WriteMessage(websocket.TextMessage, data)
+		r.wsMu.Unlock()
+		if err != nil {
 			r.logger.Error().Err(err).Msg("failed to send pong")
 		}
 
@@ -368,7 +373,10 @@ func (r *FlagReceiver) sendHeartbeat(conn *websocket.Conn) {
 		r.logger.Error().Err(err).Msg("failed to marshal heartbeat")
 		return
 	}
-	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+	r.wsMu.Lock()
+	err = conn.WriteMessage(websocket.TextMessage, data)
+	r.wsMu.Unlock()
+	if err != nil {
 		r.logger.Error().Err(err).Msg("failed to send heartbeat")
 	}
 }
