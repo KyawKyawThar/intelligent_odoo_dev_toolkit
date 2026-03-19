@@ -9,6 +9,7 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/collector"
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/odoo"
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/ringbuf"
+	"Intelligent_Dev_ToolKit_Odoo/internal/agent/sampler"
 
 	"github.com/rs/zerolog"
 )
@@ -18,27 +19,31 @@ var irLoggingFields = []string{
 	"id", "name", "level", "message", "path", "line", "func", "create_date",
 }
 
-// Collector polls Odoo's ir.logging model for ERROR/CRITICAL server-side log
+// Collector polls Odoo's ir.logging model for WARNING/ERROR/CRITICAL server-side log
 // entries and pushes them into a ring buffer as ErrorEvents.
 // It tracks the highest ir.logging ID seen so each entry is processed once.
 type Collector struct {
 	client    *odoo.Client
 	buf       *ringbuf.RingBuffer[ErrorEvent]
-	lastLogID int // high-water mark — only fetch records with id > lastLogID
+	sampler   *sampler.Sampler // nil = no filtering (keep all)
+	lastLogID int              // high-water mark — only fetch records with id > lastLogID
 	logger    zerolog.Logger
 }
 
 // NewCollector creates a Collector.
 // buf is the shared ring buffer that the Flusher will drain.
+// smp may be nil — when nil every event is kept (equivalent to "full" mode).
 func NewCollector(
 	client *odoo.Client,
 	buf *ringbuf.RingBuffer[ErrorEvent],
+	smp *sampler.Sampler,
 	logger zerolog.Logger,
 ) *Collector {
 	return &Collector{
-		client: client,
-		buf:    buf,
-		logger: logger.With().Str("component", "error-collector").Logger(),
+		client:  client,
+		buf:     buf,
+		sampler: smp,
+		logger:  logger.With().Str("component", "error-collector").Logger(),
 	}
 }
 
@@ -46,7 +51,7 @@ func NewCollector(
 // the ring buffer. Safe to call from a ticker goroutine.
 func (c *Collector) Poll(ctx context.Context) error {
 	domain := []any{
-		[]any{"level", "in", []any{"ERROR", "CRITICAL"}},
+		[]any{"level", "in", []any{"WARNING", "ERROR", "CRITICAL"}},
 		[]any{"type", "=", "server"},
 		[]any{"id", ">", c.lastLogID},
 	}
@@ -59,23 +64,36 @@ func (c *Collector) Poll(ctx context.Context) error {
 		return fmt.Errorf("ir.logging search_read: %w", err)
 	}
 
-	pushed := 0
+	pushed, dropped := 0, 0
 	for _, r := range records {
 		ev, ok := c.toEvent(r)
 		if !ok {
 			continue
 		}
-		c.buf.Push(ev)
+
+		// Always advance the high-water mark regardless of sampling.
 		if ev.LogID > c.lastLogID {
 			c.lastLogID = ev.LogID
 		}
+
+		// Ask the sampler whether this event should be kept as raw.
+		if c.sampler != nil && !c.sampler.Allow(sampler.EventInfo{
+			Category: "error",
+			IsError:  true,
+		}) {
+			dropped++
+			continue
+		}
+
+		c.buf.Push(ev)
 		pushed++
 	}
 
-	if pushed > 0 {
+	if pushed > 0 || dropped > 0 {
 		c.logger.Info().
 			Int("fetched", len(records)).
 			Int("pushed", pushed).
+			Int("dropped", dropped).
 			Int("buf_len", c.buf.Len()).
 			Msg("error events captured")
 	}
@@ -126,7 +144,7 @@ func (c *Collector) toEvent(r map[string]any) (ErrorEvent, bool) {
 	capturedAt := parseOdooDate(stringVal(r["create_date"]))
 
 	return ErrorEvent{
-		Signature:  ComputeSignature(errorType, message),
+		Signature:  GenerateSignature(errorType, message, traceback),
 		ErrorType:  errorType,
 		Message:    message,
 		Module:     module,

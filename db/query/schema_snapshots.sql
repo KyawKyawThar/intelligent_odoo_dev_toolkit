@@ -1,14 +1,13 @@
 -- name: CreateSchemaSnapshot :one
 INSERT INTO schema_snapshots (
     env_id,
+    version,
     models,
-    acl_rules,
-    record_rules,
     model_count,
     field_count,
     diff_ref
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6
 ) RETURNING *;
 
 -- name: GetLatestSchema :one
@@ -26,7 +25,7 @@ SELECT * FROM schema_snapshots
 WHERE id = $1
 LIMIT 1;
 -- name: ListSchemaSnapshots :many
-SELECT id, env_id, captured_at, model_count, field_count, diff_ref
+SELECT id, env_id, captured_at, version, model_count, field_count, diff_ref
 FROM schema_snapshots
 WHERE env_id = $1
 ORDER BY captured_at DESC

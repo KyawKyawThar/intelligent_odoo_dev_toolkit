@@ -27,6 +27,7 @@ func (s *Server) setupRoutes() {
 	s.setupSwagger(r)
 	s.setupPublicRoutes(r)
 	s.setupProtectedRoutes(r)
+	s.setupAgentPublicRoutes(r)
 	s.setupAgentRoutes(r)
 
 	s.router = r
@@ -56,8 +57,9 @@ func (s *Server) setupMiddleware(r chi.Router) {
 	}
 
 	r.Use(mw.SecurityHeaders)
-	r.Use(mw.Timeout(30 * time.Second))
-	r.Use(mw.MaxBodySize(1 << 20))
+	// Timeout and MaxBodySize are NOT applied globally — they are set
+	// per-route-group so that long-lived connections (WebSocket) and
+	// large payloads (schema push) can use different limits.
 }
 
 func (s *Server) setupSwagger(r chi.Router) {
@@ -96,43 +98,51 @@ func (s *Server) setupSwagger(r chi.Router) {
 }
 
 func (s *Server) setupPublicRoutes(r chi.Router) {
-	r.Get("/api/v1/ready", s.handleReady)
-	r.Get("/api/v1/not_implement", s.handler.Auth.HandleNotImplement)
+	r.Group(func(r chi.Router) {
+		r.Use(mw.Timeout(30 * time.Second))
+		r.Use(mw.MaxBodySize(1 << 20)) // 1 MB
 
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		dto.WriteJSON(w, http.StatusOK, map[string]string{
-			"service": "OdooDevTools API",
-			"version": "1.0.0",
-			"status":  "running",
-			"docs":    "/docs",
+		r.Get("/api/v1/ready", s.handleReady)
+		r.Get("/api/v1/not_implement", s.handler.Auth.HandleNotImplement)
+
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			dto.WriteJSON(w, http.StatusOK, map[string]string{
+				"service": "OdooDevTools API",
+				"version": "1.0.0",
+				"status":  "running",
+				"docs":    "/docs",
+			})
 		})
-	})
 
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/health", s.handleHealth)
-		r.Get("/version", s.handleVersion)
+		r.Route("/api/v1", func(r chi.Router) {
+			r.Get("/health", s.handleHealth)
+			r.Get("/version", s.handleVersion)
 
-		r.Route("/auth", func(r chi.Router) {
-			if s.handler.Auth != nil {
-				r.Post("/register", s.handler.Auth.HandleRegister)
-				r.Post("/login", s.handler.Auth.HandleLogin)
-				r.Post("/refresh", s.handler.Auth.HandleRefreshToken)
-				r.Post("/forgot-password", s.handler.Auth.HandleForgotPassword)
-				r.Post("/reset-password", s.handler.Auth.HandleResetPassword)
-				r.Post("/verify-email", s.handler.Auth.HandleVerifyEmail)
-			} else {
-				r.Post("/register", s.handleRegister)
-				r.Post("/login", s.handleLogin)
-				r.Post("/refresh", s.handleRefreshToken)
-				r.Post("/forgot-password", s.handleForgotPassword)
-				r.Post("/reset-password", s.handleResetPassword)
-			}
+			r.Route("/auth", func(r chi.Router) {
+				if s.handler.Auth != nil {
+					r.Post("/register", s.handler.Auth.HandleRegister)
+					r.Post("/login", s.handler.Auth.HandleLogin)
+					r.Post("/refresh", s.handler.Auth.HandleRefreshToken)
+					r.Post("/forgot-password", s.handler.Auth.HandleForgotPassword)
+					r.Post("/reset-password", s.handler.Auth.HandleResetPassword)
+					r.Post("/verify-email", s.handler.Auth.HandleVerifyEmail)
+				} else {
+					r.Post("/register", s.handleRegister)
+					r.Post("/login", s.handleLogin)
+					r.Post("/refresh", s.handleRefreshToken)
+					r.Post("/forgot-password", s.handleForgotPassword)
+					r.Post("/reset-password", s.handleResetPassword)
+				}
+			})
 		})
 	})
 }
 
 func (s *Server) setupProtectedRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
+		r.Use(mw.Timeout(30 * time.Second))
+		r.Use(mw.MaxBodySize(1 << 20)) // 1 MB
+
 		if s.services != nil {
 			r.Use(mw.JWTAuthWithService(s.services.Auth))
 		} else {
@@ -142,51 +152,81 @@ func (s *Server) setupProtectedRoutes(r chi.Router) {
 		r.Use(mw.TenantResolver(mw.DatabaseTenantLookup(s.store)))
 		r.Use(mw.TieredRateLimit(mw.DefaultPlanLimits))
 
-		if s.handler.Auth != nil {
-			r.Post("/api/v1/auth/logout", s.handler.Auth.HandleLogout)
-			r.Get("/api/v1/auth/me", s.handler.Auth.HandleGetCurrentUser)
-			r.Patch("/api/v1/auth/me", s.handler.Auth.HandleUpdateCurrentUser)
-			r.Post("/api/v1/auth/change-password", s.handler.Auth.HandleChangePassword)
-			r.Get("/api/v1/auth/sessions", s.handler.Auth.HandleGetSessions)
-			r.Delete("/api/v1/auth/sessions/{session_id}", s.handler.Auth.HandleRevokeSession)
-			r.Post("/api/v1/auth/resend-verification", s.handler.Auth.HandleResendVerification)
-		} else {
-			r.Post("/api/v1/auth/logout", s.handleLogout)
-			r.Get("/api/v1/auth/me", s.handleGetCurrentUser)
-			r.Patch("/api/v1/auth/me", s.handleUpdateCurrentUser)
-			r.Post("/api/v1/auth/change-password", s.handleChangePassword)
-		}
+		s.registerAuthRoutes(r)
+		s.registerEnvironmentRoutes(r)
+	})
+}
 
-		if s.handler.Environment != nil {
-			r.Route("/api/v1/environments", func(r chi.Router) {
-				r.Post("/", s.handler.Environment.HandleCreate)
-				r.Get("/", s.handler.Environment.HandleList)
+// registerAuthRoutes mounts the authenticated auth endpoints.
+func (s *Server) registerAuthRoutes(r chi.Router) {
+	if s.handler.Auth != nil {
+		r.Post("/api/v1/auth/logout", s.handler.Auth.HandleLogout)
+		r.Get("/api/v1/auth/me", s.handler.Auth.HandleGetCurrentUser)
+		r.Patch("/api/v1/auth/me", s.handler.Auth.HandleUpdateCurrentUser)
+		r.Post("/api/v1/auth/change-password", s.handler.Auth.HandleChangePassword)
+		r.Get("/api/v1/auth/sessions", s.handler.Auth.HandleGetSessions)
+		r.Delete("/api/v1/auth/sessions/{session_id}", s.handler.Auth.HandleRevokeSession)
+		r.Post("/api/v1/auth/resend-verification", s.handler.Auth.HandleResendVerification)
+	} else {
+		r.Post("/api/v1/auth/logout", s.handleLogout)
+		r.Get("/api/v1/auth/me", s.handleGetCurrentUser)
+		r.Patch("/api/v1/auth/me", s.handleUpdateCurrentUser)
+		r.Post("/api/v1/auth/change-password", s.handleChangePassword)
+	}
+}
 
-				r.Route("/{env_id}", func(r chi.Router) {
-					r.Get("/", s.handler.Environment.HandleGet)
-					r.Patch("/", s.handler.Environment.HandleUpdate)
-					r.Delete("/", s.handler.Environment.HandleDelete)
+// registerEnvironmentRoutes mounts the environment CRUD and nested routes.
+func (s *Server) registerEnvironmentRoutes(r chi.Router) {
+	if s.handler.Environment == nil {
+		return
+	}
 
-					if s.handler.Schema != nil {
-						r.Route("/schema", func(r chi.Router) {
-							r.Get("/", s.handler.Schema.HandleList)
-							r.Get("/latest", s.handler.Schema.HandleGetLatest)
-							r.Get("/models", s.handler.Schema.HandleSearchModels)
-						})
-					}
+	r.Route("/api/v1/environments", func(r chi.Router) {
+		r.Post("/", s.handler.Environment.HandleCreate)
+		r.Get("/", s.handler.Environment.HandleList)
 
-					r.Post("/agent", s.handler.Environment.HandleRegisterAgent)
+		r.Route("/{env_id}", func(r chi.Router) {
+			r.Get("/", s.handler.Environment.HandleGet)
+			r.Patch("/", s.handler.Environment.HandleUpdate)
+			r.Delete("/", s.handler.Environment.HandleDelete)
 
-					if s.handler.APIKey != nil {
-						r.Route("/api-keys", func(r chi.Router) {
-							r.Post("/", s.handler.APIKey.HandleCreate)
-							r.Get("/", s.handler.APIKey.HandleList)
-							r.Delete("/{key_id}", s.handler.APIKey.HandleRevoke)
-						})
-					}
+			// Feature flags (admin push to connected agent)
+			if s.handler.Ws != nil {
+				r.Put("/flags", s.handler.Ws.HandleUpdateFlags)
+			}
+
+			if s.handler.Schema != nil {
+				r.Route("/errors", func(r chi.Router) {
+					r.Get("/", s.handler.Error.HandleListErrors)
+					r.Get("/{error_id}", s.handler.Error.HandleGetErrorGroup)
 				})
-			})
-		}
+
+				r.Route("/schema", func(r chi.Router) {
+					r.Get("/", s.handler.Schema.HandleList)
+					r.Get("/latest", s.handler.Schema.HandleGetLatest)
+					r.Get("/models", s.handler.Schema.HandleSearchModels)
+				})
+			}
+
+			r.Post("/agent", s.handler.Environment.HandleRegisterAgent)
+
+			if s.handler.APIKey != nil {
+				r.Route("/api-keys", func(r chi.Router) {
+					r.Post("/", s.handler.APIKey.HandleCreate)
+					r.Get("/", s.handler.APIKey.HandleList)
+					r.Delete("/{key_id}", s.handler.APIKey.HandleRevoke)
+				})
+			}
+		})
+	})
+}
+
+func (s *Server) setupAgentPublicRoutes(r chi.Router) {
+	r.Group(func(r chi.Router) {
+		r.Use(mw.Timeout(30 * time.Second))
+		r.Use(mw.MaxBodySize(1 << 20)) // 1 MB
+		// Agent self-registration: no auth required (protected by one-time token).
+		r.Post("/api/v1/agent/register", s.handler.AgentRegister.HandleSelfRegister)
 	})
 }
 
@@ -195,15 +235,33 @@ func (s *Server) setupAgentRoutes(r chi.Router) {
 		r.Use(mw.AgentAPIKeyAuth(s.store))
 
 		r.Route("/api/v1/agent", func(r chi.Router) {
-			r.Get("/ws", s.handler.Ws.HandleWebSocket)
+			// WebSocket: no timeout, no body-size limit (long-lived connection).
+			r.Group(func(r chi.Router) {
+				r.Get("/ws", s.handler.Ws.HandleWebSocket)
+			})
 
+			// Schema push: larger body limit (Odoo schemas can be several MB).
 			if s.handler.Schema != nil {
-				r.Post("/schema", s.handler.Schema.HandleStore)
+				r.Group(func(r chi.Router) {
+					r.Use(mw.Timeout(30 * time.Second))
+					r.Use(mw.MaxBodySize(10 << 20)) // 10 MB
+					r.Post("/schema", s.handler.Schema.HandleStore)
+				})
 			}
 
-			if s.handler.Error != nil {
-				r.Post("/errors", s.handler.Error.HandleIngestErrors)
-			}
+			// Other agent endpoints: standard 1 MB limit.
+			r.Group(func(r chi.Router) {
+				r.Use(mw.Timeout(30 * time.Second))
+				r.Use(mw.MaxBodySize(1 << 20)) // 1 MB
+
+				if s.handler.Error != nil {
+					r.Post("/errors", s.handler.Error.HandleIngestErrors)
+				}
+
+				if s.handler.Batch != nil {
+					r.Post("/batch", s.handler.Batch.HandleIngestBatch)
+				}
+			})
 		})
 	})
 }

@@ -13,11 +13,12 @@ import (
 )
 
 type Services struct {
-	Auth        AuthServicer
-	Environment EnvironmentServicer
-	Schema      SchemaServicer
-	Error       ErrorServicer
-	APIKey      APIKeyServicer
+	Auth          AuthServicer
+	Environment   EnvironmentServicer
+	Schema        SchemaServicer
+	Error         ErrorServicer
+	APIKey        APIKeyServicer
+	AgentRegister AgentRegisterServicer
 	// Future services:
 	// Profiler    ProfilerServicer
 	// Alert       AlertServicer
@@ -102,12 +103,14 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 	schemaSvc := NewSchemaService(store)
 	errorSvc := NewErrorService(store)
 	apiKeySvc := NewAPIKeyService(store)
+	agentRegSvc := NewAgentRegisterService(store)
 
 	return &Services{
-		Auth:        authSvc,
-		Environment: envSvc,
-		Schema:      schemaSvc,
-		Error:       errorSvc,
-		APIKey:      apiKeySvc,
+		Auth:          authSvc,
+		Environment:   envSvc,
+		Schema:        schemaSvc,
+		Error:         errorSvc,
+		APIKey:        apiKeySvc,
+		AgentRegister: agentRegSvc,
 	}
 }

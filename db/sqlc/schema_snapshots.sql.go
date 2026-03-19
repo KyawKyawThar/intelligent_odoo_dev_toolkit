@@ -29,33 +29,30 @@ func (q *Queries) CountSchemasByEnv(ctx context.Context, envID uuid.UUID) (int64
 const createSchemaSnapshot = `-- name: CreateSchemaSnapshot :one
 INSERT INTO schema_snapshots (
     env_id,
+    version,
     models,
-    acl_rules,
-    record_rules,
     model_count,
     field_count,
     diff_ref
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, env_id, captured_at, models, acl_rules, record_rules, model_count, field_count, diff_ref
+    $1, $2, $3, $4, $5, $6
+) RETURNING id, env_id, captured_at, models, model_count, field_count, diff_ref, version
 `
 
 type CreateSchemaSnapshotParams struct {
-	EnvID       uuid.UUID       `db:"env_id" json:"env_id"`
-	Models      json.RawMessage `db:"models" json:"models"`
-	AclRules    json.RawMessage `db:"acl_rules" json:"acl_rules"`
-	RecordRules json.RawMessage `db:"record_rules" json:"record_rules"`
-	ModelCount  *int32          `db:"model_count" json:"model_count"`
-	FieldCount  *int32          `db:"field_count" json:"field_count"`
-	DiffRef     *string         `db:"diff_ref" json:"diff_ref"`
+	EnvID      uuid.UUID       `db:"env_id" json:"env_id"`
+	Version    *string         `db:"version" json:"version"`
+	Models     json.RawMessage `db:"models" json:"models"`
+	ModelCount *int32          `db:"model_count" json:"model_count"`
+	FieldCount *int32          `db:"field_count" json:"field_count"`
+	DiffRef    *string         `db:"diff_ref" json:"diff_ref"`
 }
 
 func (q *Queries) CreateSchemaSnapshot(ctx context.Context, arg CreateSchemaSnapshotParams) (SchemaSnapshot, error) {
 	row := q.db.QueryRow(ctx, createSchemaSnapshot,
 		arg.EnvID,
+		arg.Version,
 		arg.Models,
-		arg.AclRules,
-		arg.RecordRules,
 		arg.ModelCount,
 		arg.FieldCount,
 		arg.DiffRef,
@@ -66,11 +63,10 @@ func (q *Queries) CreateSchemaSnapshot(ctx context.Context, arg CreateSchemaSnap
 		&i.EnvID,
 		&i.CapturedAt,
 		&i.Models,
-		&i.AclRules,
-		&i.RecordRules,
 		&i.ModelCount,
 		&i.FieldCount,
 		&i.DiffRef,
+		&i.Version,
 	)
 	return i, err
 }
@@ -104,7 +100,7 @@ func (q *Queries) DeleteOldSchemaSnapshots(ctx context.Context, arg DeleteOldSch
 }
 
 const getLatestSchema = `-- name: GetLatestSchema :one
-SELECT id, env_id, captured_at, models, acl_rules, record_rules, model_count, field_count, diff_ref FROM schema_snapshots
+SELECT id, env_id, captured_at, models, model_count, field_count, diff_ref, version FROM schema_snapshots
 WHERE env_id = $1
 ORDER BY captured_at DESC
 LIMIT 1
@@ -118,17 +114,16 @@ func (q *Queries) GetLatestSchema(ctx context.Context, envID uuid.UUID) (SchemaS
 		&i.EnvID,
 		&i.CapturedAt,
 		&i.Models,
-		&i.AclRules,
-		&i.RecordRules,
 		&i.ModelCount,
 		&i.FieldCount,
 		&i.DiffRef,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getSchemaByID = `-- name: GetSchemaByID :one
-SELECT id, env_id, captured_at, models, acl_rules, record_rules, model_count, field_count, diff_ref FROM schema_snapshots
+SELECT id, env_id, captured_at, models, model_count, field_count, diff_ref, version FROM schema_snapshots
 WHERE id = $1 AND env_id = $2
 LIMIT 1
 `
@@ -146,17 +141,16 @@ func (q *Queries) GetSchemaByID(ctx context.Context, arg GetSchemaByIDParams) (S
 		&i.EnvID,
 		&i.CapturedAt,
 		&i.Models,
-		&i.AclRules,
-		&i.RecordRules,
 		&i.ModelCount,
 		&i.FieldCount,
 		&i.DiffRef,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getSchemaSnapshotByID = `-- name: GetSchemaSnapshotByID :one
-SELECT id, env_id, captured_at, models, acl_rules, record_rules, model_count, field_count, diff_ref FROM schema_snapshots
+SELECT id, env_id, captured_at, models, model_count, field_count, diff_ref, version FROM schema_snapshots
 WHERE id = $1
 LIMIT 1
 `
@@ -169,17 +163,16 @@ func (q *Queries) GetSchemaSnapshotByID(ctx context.Context, id uuid.UUID) (Sche
 		&i.EnvID,
 		&i.CapturedAt,
 		&i.Models,
-		&i.AclRules,
-		&i.RecordRules,
 		&i.ModelCount,
 		&i.FieldCount,
 		&i.DiffRef,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getTwoSchemasForDiff = `-- name: GetTwoSchemasForDiff :many
-SELECT id, env_id, captured_at, models, acl_rules, record_rules, model_count, field_count, diff_ref FROM schema_snapshots
+SELECT id, env_id, captured_at, models, model_count, field_count, diff_ref, version FROM schema_snapshots
 WHERE id = ANY($1::uuid[])
 ORDER BY captured_at ASC
 `
@@ -198,11 +191,10 @@ func (q *Queries) GetTwoSchemasForDiff(ctx context.Context, dollar_1 []uuid.UUID
 			&i.EnvID,
 			&i.CapturedAt,
 			&i.Models,
-			&i.AclRules,
-			&i.RecordRules,
 			&i.ModelCount,
 			&i.FieldCount,
 			&i.DiffRef,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -215,7 +207,7 @@ func (q *Queries) GetTwoSchemasForDiff(ctx context.Context, dollar_1 []uuid.UUID
 }
 
 const listSchemaSnapshots = `-- name: ListSchemaSnapshots :many
-SELECT id, env_id, captured_at, model_count, field_count, diff_ref
+SELECT id, env_id, captured_at, version, model_count, field_count, diff_ref
 FROM schema_snapshots
 WHERE env_id = $1
 ORDER BY captured_at DESC
@@ -231,6 +223,7 @@ type ListSchemaSnapshotsRow struct {
 	ID         uuid.UUID `db:"id" json:"id"`
 	EnvID      uuid.UUID `db:"env_id" json:"env_id"`
 	CapturedAt time.Time `db:"captured_at" json:"captured_at"`
+	Version    *string   `db:"version" json:"version"`
 	ModelCount *int32    `db:"model_count" json:"model_count"`
 	FieldCount *int32    `db:"field_count" json:"field_count"`
 	DiffRef    *string   `db:"diff_ref" json:"diff_ref"`
@@ -249,6 +242,7 @@ func (q *Queries) ListSchemaSnapshots(ctx context.Context, arg ListSchemaSnapsho
 			&i.ID,
 			&i.EnvID,
 			&i.CapturedAt,
+			&i.Version,
 			&i.ModelCount,
 			&i.FieldCount,
 			&i.DiffRef,

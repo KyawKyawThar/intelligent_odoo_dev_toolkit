@@ -34,12 +34,15 @@ type EnvironmentServicer interface {
 	List(ctx context.Context, tenantID uuid.UUID, req *dto.ListEnvironmentsRequest) (*dto.EnvironmentListResponse, error)
 	Update(ctx context.Context, tenantID, envID uuid.UUID, req *dto.UpdateEnvironmentRequest) (*dto.EnvironmentResponse, error)
 	Delete(ctx context.Context, tenantID, envID uuid.UUID) error
-	RegisterAgent(ctx context.Context, tenantID, envID uuid.UUID, req *dto.RegisterAgentRequest) (*dto.EnvironmentResponse, error)
+	RegisterAgent(ctx context.Context, tenantID, envID uuid.UUID, req *dto.RegisterAgentRequest) (*dto.RegisterAgentResponse, error)
 }
 
-// ErrorServicer defines the agent error ingestion operations.
+// ErrorServicer defines the agent error ingestion and query operations.
 type ErrorServicer interface {
 	IngestBatch(ctx context.Context, tenantID uuid.UUID, req *dto.IngestErrorsRequest) error
+	ListErrorGroups(ctx context.Context, tenantID, envID uuid.UUID, req *dto.ListErrorGroupsRequest) (*dto.ErrorGroupListResponse, error)
+	GetErrorGroup(ctx context.Context, tenantID, envID, errorID uuid.UUID, includeTrace bool) (*dto.ErrorGroupDetailResponse, error)
+	GetErrorGroupBySignature(ctx context.Context, tenantID, envID uuid.UUID, signature string) (*dto.ErrorGroupDetailResponse, error)
 }
 
 // APIKeyServicer defines operations for managing agent API keys.
@@ -47,6 +50,11 @@ type APIKeyServicer interface {
 	Create(ctx context.Context, tenantID, envID, userID uuid.UUID, req *dto.CreateAPIKeyRequest) (*dto.APIKeyCreatedResponse, error)
 	List(ctx context.Context, tenantID, envID uuid.UUID) (*dto.APIKeyListResponse, error)
 	Revoke(ctx context.Context, tenantID, keyID uuid.UUID) error
+}
+
+// AgentRegisterServicer handles agent self-registration with one-time tokens.
+type AgentRegisterServicer interface {
+	SelfRegister(ctx context.Context, req *dto.AgentSelfRegisterRequest) (*dto.AgentSelfRegisterResponse, error)
 }
 
 // SchemaServicer defines the business operations for schema snapshots.

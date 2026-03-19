@@ -163,6 +163,8 @@ dev-server: ## Run server only with live reload
 dev-agent: ## Run agent only with live reload
 	air -c .air.agent.toml
 
+dev-worker: ## Run worker only with live reload
+	air -c .air.worker.toml
 ## ── Build ────────────────────────────────────────────────────────
 
 .PHONY: build build-agent

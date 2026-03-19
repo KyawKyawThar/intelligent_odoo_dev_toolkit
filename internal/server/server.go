@@ -80,7 +80,16 @@ func NewServer(store db.Store, redisCache *cache.RedisClient, cfg config.Config)
 	})
 	server.services = services
 
-	handlers := handler.NewHandlers(services, server.store, server.logger)
+	// Build optional handler dependencies.
+	var deps *handler.HandlerDeps
+	if redisCache != nil {
+		deps = &handler.HandlerDeps{
+			RedisClient:      redisCache.Client,
+			IngestStreamName: cfg.RedisStreamIngest,
+		}
+	}
+
+	handlers := handler.NewHandlers(services, server.store, server.logger, deps)
 	server.handler = handlers
 
 	server.setupRoutes()

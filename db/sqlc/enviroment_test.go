@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 )
@@ -1031,4 +1032,187 @@ func TestListEnvironmentsByTenantAndStatus_TenantIsolation(t *testing.T) {
 		})
 	require.NoError(t, err)
 	require.Empty(t, results)
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Registration Token: SetRegistrationToken / GetByToken / Clear
+// ═══════════════════════════════════════════════════════════════
+
+func TestSetRegistrationToken_Success(t *testing.T) {
+	reg := createRegisteredTenant(t)
+	env := createTestEnvironment(t, reg.Tenant.ID, "production")
+
+	token := "reg_" + utils.RandomString(32)
+	expiresAt := time.Now().Add(1 * time.Hour).UTC()
+
+	updated, err := testStore.SetRegistrationToken(context.Background(), SetRegistrationTokenParams{
+		ID:                         env.ID,
+		RegistrationToken:          &token,
+		RegistrationTokenExpiresAt: &expiresAt,
+		TenantID:                   reg.Tenant.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated.RegistrationToken)
+	require.Equal(t, token, *updated.RegistrationToken)
+	require.NotNil(t, updated.RegistrationTokenExpiresAt)
+	require.WithinDuration(t, expiresAt, *updated.RegistrationTokenExpiresAt, time.Second)
+}
+
+func TestSetRegistrationToken_WrongTenant_Fails(t *testing.T) {
+	reg1 := createRegisteredTenant(t)
+	reg2 := createRegisteredTenant(t)
+	env := createTestEnvironment(t, reg1.Tenant.ID, "production")
+
+	token := "reg_" + utils.RandomString(32)
+	expiresAt := time.Now().Add(1 * time.Hour).UTC()
+
+	_, err := testStore.SetRegistrationToken(context.Background(), SetRegistrationTokenParams{
+		ID:                         env.ID,
+		RegistrationToken:          &token,
+		RegistrationTokenExpiresAt: &expiresAt,
+		TenantID:                   reg2.Tenant.ID, // wrong tenant
+	})
+	require.Error(t, err, "wrong tenant must not set registration token")
+}
+
+func TestSetRegistrationToken_OverwritesPreviousToken(t *testing.T) {
+	reg := createRegisteredTenant(t)
+	env := createTestEnvironment(t, reg.Tenant.ID, "production")
+
+	token1 := "reg_" + utils.RandomString(32)
+	expires := time.Now().Add(1 * time.Hour).UTC()
+
+	_, err := testStore.SetRegistrationToken(context.Background(), SetRegistrationTokenParams{
+		ID:                         env.ID,
+		RegistrationToken:          &token1,
+		RegistrationTokenExpiresAt: &expires,
+		TenantID:                   reg.Tenant.ID,
+	})
+	require.NoError(t, err)
+
+	token2 := "reg_" + utils.RandomString(32)
+	updated, err := testStore.SetRegistrationToken(context.Background(), SetRegistrationTokenParams{
+		ID:                         env.ID,
+		RegistrationToken:          &token2,
+		RegistrationTokenExpiresAt: &expires,
+		TenantID:                   reg.Tenant.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, token2, *updated.RegistrationToken)
+}
+
+func TestGetEnvironmentByRegistrationToken_Found(t *testing.T) {
+	reg := createRegisteredTenant(t)
+	env := createTestEnvironment(t, reg.Tenant.ID, "production")
+
+	token := "reg_" + utils.RandomString(32)
+	expiresAt := time.Now().Add(1 * time.Hour).UTC()
+
+	_, err := testStore.SetRegistrationToken(context.Background(), SetRegistrationTokenParams{
+		ID:                         env.ID,
+		RegistrationToken:          &token,
+		RegistrationTokenExpiresAt: &expiresAt,
+		TenantID:                   reg.Tenant.ID,
+	})
+	require.NoError(t, err)
+
+	fetched, err := testStore.GetEnvironmentByRegistrationToken(context.Background(), &token)
+	require.NoError(t, err)
+	require.Equal(t, env.ID, fetched.ID)
+	require.Equal(t, env.TenantID, fetched.TenantID)
+}
+
+func TestGetEnvironmentByRegistrationToken_Expired_Fails(t *testing.T) {
+	reg := createRegisteredTenant(t)
+	env := createTestEnvironment(t, reg.Tenant.ID, "production")
+
+	token := "reg_" + utils.RandomString(32)
+	// Already expired
+	expiresAt := time.Now().Add(-1 * time.Hour).UTC()
+
+	_, err := testStore.SetRegistrationToken(context.Background(), SetRegistrationTokenParams{
+		ID:                         env.ID,
+		RegistrationToken:          &token,
+		RegistrationTokenExpiresAt: &expiresAt,
+		TenantID:                   reg.Tenant.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = testStore.GetEnvironmentByRegistrationToken(context.Background(), &token)
+	require.Error(t, err, "expired token must not be found")
+	require.ErrorIs(t, err, pgx.ErrNoRows)
+}
+
+func TestGetEnvironmentByRegistrationToken_NonExistent_Fails(t *testing.T) {
+	bogus := "reg_nonexistent_" + utils.RandomString(32)
+	_, err := testStore.GetEnvironmentByRegistrationToken(context.Background(), &bogus)
+	require.Error(t, err)
+	require.ErrorIs(t, err, pgx.ErrNoRows)
+}
+
+func TestClearRegistrationToken_SetsAgentAndClearsToken(t *testing.T) {
+	reg := createRegisteredTenant(t)
+	env := createTestEnvironment(t, reg.Tenant.ID, "production")
+
+	// Set a token first.
+	token := "reg_" + utils.RandomString(32)
+	expiresAt := time.Now().Add(1 * time.Hour).UTC()
+
+	_, err := testStore.SetRegistrationToken(context.Background(), SetRegistrationTokenParams{
+		ID:                         env.ID,
+		RegistrationToken:          &token,
+		RegistrationTokenExpiresAt: &expiresAt,
+		TenantID:                   reg.Tenant.ID,
+	})
+	require.NoError(t, err)
+
+	// Clear token and set agent_id.
+	agentID := uuid.New().String()
+	err = testStore.ClearRegistrationToken(context.Background(), ClearRegistrationTokenParams{
+		ID:      env.ID,
+		AgentID: &agentID,
+	})
+	require.NoError(t, err)
+
+	// Verify: token cleared, agent_id set, status connected.
+	fetched, err := testStore.GetEnvironmentByID(context.Background(), GetEnvironmentByIDParams{
+		ID:       env.ID,
+		TenantID: reg.Tenant.ID,
+	})
+	require.NoError(t, err)
+	require.Nil(t, fetched.RegistrationToken, "token must be cleared")
+	require.Nil(t, fetched.RegistrationTokenExpiresAt, "token expiry must be cleared")
+	require.NotNil(t, fetched.AgentID)
+	require.Equal(t, agentID, *fetched.AgentID)
+	require.Equal(t, "connected", fetched.Status)
+	require.NotNil(t, fetched.LastSync)
+}
+
+func TestClearRegistrationToken_TokenNoLongerFound(t *testing.T) {
+	reg := createRegisteredTenant(t)
+	env := createTestEnvironment(t, reg.Tenant.ID, "production")
+
+	token := "reg_" + utils.RandomString(32)
+	expiresAt := time.Now().Add(1 * time.Hour).UTC()
+
+	_, err := testStore.SetRegistrationToken(context.Background(), SetRegistrationTokenParams{
+		ID:                         env.ID,
+		RegistrationToken:          &token,
+		RegistrationTokenExpiresAt: &expiresAt,
+		TenantID:                   reg.Tenant.ID,
+	})
+	require.NoError(t, err)
+
+	// Clear the token.
+	agentID := uuid.New().String()
+	err = testStore.ClearRegistrationToken(context.Background(), ClearRegistrationTokenParams{
+		ID:      env.ID,
+		AgentID: &agentID,
+	})
+	require.NoError(t, err)
+
+	// Token must no longer be resolvable.
+	_, err = testStore.GetEnvironmentByRegistrationToken(context.Background(), &token)
+	require.Error(t, err, "cleared token must not be found")
+	require.ErrorIs(t, err, pgx.ErrNoRows)
 }

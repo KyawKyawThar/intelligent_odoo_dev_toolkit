@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"Intelligent_Dev_ToolKit_Odoo/internal/agent/creds"
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/odoo"
 
 	"github.com/rs/zerolog"
@@ -118,7 +119,7 @@ func TestDeltaDetection(t *testing.T) {
 
 	// ── 3. Create Syncer and run checks ──────────────────────────────
 	logger := zerolog.Nop()
-	syncer := New(client, mockServer.URL, "test-api-key", "test-env-id", logger)
+	syncer := New(client, mockServer.URL, &creds.Stub{Key: "test-api-key"}, "test-env-id", "", logger)
 
 	// First run: Should collect and push
 	err = syncer.RunOnce(context.Background())

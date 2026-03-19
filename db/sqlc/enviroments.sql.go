@@ -37,6 +37,28 @@ func (q *Queries) CheckEnvironmentNameExists(ctx context.Context, arg CheckEnvir
 	return exists, err
 }
 
+const clearRegistrationToken = `-- name: ClearRegistrationToken :exec
+UPDATE environments
+SET
+    registration_token = NULL,
+    registration_token_expires_at = NULL,
+    agent_id = $2,
+    status = 'connected',
+    last_sync = now(),
+    updated_at = now()
+WHERE id = $1
+`
+
+type ClearRegistrationTokenParams struct {
+	ID      uuid.UUID `db:"id" json:"id"`
+	AgentID *string   `db:"agent_id" json:"agent_id"`
+}
+
+func (q *Queries) ClearRegistrationToken(ctx context.Context, arg ClearRegistrationTokenParams) error {
+	_, err := q.db.Exec(ctx, clearRegistrationToken, arg.ID, arg.AgentID)
+	return err
+}
+
 const countEnvironmentsByTenant = `-- name: CountEnvironmentsByTenant :one
 SELECT count(*) FROM environments
 WHERE tenant_id = $1
@@ -117,7 +139,7 @@ INSERT INTO environments (
     feature_flags
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8
-) RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at
+) RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at
 `
 
 type CreateEnvironmentParams struct {
@@ -157,6 +179,8 @@ func (q *Queries) CreateEnvironment(ctx context.Context, arg CreateEnvironmentPa
 		&i.LastSync,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RegistrationToken,
+		&i.RegistrationTokenExpiresAt,
 	)
 	return i, err
 }
@@ -210,7 +234,7 @@ func (q *Queries) DisconnectAgent(ctx context.Context, agentID *string) error {
 }
 
 const getEnvironmentByAgentID = `-- name: GetEnvironmentByAgentID :one
-SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at FROM environments
 WHERE agent_id = $1
 LIMIT 1
 `
@@ -232,12 +256,14 @@ func (q *Queries) GetEnvironmentByAgentID(ctx context.Context, agentID *string) 
 		&i.LastSync,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RegistrationToken,
+		&i.RegistrationTokenExpiresAt,
 	)
 	return i, err
 }
 
 const getEnvironmentByID = `-- name: GetEnvironmentByID :one
-SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at FROM environments
 WHERE id = $1 AND tenant_id = $2
 LIMIT 1
 `
@@ -264,6 +290,38 @@ func (q *Queries) GetEnvironmentByID(ctx context.Context, arg GetEnvironmentByID
 		&i.LastSync,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RegistrationToken,
+		&i.RegistrationTokenExpiresAt,
+	)
+	return i, err
+}
+
+const getEnvironmentByRegistrationToken = `-- name: GetEnvironmentByRegistrationToken :one
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at FROM environments
+WHERE registration_token = $1
+  AND registration_token_expires_at > now()
+LIMIT 1
+`
+
+func (q *Queries) GetEnvironmentByRegistrationToken(ctx context.Context, registrationToken *string) (Environment, error) {
+	row := q.db.QueryRow(ctx, getEnvironmentByRegistrationToken, registrationToken)
+	var i Environment
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.OdooUrl,
+		&i.DbName,
+		&i.OdooVersion,
+		&i.EnvType,
+		&i.Status,
+		&i.AgentID,
+		&i.FeatureFlags,
+		&i.LastSync,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RegistrationToken,
+		&i.RegistrationTokenExpiresAt,
 	)
 	return i, err
 }
@@ -351,7 +409,7 @@ func (q *Queries) InsertHeartbeat(ctx context.Context, arg InsertHeartbeatParams
 }
 
 const listEnvironmentsByTenant = `-- name: ListEnvironmentsByTenant :many
-SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at FROM environments
 WHERE tenant_id = $1
 ORDER BY created_at
 `
@@ -379,6 +437,8 @@ func (q *Queries) ListEnvironmentsByTenant(ctx context.Context, tenantID uuid.UU
 			&i.LastSync,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RegistrationToken,
+			&i.RegistrationTokenExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -391,7 +451,7 @@ func (q *Queries) ListEnvironmentsByTenant(ctx context.Context, tenantID uuid.UU
 }
 
 const listEnvironmentsByTenantAndStatus = `-- name: ListEnvironmentsByTenantAndStatus :many
-SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at FROM environments
 WHERE tenant_id = $1
   AND status = $2
 ORDER BY created_at DESC
@@ -433,6 +493,8 @@ func (q *Queries) ListEnvironmentsByTenantAndStatus(ctx context.Context, arg Lis
 			&i.LastSync,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RegistrationToken,
+			&i.RegistrationTokenExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -445,7 +507,7 @@ func (q *Queries) ListEnvironmentsByTenantAndStatus(ctx context.Context, arg Lis
 }
 
 const listEnvironmentsByTenantAndType = `-- name: ListEnvironmentsByTenantAndType :many
-SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at FROM environments
 WHERE tenant_id = $1
   AND env_type = $2
 ORDER BY created_at DESC
@@ -487,6 +549,8 @@ func (q *Queries) ListEnvironmentsByTenantAndType(ctx context.Context, arg ListE
 			&i.LastSync,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RegistrationToken,
+			&i.RegistrationTokenExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -499,7 +563,7 @@ func (q *Queries) ListEnvironmentsByTenantAndType(ctx context.Context, arg ListE
 }
 
 const listEnvironmentsByTenantTypeAndStatus = `-- name: ListEnvironmentsByTenantTypeAndStatus :many
-SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at FROM environments
+SELECT id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at FROM environments
 WHERE tenant_id = $1
   AND env_type = $2
   AND status = $3
@@ -544,6 +608,8 @@ func (q *Queries) ListEnvironmentsByTenantTypeAndStatus(ctx context.Context, arg
 			&i.LastSync,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RegistrationToken,
+			&i.RegistrationTokenExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -650,7 +716,7 @@ SET
     last_sync = now(),
     updated_at = now()
 WHERE id = $1 AND tenant_id = $3
-RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at
+RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at
 `
 
 type RegisterAgentParams struct {
@@ -676,6 +742,53 @@ func (q *Queries) RegisterAgent(ctx context.Context, arg RegisterAgentParams) (E
 		&i.LastSync,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RegistrationToken,
+		&i.RegistrationTokenExpiresAt,
+	)
+	return i, err
+}
+
+const setRegistrationToken = `-- name: SetRegistrationToken :one
+UPDATE environments
+SET
+    registration_token = $2,
+    registration_token_expires_at = $3,
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $4
+RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at
+`
+
+type SetRegistrationTokenParams struct {
+	ID                         uuid.UUID  `db:"id" json:"id"`
+	RegistrationToken          *string    `db:"registration_token" json:"registration_token"`
+	RegistrationTokenExpiresAt *time.Time `db:"registration_token_expires_at" json:"registration_token_expires_at"`
+	TenantID                   uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+}
+
+func (q *Queries) SetRegistrationToken(ctx context.Context, arg SetRegistrationTokenParams) (Environment, error) {
+	row := q.db.QueryRow(ctx, setRegistrationToken,
+		arg.ID,
+		arg.RegistrationToken,
+		arg.RegistrationTokenExpiresAt,
+		arg.TenantID,
+	)
+	var i Environment
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.OdooUrl,
+		&i.DbName,
+		&i.OdooVersion,
+		&i.EnvType,
+		&i.Status,
+		&i.AgentID,
+		&i.FeatureFlags,
+		&i.LastSync,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RegistrationToken,
+		&i.RegistrationTokenExpiresAt,
 	)
 	return i, err
 }
@@ -692,7 +805,7 @@ SET
     feature_flags = COALESCE($9, feature_flags),
     updated_at    = NOW()
 WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at
+RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at
 `
 
 type UpdateEnvironmentParams struct {
@@ -734,6 +847,8 @@ func (q *Queries) UpdateEnvironment(ctx context.Context, arg UpdateEnvironmentPa
 		&i.LastSync,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RegistrationToken,
+		&i.RegistrationTokenExpiresAt,
 	)
 	return i, err
 }
@@ -763,7 +878,7 @@ SET
     feature_flags = $2,
     updated_at = now()
 WHERE id = $1 AND tenant_id = $3
-RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at
+RETURNING id, tenant_id, name, odoo_url, db_name, odoo_version, env_type, status, agent_id, feature_flags, last_sync, created_at, updated_at, registration_token, registration_token_expires_at
 `
 
 type UpdateFeatureFlagsParams struct {
@@ -789,6 +904,8 @@ func (q *Queries) UpdateFeatureFlags(ctx context.Context, arg UpdateFeatureFlags
 		&i.LastSync,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RegistrationToken,
+		&i.RegistrationTokenExpiresAt,
 	)
 	return i, err
 }

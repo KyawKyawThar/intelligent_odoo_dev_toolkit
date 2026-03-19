@@ -10,6 +10,7 @@ import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
+	"Intelligent_Dev_ToolKit_Odoo/utils"
 
 	"github.com/google/uuid"
 )
@@ -51,10 +52,7 @@ func (s *APIKeyService) Create(
 		prefix = prefix[:12]
 	}
 
-	// NOTE: key_hash currently stores the raw key because the AgentAPIKeyAuth
-	// middleware does not yet hash (see TODO in api_key_auth.go). When hashing
-	// is added to the middleware, replace this with a bcrypt/SHA-256 digest.
-	keyHash := rawKey
+	keyHash := utils.HashAPIKey(rawKey)
 
 	var expiresAt *time.Time
 	if req.ExpiresAt != nil {
@@ -75,15 +73,17 @@ func (s *APIKeyService) Create(
 	}
 
 	uid := userID
+	eid := envID
 	row, err := s.store.CreateAPIKey(ctx, db.CreateAPIKeyParams{
-		TenantID:    tenantID,
-		CreatedBy:   &uid,
-		KeyHash:     keyHash,
-		KeyPrefix:   prefix,
-		Name:        req.Name,
-		Description: req.Description,
-		Scopes:      scopes,
-		ExpiresAt:   expiresAt,
+		TenantID:      tenantID,
+		EnvironmentID: &eid,
+		CreatedBy:     &uid,
+		KeyHash:       keyHash,
+		KeyPrefix:     prefix,
+		Name:          req.Name,
+		Description:   req.Description,
+		Scopes:        scopes,
+		ExpiresAt:     expiresAt,
 	})
 	if err != nil {
 		return nil, api.ErrInternal(err)
@@ -116,7 +116,11 @@ func (s *APIKeyService) List(
 		return nil, api.ErrNotFound("environment not found")
 	}
 
-	rows, err := s.store.ListAPIKeysByTenant(ctx, tenantID)
+	eid := envID
+	rows, err := s.store.ListAPIKeysByEnvironment(ctx, db.ListAPIKeysByEnvironmentParams{
+		TenantID:      tenantID,
+		EnvironmentID: &eid,
+	})
 	if err != nil {
 		return nil, api.ErrInternal(err)
 	}
@@ -148,11 +152,16 @@ func (s *APIKeyService) Revoke(
 	ctx context.Context,
 	tenantID, keyID uuid.UUID,
 ) error {
-	if _, err := s.store.GetAPIKeyByID(ctx, db.GetAPIKeyByIDParams{
+	key, err := s.store.GetAPIKeyByID(ctx, db.GetAPIKeyByIDParams{
 		ID:       keyID,
 		TenantID: tenantID,
-	}); err != nil {
+	})
+	if err != nil {
 		return api.ErrNotFound("API key not found")
+	}
+
+	if !key.IsActive {
+		return api.ErrBadRequest("API key is already revoked")
 	}
 
 	if err := s.store.RevokeAPIKey(ctx, db.RevokeAPIKeyParams{

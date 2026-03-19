@@ -40,8 +40,27 @@ type UpdateEnvironmentRequest struct {
 }
 
 // RegisterAgentRequest is the payload for POST /api/v1/environments/{env_id}/agent.
-type RegisterAgentRequest struct {
-	AgentID string `json:"agent_id" validate:"required,min=1,max=255"`
+// No body required — the server generates a one-time registration token.
+type RegisterAgentRequest struct{}
+
+// RegisterAgentResponse is returned when a registration token is generated.
+type RegisterAgentResponse struct {
+	RegistrationToken string    `json:"registration_token"`
+	ExpiresAt         time.Time `json:"expires_at"`
+}
+
+// AgentSelfRegisterRequest is the payload for POST /api/v1/agent/register.
+// The agent sends its one-time registration token to obtain credentials.
+type AgentSelfRegisterRequest struct {
+	RegistrationToken string `json:"registration_token" validate:"required"`
+}
+
+// AgentSelfRegisterResponse is returned after successful self-registration.
+type AgentSelfRegisterResponse struct {
+	AgentID       string `json:"agent_id"`
+	APIKey        string `json:"api_key"`
+	EnvironmentID string `json:"environment_id"`
+	TenantID      string `json:"tenant_id"`
 }
 
 // ListEnvironmentsRequest holds query parameters for GET /api/v1/environments.
@@ -79,6 +98,22 @@ type EnvironmentListResponse struct {
 	Total        int64                 `json:"total"`
 	Limit        int32                 `json:"limit"`
 	Offset       int32                 `json:"offset"`
+}
+
+// UpdateFlagsRequest is the payload for PUT /api/v1/environments/{env_id}/flags.
+type UpdateFlagsRequest struct {
+	// Flags holds the complete feature-flag object to store.
+	// @Description Feature flags as JSON object
+	// @example {"sampling_mode":"sampled","sample_rate":0.25}
+	Flags json.RawMessage `json:"flags" validate:"required" swaggertype:"object"`
+}
+
+// UpdateFlagsResponse is returned after updating feature flags.
+type UpdateFlagsResponse struct {
+	ID             uuid.UUID       `json:"id"`
+	FeatureFlags   json.RawMessage `json:"feature_flags" swaggertype:"object"`
+	AgentConnected bool            `json:"agent_connected"`
+	Pushed         bool            `json:"pushed"`
 }
 
 func ToEnvironmentResponse(env *db.Environment) *EnvironmentResponse {

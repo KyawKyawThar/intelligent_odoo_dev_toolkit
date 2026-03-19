@@ -201,6 +201,94 @@ definitions:
       total:
         type: integer
     type: object
+  dto.BatchORMStat:
+    properties:
+      avg_ms:
+        example: 6.01
+        type: number
+      call_count:
+        example: 148
+        type: integer
+      max_ms:
+        example: 42
+        type: integer
+      method:
+        example: search_read
+        type: string
+      model:
+        example: res.partner
+        type: string
+      n1_detected:
+        example: true
+        type: boolean
+      p95_ms:
+        example: 12
+        type: integer
+      sample_sql:
+        example: SELECT id, name FROM res_partner WHERE active = true
+        type: string
+      total_ms:
+        example: 890
+        type: integer
+    type: object
+  dto.BatchRawEvent:
+    properties:
+      category:
+        example: error
+        type: string
+      duration_ms:
+        example: 0
+        type: integer
+      is_error:
+        example: true
+        type: boolean
+      is_n1:
+        example: false
+        type: boolean
+      message:
+        example: 'ValidationError: No warehouse configured'
+        type: string
+      method:
+        example: action_confirm
+        type: string
+      model:
+        example: sale.order
+        type: string
+      module:
+        example: sale
+        type: string
+      sql:
+        type: string
+      timestamp:
+        example: "2026-03-19T10:00:15Z"
+        type: string
+      traceback:
+        example: |-
+          Traceback (most recent call last):
+            File ...
+        type: string
+      user_id:
+        example: 2
+        type: integer
+    type: object
+  dto.BatchSummary:
+    properties:
+      errors:
+        example: 1
+        type: integer
+      n1_patterns:
+        example: 1
+        type: integer
+      slow_queries:
+        example: 3
+        type: integer
+      total_duration_ms:
+        example: 1200
+        type: integer
+      total_queries:
+        example: 200
+        type: integer
+    type: object
   dto.ChangePasswordRequest:
     properties:
       current_password:
@@ -311,14 +399,17 @@ definitions:
       updated_at:
         type: string
     type: object
+  dto.ErrorEventContext:
+    properties:
+      request_url:
+        type: string
+      uid:
+        type: integer
+    type: object
   dto.ErrorEventPayload:
     properties:
-      affected_uid:
-        type: integer
-      captured_at:
-        type: string
-      error_type:
-        type: string
+      context:
+        $ref: '#/definitions/dto.ErrorEventContext'
       message:
         type: string
       model:
@@ -327,13 +418,102 @@ definitions:
         type: string
       signature:
         type: string
+      timestamp:
+        type: string
       traceback:
         type: string
+      type:
+        type: string
     required:
-    - captured_at
-    - error_type
     - message
     - signature
+    - timestamp
+    - type
+    type: object
+  dto.ErrorGroupDetailResponse:
+    properties:
+      affected_users:
+        items:
+          type: integer
+        type: array
+      created_at:
+        type: string
+      env_id:
+        type: string
+      error_type:
+        type: string
+      first_seen:
+        type: string
+      id:
+        type: string
+      last_seen:
+        type: string
+      message:
+        type: string
+      model:
+        type: string
+      module:
+        type: string
+      occurrence_count:
+        type: integer
+      raw_trace:
+        type: string
+      raw_trace_ref:
+        type: string
+      resolved_at:
+        type: string
+      resolved_by:
+        type: string
+      signature:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.ErrorGroupListResponse:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/dto.ErrorGroupResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/dto.Meta'
+    type: object
+  dto.ErrorGroupResponse:
+    properties:
+      affected_users:
+        items:
+          type: integer
+        type: array
+      created_at:
+        type: string
+      env_id:
+        type: string
+      error_type:
+        type: string
+      first_seen:
+        type: string
+      id:
+        type: string
+      last_seen:
+        type: string
+      message:
+        type: string
+      model:
+        type: string
+      module:
+        type: string
+      occurrence_count:
+        type: integer
+      raw_trace_ref:
+        type: string
+      resolved_at:
+        type: string
+      resolved_by:
+        type: string
+      signature:
+        type: string
+      status:
+        type: string
     type: object
   dto.ForgotPasswordRequest:
     properties:
@@ -341,6 +521,36 @@ definitions:
         type: string
     required:
     - email
+    type: object
+  dto.IngestBatchRequest:
+    properties:
+      duration_ms:
+        example: 30000
+        type: integer
+      env_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      orm_stats:
+        items:
+          $ref: '#/definitions/dto.BatchORMStat'
+        type: array
+      period:
+        example: "2026-03-19T10:00:00Z"
+        type: string
+      raw_events:
+        items:
+          $ref: '#/definitions/dto.BatchRawEvent'
+        type: array
+      summary:
+        $ref: '#/definitions/dto.BatchSummary'
+    required:
+    - env_id
+    type: object
+  dto.IngestBatchResponse:
+    properties:
+      status:
+        example: queued
+        type: string
     type: object
   dto.IngestErrorsRequest:
     properties:
@@ -354,7 +564,6 @@ definitions:
       spike_threshold:
         type: integer
     required:
-    - env_id
     - events
     type: object
   dto.LoginRequest:
@@ -389,6 +598,23 @@ definitions:
         description: specific session; empty = current token only
         type: string
     type: object
+  dto.Meta:
+    properties:
+      has_next:
+        type: boolean
+      has_prev:
+        type: boolean
+      page:
+        type: integer
+      per_page:
+        type: integer
+      took:
+        type: string
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
   dto.RefreshTokenRequest:
     properties:
       refresh_token:
@@ -407,14 +633,12 @@ definitions:
       token_type:
         type: string
     type: object
-  dto.RegisterAgentRequest:
+  dto.RegisterAgentResponse:
     properties:
-      agent_id:
-        maxLength: 255
-        minLength: 1
+      expires_at:
         type: string
-    required:
-    - agent_id
+      registration_token:
+        type: string
     type: object
   dto.RegisterRequest:
     properties:
@@ -451,6 +675,63 @@ definitions:
     - new_password
     - token
     type: object
+  dto.SchemaAccessRule:
+    properties:
+      group_id:
+        type: string
+      perm_create:
+        type: boolean
+      perm_read:
+        type: boolean
+      perm_unlink:
+        type: boolean
+      perm_write:
+        type: boolean
+    type: object
+  dto.SchemaModel:
+    properties:
+      accesses:
+        items:
+          $ref: '#/definitions/dto.SchemaAccessRule'
+        type: array
+      fields:
+        additionalProperties:
+          $ref: '#/definitions/dto.SchemaModelField'
+        type: object
+      model:
+        type: string
+      name:
+        type: string
+      rules:
+        items:
+          $ref: '#/definitions/dto.SchemaRecordRule'
+        type: array
+    type: object
+  dto.SchemaModelField:
+    properties:
+      default: {}
+      required:
+        type: boolean
+      string:
+        type: string
+      type:
+        type: string
+    type: object
+  dto.SchemaRecordRule:
+    properties:
+      domain:
+        type: string
+      name:
+        type: string
+      perm_create:
+        type: boolean
+      perm_read:
+        type: boolean
+      perm_unlink:
+        type: boolean
+      perm_write:
+        type: boolean
+    type: object
   dto.SchemaSnapshotListItem:
     properties:
       captured_at:
@@ -465,6 +746,8 @@ definitions:
         type: string
       model_count:
         type: integer
+      version:
+        type: string
     type: object
   dto.SchemaSnapshotListResponse:
     properties:
@@ -479,8 +762,6 @@ definitions:
     type: object
   dto.SchemaSnapshotResponse:
     properties:
-      acl_rules:
-        type: object
       captured_at:
         type: string
       diff_ref:
@@ -495,8 +776,8 @@ definitions:
         type: integer
       models:
         type: object
-      record_rules:
-        type: object
+      version:
+        type: string
     type: object
   dto.SearchModelsResponse:
     properties:
@@ -528,8 +809,6 @@ definitions:
     type: object
   dto.StoreSchemaRequest:
     properties:
-      acl_rules:
-        type: object
       env_id:
         type: string
       field_count:
@@ -537,14 +816,14 @@ definitions:
       model_count:
         type: integer
       models:
+        additionalProperties:
+          $ref: '#/definitions/dto.SchemaModel'
         type: object
-      record_rules:
-        type: object
+      version:
+        type: string
     required:
-    - acl_rules
-    - env_id
     - models
-    - record_rules
+    - version
     type: object
   dto.UpdateEnvironmentRequest:
     properties:
@@ -581,6 +860,28 @@ definitions:
         - inactive
         - maintenance
         type: string
+    type: object
+  dto.UpdateFlagsRequest:
+    properties:
+      flags:
+        description: |-
+          Flags holds the complete feature-flag object to store.
+          @Description Feature flags as JSON object
+          @example {"sampling_mode":"sampled","sample_rate":0.25}
+        type: object
+    required:
+    - flags
+    type: object
+  dto.UpdateFlagsResponse:
+    properties:
+      agent_connected:
+        type: boolean
+      feature_flags:
+        type: object
+      id:
+        type: string
+      pushed:
+        type: boolean
     type: object
   dto.UpdateUserRequest:
     properties:
@@ -632,7 +933,46 @@ info:
   title: OdooDevTools API
   version: 1.0.0
 paths:
-  /api/v1/agent/errors:
+  /agent/batch:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Agent endpoint: receive an aggregated batch of ORM stats and critical events.
+        The batch is pushed onto a Redis stream for asynchronous processing by the ingest worker.
+        Supports gzip-compressed bodies (Content-Encoding: gzip). Max body size: 5 MB.
+      parameters:
+      - description: Aggregated batch payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.IngestBatchRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/dto.IngestBatchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - ApiKeyAuth: []
+      summary: Ingest aggregated batch
+      tags:
+      - agent
+  /agent/errors:
     post:
       consumes:
       - application/json
@@ -666,7 +1006,7 @@ paths:
       summary: Ingest error events
       tags:
       - agent
-  /api/v1/agent/schema:
+  /agent/schema:
     post:
       consumes:
       - application/json
@@ -702,7 +1042,7 @@ paths:
       summary: Store schema snapshot
       tags:
       - agent
-  /api/v1/agent/ws:
+  /agent/ws:
     get:
       consumes:
       - application/json
@@ -1364,32 +1704,21 @@ paths:
       - environments
   /environments/{env_id}/agent:
     post:
-      consumes:
-      - application/json
-      description: Assign an agent ID to an environment, setting its status to connected
+      description: Generate a one-time token that an agent uses to self-register and
+        obtain API credentials
       parameters:
       - description: Environment ID (UUID)
         in: path
         name: env_id
         required: true
         type: string
-      - description: Agent details
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/dto.RegisterAgentRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.EnvironmentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.Error'
+            $ref: '#/definitions/dto.RegisterAgentResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1400,7 +1729,7 @@ paths:
             $ref: '#/definitions/api.Error'
       security:
       - BearerAuth: []
-      summary: Register agent
+      summary: Generate agent registration token
       tags:
       - environments
   /environments/{env_id}/api-keys:
@@ -1508,6 +1837,143 @@ paths:
       summary: Revoke API key
       tags:
       - api-keys
+  /environments/{env_id}/errors:
+    get:
+      description: Returns aggregated error groups for the given environment, sorted
+        by occurrence count
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Items per page (default 25, max 100)
+        in: query
+        name: per_page
+        type: integer
+      - description: 'Filter by status: open, acknowledged, resolved'
+        in: query
+        name: status
+        type: string
+      - description: Filter by error type
+        in: query
+        name: error_type
+        type: string
+      - description: Free-text search in message/module/model
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ErrorGroupListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List error groups
+      tags:
+      - errors
+  /environments/{env_id}/errors/{error_id}:
+    get:
+      description: Returns a single error group with optional raw traceback from S3
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Error group ID
+        in: path
+        name: error_id
+        required: true
+        type: string
+      - description: Include raw traceback from S3 (default false)
+        in: query
+        name: trace
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ErrorGroupDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get error group
+      tags:
+      - errors
+  /environments/{env_id}/flags:
+    put:
+      consumes:
+      - application/json
+      description: Update feature flags for an environment and push to connected agent
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Feature flags
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateFlagsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.UpdateFlagsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Update feature flags
+      tags:
+      - environments
   /environments/{env_id}/schema:
     get:
       description: Return schema snapshot summaries for the given environment, newest

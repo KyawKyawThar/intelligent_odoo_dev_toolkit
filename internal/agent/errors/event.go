@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// unknownErrorType is the fallback error type when classification fails.
+const unknownErrorType = "UnknownError"
+
 // ErrorEvent is a single error occurrence captured from Odoo server logs.
 type ErrorEvent struct {
 	// Signature is a stable 16-char hex identifier derived from ErrorType +
@@ -32,6 +35,9 @@ type ErrorEvent struct {
 
 	// UserID is the Odoo UID associated with the request (0 = unknown).
 	UserID int
+
+	// RequestURL is the HTTP request URL that triggered the error, if available.
+	RequestURL string
 
 	// LogID is the ir.logging record ID — used by the collector to track
 	// the high-water mark and avoid re-processing the same entry.
@@ -75,7 +81,7 @@ func ParseErrorType(message string) string {
 		}
 		break
 	}
-	return "UnknownError"
+	return unknownErrorType
 }
 
 // ExtractTraceback returns the portion of message starting from

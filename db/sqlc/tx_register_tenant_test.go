@@ -408,12 +408,11 @@ func TestDeleteEnvironmentTx_CascadesChildData(t *testing.T) {
 
 	// Create a schema snapshot under this env
 	snapshot, err := testStore.CreateSchemaSnapshot(context.Background(), CreateSchemaSnapshotParams{
-		EnvID:       env.ID,
-		Models:      []byte(`{}`),
-		AclRules:    []byte(`{}`),
-		RecordRules: []byte(`{}`),
-		ModelCount:  nil,
-		FieldCount:  nil,
+		EnvID:      env.ID,
+		Version:    nil,
+		Models:     []byte(`{}`),
+		ModelCount: nil,
+		FieldCount: nil,
 	})
 	require.NoError(t, err)
 	require.NotZero(t, snapshot.ID)

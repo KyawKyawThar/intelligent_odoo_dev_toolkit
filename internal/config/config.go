@@ -124,10 +124,36 @@ type Config struct {
 	AgentID                    string `mapstructure:"AGENT_ID"`
 	AgentCloudURL              string `mapstructure:"AGENT_CLOUD_URL"`
 	AgentAPIKey                string `mapstructure:"AGENT_API_KEY"`
+	AgentRegistrationToken     string `mapstructure:"AGENT_REGISTRATION_TOKEN"`
 	AgentLogFile               string `mapstructure:"AGENT_LOG_FILE"`
 	AgentSchemaInterval        string `mapstructure:"AGENT_SCHEMA_INTERVAL"`
 	AgentErrorBufferSize       int    `mapstructure:"AGENT_ERROR_BUFFER_SIZE"`
 	AgentProfilerBatchInterval string `mapstructure:"AGENT_PROFILER_BATCH_INTERVAL"`
+
+	// ── Agent Sampler ───────────────────────────────────────────
+	// AGENT_SAMPLER_MODE overrides the environment-based default.
+	// Valid values: "full", "sampled", "aggregated_only".
+	AgentSamplerMode     string  `mapstructure:"AGENT_SAMPLER_MODE"`
+	AgentSamplerRate     float64 `mapstructure:"AGENT_SAMPLER_RATE"`
+	AgentSlowThresholdMS int     `mapstructure:"AGENT_SLOW_THRESHOLD_MS"`
+
+	// ── Agent Aggregator ────────────────────────────────────────
+	// AGENT_AGGREGATOR_FLUSH_SEC overrides the 30s default flush interval.
+	AgentAggregatorFlushSec int `mapstructure:"AGENT_AGGREGATOR_FLUSH_SEC"`
+	AgentAggregatorMaxRaw   int `mapstructure:"AGENT_AGGREGATOR_MAX_RAW"`
+
+	// ── Agent ORM Collector ──────────────────────────────────────
+	// AGENT_ORM_COLLECTOR selects the ORM event source.
+	// Valid values: "log" (default when AGENT_LOG_FILE is set),
+	//               "irlogging" (poll ir.logging), "none" (disabled).
+	AgentORMCollector   string `mapstructure:"AGENT_ORM_COLLECTOR"`
+	AgentORMN1Threshold int    `mapstructure:"AGENT_ORM_N1_THRESHOLD"`
+	AgentORMN1WindowSec int    `mapstructure:"AGENT_ORM_N1_WINDOW_SEC"`
+
+	// ── Agent Debug (temporary — DELETE before production) ────
+	// AGENT_DEBUG_FEEDER=true enables a synthetic event generator that
+	// pumps fake ORM events into the aggregator for local testing.
+	AgentDebugFeeder bool `mapstructure:"AGENT_DEBUG_FEEDER"`
 
 	// ── Odoo XML-RPC (agent → Odoo application) ─────────────────
 	// ODOO_URL     : HTTP base URL, e.g. http://localhost:8069
@@ -273,36 +299,62 @@ func LoadAgentConfig(path string) (Config, error) {
 		return cfg, fmt.Errorf("read .env.agent: %w", err)
 	}
 
-	// Apply only the keys that are present in .env.agent.
-	if s := v.GetString("AGENT_CLOUD_URL"); s != "" {
-		cfg.AgentCloudURL = s
-	}
-	if s := v.GetString("AGENT_API_KEY"); s != "" {
-		cfg.AgentAPIKey = s
-	}
-	if s := v.GetString("AGENT_ID"); s != "" {
-		cfg.AgentID = s
-	}
-	if s := v.GetString("AGENT_SCHEMA_INTERVAL"); s != "" {
-		cfg.AgentSchemaInterval = s
-	}
-	if s := v.GetString("AGENT_ERROR_BUFFER_SIZE"); s != "" {
-		if n, err := strconv.Atoi(s); err == nil {
-			cfg.AgentErrorBufferSize = n
-		}
-	}
-	if s := v.GetString("ODOO_URL"); s != "" {
-		cfg.OdooURL = s
-	}
-	if s := v.GetString("ODOO_ADMIN_USER"); s != "" {
-		cfg.OdooUser = s
-	}
-	if s := v.GetString("ODOO_ADMIN_PASSWORD"); s != "" {
-		cfg.OdooPassword = s
-	}
-	if s := v.GetString("PG_ODOO_DB"); s != "" {
-		cfg.OdooDB = s
+	applyAgentStringOverrides(v, &cfg)
+	applyAgentNumericOverrides(v, &cfg)
+
+	// ── Debug feeder (temporary — DELETE before production) ──────
+	if s := v.GetString("AGENT_DEBUG_FEEDER"); s != "" {
+		cfg.AgentDebugFeeder = strings.EqualFold(s, "true") || s == "1"
 	}
 
 	return cfg, nil
+}
+
+// applyAgentStringOverrides applies plain string overrides from .env.agent.
+func applyAgentStringOverrides(v *viper.Viper, cfg *Config) {
+	overrideStr := func(key string, dest *string) {
+		if s := v.GetString(key); s != "" {
+			*dest = s
+		}
+	}
+
+	overrideStr("AGENT_CLOUD_URL", &cfg.AgentCloudURL)
+	overrideStr("AGENT_API_KEY", &cfg.AgentAPIKey)
+	overrideStr("AGENT_ID", &cfg.AgentID)
+	overrideStr("AGENT_REGISTRATION_TOKEN", &cfg.AgentRegistrationToken)
+	overrideStr("AGENT_SCHEMA_INTERVAL", &cfg.AgentSchemaInterval)
+	overrideStr("ODOO_URL", &cfg.OdooURL)
+	overrideStr("ODOO_ADMIN_USER", &cfg.OdooUser)
+	overrideStr("ODOO_ADMIN_PASSWORD", &cfg.OdooPassword)
+	overrideStr("PG_ODOO_DB", &cfg.OdooDB)
+	overrideStr("AGENT_SAMPLER_MODE", &cfg.AgentSamplerMode)
+	overrideStr("AGENT_ORM_COLLECTOR", &cfg.AgentORMCollector)
+	overrideStr("AGENT_LOG_FILE", &cfg.AgentLogFile)
+}
+
+// applyAgentNumericOverrides applies int and float overrides from .env.agent.
+func applyAgentNumericOverrides(v *viper.Viper, cfg *Config) {
+	overrideInt := func(key string, dest *int) {
+		if s := v.GetString(key); s != "" {
+			if n, err := strconv.Atoi(s); err == nil {
+				*dest = n
+			}
+		}
+	}
+
+	overrideFloat := func(key string, dest *float64) {
+		if s := v.GetString(key); s != "" {
+			if f, err := strconv.ParseFloat(s, 64); err == nil {
+				*dest = f
+			}
+		}
+	}
+
+	overrideInt("AGENT_ERROR_BUFFER_SIZE", &cfg.AgentErrorBufferSize)
+	overrideFloat("AGENT_SAMPLER_RATE", &cfg.AgentSamplerRate)
+	overrideInt("AGENT_SLOW_THRESHOLD_MS", &cfg.AgentSlowThresholdMS)
+	overrideInt("AGENT_AGGREGATOR_FLUSH_SEC", &cfg.AgentAggregatorFlushSec)
+	overrideInt("AGENT_AGGREGATOR_MAX_RAW", &cfg.AgentAggregatorMaxRaw)
+	overrideInt("AGENT_ORM_N1_THRESHOLD", &cfg.AgentORMN1Threshold)
+	overrideInt("AGENT_ORM_N1_WINDOW_SEC", &cfg.AgentORMN1WindowSec)
 }

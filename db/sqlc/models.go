@@ -63,18 +63,19 @@ type AnonProfile struct {
 }
 
 type ApiKey struct {
-	ID          uuid.UUID  `db:"id" json:"id"`
-	TenantID    uuid.UUID  `db:"tenant_id" json:"tenant_id"`
-	CreatedBy   *uuid.UUID `db:"created_by" json:"created_by"`
-	KeyHash     string     `db:"key_hash" json:"key_hash"`
-	KeyPrefix   string     `db:"key_prefix" json:"key_prefix"`
-	Name        string     `db:"name" json:"name"`
-	Scopes      []string   `db:"scopes" json:"scopes"`
-	LastUsed    *time.Time `db:"last_used" json:"last_used"`
-	ExpiresAt   *time.Time `db:"expires_at" json:"expires_at"`
-	IsActive    bool       `db:"is_active" json:"is_active"`
-	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
-	Description string     `db:"description" json:"description"`
+	ID            uuid.UUID  `db:"id" json:"id"`
+	TenantID      uuid.UUID  `db:"tenant_id" json:"tenant_id"`
+	CreatedBy     *uuid.UUID `db:"created_by" json:"created_by"`
+	KeyHash       string     `db:"key_hash" json:"key_hash"`
+	KeyPrefix     string     `db:"key_prefix" json:"key_prefix"`
+	Name          string     `db:"name" json:"name"`
+	Scopes        []string   `db:"scopes" json:"scopes"`
+	LastUsed      *time.Time `db:"last_used" json:"last_used"`
+	ExpiresAt     *time.Time `db:"expires_at" json:"expires_at"`
+	IsActive      bool       `db:"is_active" json:"is_active"`
+	CreatedAt     time.Time  `db:"created_at" json:"created_at"`
+	Description   string     `db:"description" json:"description"`
+	EnvironmentID *uuid.UUID `db:"environment_id" json:"environment_id"`
 }
 
 type AuditLog struct {
@@ -103,19 +104,21 @@ type BillingEvent struct {
 }
 
 type Environment struct {
-	ID           uuid.UUID       `db:"id" json:"id"`
-	TenantID     uuid.UUID       `db:"tenant_id" json:"tenant_id"`
-	Name         string          `db:"name" json:"name"`
-	OdooUrl      string          `db:"odoo_url" json:"odoo_url"`
-	DbName       string          `db:"db_name" json:"db_name"`
-	OdooVersion  *string         `db:"odoo_version" json:"odoo_version"`
-	EnvType      string          `db:"env_type" json:"env_type"`
-	Status       string          `db:"status" json:"status"`
-	AgentID      *string         `db:"agent_id" json:"agent_id"`
-	FeatureFlags json.RawMessage `db:"feature_flags" json:"feature_flags"`
-	LastSync     *time.Time      `db:"last_sync" json:"last_sync"`
-	CreatedAt    time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time       `db:"updated_at" json:"updated_at"`
+	ID                         uuid.UUID       `db:"id" json:"id"`
+	TenantID                   uuid.UUID       `db:"tenant_id" json:"tenant_id"`
+	Name                       string          `db:"name" json:"name"`
+	OdooUrl                    string          `db:"odoo_url" json:"odoo_url"`
+	DbName                     string          `db:"db_name" json:"db_name"`
+	OdooVersion                *string         `db:"odoo_version" json:"odoo_version"`
+	EnvType                    string          `db:"env_type" json:"env_type"`
+	Status                     string          `db:"status" json:"status"`
+	AgentID                    *string         `db:"agent_id" json:"agent_id"`
+	FeatureFlags               json.RawMessage `db:"feature_flags" json:"feature_flags"`
+	LastSync                   *time.Time      `db:"last_sync" json:"last_sync"`
+	CreatedAt                  time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                  time.Time       `db:"updated_at" json:"updated_at"`
+	RegistrationToken          *string         `db:"registration_token" json:"registration_token"`
+	RegistrationTokenExpiresAt *time.Time      `db:"registration_token_expires_at" json:"registration_token_expires_at"`
 }
 
 type ErrorGroup struct {
@@ -215,15 +218,14 @@ type ProfilerRecording struct {
 }
 
 type SchemaSnapshot struct {
-	ID          uuid.UUID       `db:"id" json:"id"`
-	EnvID       uuid.UUID       `db:"env_id" json:"env_id"`
-	CapturedAt  time.Time       `db:"captured_at" json:"captured_at"`
-	Models      json.RawMessage `db:"models" json:"models"`
-	AclRules    json.RawMessage `db:"acl_rules" json:"acl_rules"`
-	RecordRules json.RawMessage `db:"record_rules" json:"record_rules"`
-	ModelCount  *int32          `db:"model_count" json:"model_count"`
-	FieldCount  *int32          `db:"field_count" json:"field_count"`
-	DiffRef     *string         `db:"diff_ref" json:"diff_ref"`
+	ID         uuid.UUID       `db:"id" json:"id"`
+	EnvID      uuid.UUID       `db:"env_id" json:"env_id"`
+	CapturedAt time.Time       `db:"captured_at" json:"captured_at"`
+	Models     json.RawMessage `db:"models" json:"models"`
+	ModelCount *int32          `db:"model_count" json:"model_count"`
+	FieldCount *int32          `db:"field_count" json:"field_count"`
+	DiffRef    *string         `db:"diff_ref" json:"diff_ref"`
+	Version    *string         `db:"version" json:"version"`
 }
 
 type Session struct {
