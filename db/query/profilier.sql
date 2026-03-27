@@ -25,6 +25,7 @@ LIMIT 1;
 SELECT id, env_id, triggered_by, name, endpoint,
        total_ms, sql_count, sql_ms, python_ms,
        n1_patterns IS NOT NULL AS has_n1,
+       compute_chain IS NOT NULL AS has_compute_chain,
        raw_log_ref, recorded_at
 FROM profiler_recordings
 WHERE env_id = $1

@@ -481,20 +481,20 @@ func (r *RedisClient) DeleteResetToken(ctx context.Context, token string) error 
 
 const (
 	verifyEmailPrefix = "verify_email"
-	verifyEmailTTL    = 24 * time.Hour
+	verifyEmailTTL    = 10 * time.Minute
 )
 
-// VerifyEmailToken represents an email verification token.
+// VerifyEmailToken represents an email verification code.
 type VerifyEmailToken struct {
 	UserID    string    `json:"user_id"`
 	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	Code      string    `json:"code"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// StoreVerifyEmailToken stores an email verification token
+// StoreVerifyEmailToken stores a 6-digit email verification code keyed by email.
 func (r *RedisClient) StoreVerifyEmailToken(ctx context.Context, token *VerifyEmailToken) error {
-	key := r.Key(verifyEmailPrefix, token.Token)
+	key := r.Key(verifyEmailPrefix, token.Email)
 	data, err := json.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to marshal verify email token: %w", err)
@@ -502,9 +502,9 @@ func (r *RedisClient) StoreVerifyEmailToken(ctx context.Context, token *VerifyEm
 	return r.Client.Set(ctx, key, data, verifyEmailTTL).Err()
 }
 
-// GetVerifyEmailToken retrieves an email verification token
-func (r *RedisClient) GetVerifyEmailToken(ctx context.Context, token string) (*VerifyEmailToken, error) {
-	key := r.Key(verifyEmailPrefix, token)
+// GetVerifyEmailToken retrieves a verification code by email.
+func (r *RedisClient) GetVerifyEmailToken(ctx context.Context, email string) (*VerifyEmailToken, error) {
+	key := r.Key(verifyEmailPrefix, email)
 	data, err := r.Client.Get(ctx, key).Bytes()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
@@ -520,9 +520,9 @@ func (r *RedisClient) GetVerifyEmailToken(ctx context.Context, token string) (*V
 	return &verifyToken, nil
 }
 
-// DeleteVerifyEmailToken removes a verification token (after use)
-func (r *RedisClient) DeleteVerifyEmailToken(ctx context.Context, token string) error {
-	key := r.Key(verifyEmailPrefix, token)
+// DeleteVerifyEmailToken removes a verification code by email (after use).
+func (r *RedisClient) DeleteVerifyEmailToken(ctx context.Context, email string) error {
+	key := r.Key(verifyEmailPrefix, email)
 	return r.Client.Del(ctx, key).Err()
 }
 

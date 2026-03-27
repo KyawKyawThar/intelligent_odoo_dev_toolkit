@@ -107,26 +107,7 @@ func (c *ORMLogCollector) Poll(ctx context.Context) error {
 
 // RunLoop polls on interval until ctx is canceled.
 func (c *ORMLogCollector) RunLoop(ctx context.Context, interval time.Duration) {
-	c.logger.Info().Dur("interval", interval).Msg("starting ORM ir.logging collector")
-
-	if err := c.Poll(ctx); err != nil {
-		c.logger.Error().Err(err).Msg("initial ORM ir.logging poll failed")
-	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			c.logger.Info().Msg("ORM ir.logging collector stopped")
-			return
-		case <-ticker.C:
-			if err := c.Poll(ctx); err != nil {
-				c.logger.Error().Err(err).Msg("ORM ir.logging poll failed")
-			}
-		}
-	}
+	runPollLoop(ctx, interval, c.logger, "ORM ir.logging", c.Poll)
 }
 
 // Regex duplicates from hook/ormparser.go — inlined to avoid import cycle.
@@ -134,6 +115,14 @@ var (
 	ormModelsQueryRe = regexp.MustCompile(`^(\d+(?:\.\d+)?)ms\s+(.+)$`)
 	ormSQLDbQueryRe  = regexp.MustCompile(`^query:\s+(.+)$`)
 	ormTableFromSQL  = regexp.MustCompile(`(?i)(?:FROM|INTO|UPDATE)\s+"(\w+)"`)
+)
+
+const (
+	ormMethodRead    = "read"
+	ormMethodCreate  = "create"
+	ormMethodWrite   = "write"
+	ormMethodUnlink  = "unlink"
+	ormMethodUnknown = "unknown"
 )
 
 // toEvent converts an ir.logging record to an aggregator.Event.
@@ -176,17 +165,17 @@ func (c *ORMLogCollector) toEvent(r map[string]any) (aggregator.Event, bool) {
 		model = strings.ReplaceAll(tm[1], "_", ".")
 	}
 
-	method := "unknown"
+	method := ormMethodUnknown
 	upper := strings.ToUpper(strings.TrimSpace(sql))
 	switch {
 	case strings.HasPrefix(upper, "SELECT"):
-		method = "read"
+		method = ormMethodRead
 	case strings.HasPrefix(upper, "INSERT"):
-		method = "create"
+		method = ormMethodCreate
 	case strings.HasPrefix(upper, "UPDATE"):
-		method = "write"
+		method = ormMethodWrite
 	case strings.HasPrefix(upper, "DELETE"):
-		method = "unlink"
+		method = ormMethodUnlink
 	}
 
 	return aggregator.Event{

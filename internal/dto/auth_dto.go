@@ -21,11 +21,12 @@ func NewMessageResponse(msg string) *MessageResponse {
 
 // RegisterRequest carries the fields needed to create a new tenant + owner user.
 type RegisterRequest struct {
-	Email      string `json:"email"       validate:"required,email"`
-	Password   string `json:"password"    validate:"required,min=8"`
-	TenantName string `json:"tenant_name" validate:"required,min=2,max=100"`
-	TenantSlug string `json:"tenant_slug" validate:"required,min=2,max=50,slug"`
-	FullName   string `json:"full_name"   validate:"omitempty,max=100"`
+	Email           string `json:"email"            validate:"required,email"`
+	Password        string `json:"password"         validate:"required,min=8"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,min=8"`
+	TenantName      string `json:"tenant_name"      validate:"required,min=2,max=100"`
+	TenantSlug      string `json:"tenant_slug"      validate:"required,min=2,max=50,slug"`
+	FullName        string `json:"full_name"        validate:"omitempty,max=100"`
 }
 
 // RegisterResponse is returned after successful registration with user, tenant, and tokens.
@@ -87,8 +88,9 @@ type ForgotPasswordRequest struct {
 
 // ResetPasswordRequest completes a password reset using a one-time token.
 type ResetPasswordRequest struct {
-	Token       string `json:"token"        validate:"required"`
-	NewPassword string `json:"new_password" validate:"required,min=8"`
+	Token              string `json:"token"                validate:"required"`
+	NewPassword        string `json:"new_password"         validate:"required,min=8"`
+	ConfirmNewPassword string `json:"confirm_new_password" validate:"required,min=8"`
 }
 
 // ChangePasswordRequest lets an authenticated user update their password.
@@ -99,9 +101,10 @@ type ChangePasswordRequest struct {
 
 // --- Email Verification ---
 
-// VerifyEmailRequest carries the verification token sent to the user's inbox.
+// VerifyEmailRequest carries the 6-digit verification code sent to the user's inbox.
 type VerifyEmailRequest struct {
-	Token string `json:"token" validate:"required"`
+	Email string `json:"email" validate:"required,email"`
+	Code  string `json:"code"  validate:"required,len=6"`
 }
 
 // --- User Profile ---

@@ -109,6 +109,32 @@ func (q *Queries) GetBudgetAverage7d(ctx context.Context, budgetID uuid.UUID) (G
 	return i, err
 }
 
+const getBudgetSampleByID = `-- name: GetBudgetSampleByID :one
+SELECT id, budget_id, overhead_pct, total_ms, module_ms, breakdown, sampled_at FROM perf_budget_samples
+WHERE id = $1 AND budget_id = $2
+LIMIT 1
+`
+
+type GetBudgetSampleByIDParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	BudgetID uuid.UUID `db:"budget_id" json:"budget_id"`
+}
+
+func (q *Queries) GetBudgetSampleByID(ctx context.Context, arg GetBudgetSampleByIDParams) (PerfBudgetSample, error) {
+	row := q.db.QueryRow(ctx, getBudgetSampleByID, arg.ID, arg.BudgetID)
+	var i PerfBudgetSample
+	err := row.Scan(
+		&i.ID,
+		&i.BudgetID,
+		&i.OverheadPct,
+		&i.TotalMs,
+		&i.ModuleMs,
+		&i.Breakdown,
+		&i.SampledAt,
+	)
+	return i, err
+}
+
 const getLatestBudgetSample = `-- name: GetLatestBudgetSample :one
 SELECT id, budget_id, overhead_pct, total_ms, module_ms, breakdown, sampled_at FROM perf_budget_samples
 WHERE budget_id = $1

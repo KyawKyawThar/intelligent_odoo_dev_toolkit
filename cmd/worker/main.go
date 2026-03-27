@@ -13,6 +13,7 @@ import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
 	"Intelligent_Dev_ToolKit_Odoo/internal/config"
+	"Intelligent_Dev_ToolKit_Odoo/internal/service"
 	"Intelligent_Dev_ToolKit_Odoo/internal/storage"
 	"Intelligent_Dev_ToolKit_Odoo/internal/worker"
 
@@ -92,9 +93,28 @@ func main() {
 		ingestCfg.Consumer.BatchSize = int64(cfg.IngestBatchSize)
 	}
 
-	iw := worker.NewIngestWorker(store, s3Client, redisClient.Client, ingestCfg, log.Logger)
+	// Alert stream config (shared between ingest publisher and alert consumer).
+	alertStream := cfg.RedisStreamAlert
+	if alertStream == "" {
+		alertStream = "agent:alert"
+	}
 
-	// ── 7. Shutdown context ──────────────────────────────────────────────────
+	ingestCfg.AlertStream = alertStream
+
+	budgetSvc := service.NewBudgetService(store)
+
+	iw := worker.NewIngestWorker(store, s3Client, redisClient.Client, budgetSvc, ingestCfg, log.Logger)
+
+	// ── 7. Alert worker ─────────────────────────────────────────────────────
+	alertGroup := "alert-workers"
+	alertCfg := worker.DefaultAlertConfig(alertStream, alertGroup)
+	if cfg.AlertWorkerCount > 0 {
+		alertCfg.WorkerCount = cfg.AlertWorkerCount
+	}
+
+	aw := worker.NewAlertWorker(store, redisClient.Client, alertCfg, log.Logger)
+
+	// ── 8. Shutdown context ──────────────────────────────────────────────────
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -104,8 +124,21 @@ func main() {
 		Int("workers", ingestCfg.WorkerCount).
 		Msg("starting ingest worker")
 
-	if err := iw.Run(ctx); err != nil {
-		log.Error().Err(err).Msg("ingest worker error")
+	log.Info().
+		Str("stream", alertStream).
+		Str("group", alertGroup).
+		Int("workers", alertCfg.WorkerCount).
+		Msg("starting alert worker")
+
+	// Run ingest worker in background, alert worker in foreground.
+	go func() {
+		if err := iw.Run(ctx); err != nil {
+			log.Error().Err(err).Msg("ingest worker error")
+		}
+	}()
+
+	if err := aw.Run(ctx); err != nil {
+		log.Error().Err(err).Msg("alert worker error")
 	}
 
 	log.Info().Msg("worker stopped")

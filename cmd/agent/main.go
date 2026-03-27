@@ -32,6 +32,7 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/transport"
 	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -118,6 +119,9 @@ func main() {
 
 	// ── ORM Collector ─────────────────────────────────────────────────────
 	startORMCollector(ctx, &cfg, agg, client, smp)
+
+	// ── pg_stat_statements collector ──────────────────────────────────────
+	startPgStatCollector(ctx, &cfg, agg, smp)
 
 	// Debug feeder: explicit opt-in for local development.
 	if cfg.AgentDebugFeeder {
@@ -267,6 +271,57 @@ func startORMCollector(ctx context.Context, cfg *config.Config, agg *aggregator.
 	default:
 		log.Warn().Str("value", ormSource).Msg("unknown AGENT_ORM_COLLECTOR value, ORM collection disabled")
 	}
+}
+
+// startPgStatCollector connects to Odoo's PostgreSQL database and launches
+// the pg_stat_statements collector if enabled.
+func startPgStatCollector(ctx context.Context, cfg *config.Config, agg *aggregator.Aggregator, smp *sampler.Sampler) {
+	if !cfg.AgentPgStatEnabled {
+		log.Info().Msg("pg_stat_statements collector disabled (AGENT_PGSTAT_ENABLED not set)")
+		return
+	}
+	if cfg.PgOdooDSN == "" {
+		log.Warn().Msg("pg_stat_statements enabled but PG_ODOO_DSN is empty, skipping")
+		return
+	}
+
+	poolCfg, err := pgxpool.ParseConfig(cfg.PgOdooDSN)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to parse PG_ODOO_DSN")
+		return
+	}
+	poolCfg.MaxConns = 2
+	poolCfg.MinConns = 1
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to connect to Odoo PostgreSQL for pg_stat_statements")
+		return
+	}
+
+	// Verify the extension is available.
+	var extExists bool
+	err = pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements')").Scan(&extExists)
+	if err != nil || !extExists {
+		log.Warn().Err(err).Msg("pg_stat_statements extension not available, skipping collector")
+		pool.Close()
+		return
+	}
+
+	interval := 30 * time.Second
+	if cfg.AgentPgStatInterval > 0 {
+		interval = time.Duration(cfg.AgentPgStatInterval) * time.Second
+	}
+
+	pgCollector := collector.NewPgStatCollector(pool, agg.EventCh, smp, log.Logger)
+	go func() {
+		pgCollector.RunLoop(ctx, interval)
+		pool.Close()
+	}()
+
+	log.Info().
+		Dur("interval", interval).
+		Msg("pg_stat_statements collector started")
 }
 
 // initRateLimiter creates a rate limiter if configured, or returns nil.

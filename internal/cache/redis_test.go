@@ -492,27 +492,28 @@ func TestRedisClient_VerifyEmailToken(t *testing.T) {
 	verifyToken := &cache.VerifyEmailToken{
 		UserID:    "user-verify",
 		Email:     "verify@example.com",
-		Token:     "verify-token-abc",
+		Code:      "123456",
 		CreatedAt: time.Now().UTC(),
 	}
 
-	// Store token
+	// Store code
 	err := rc.StoreVerifyEmailToken(ctx, verifyToken)
 	require.NoError(t, err)
 
-	// Get token
-	retrieved, err := rc.GetVerifyEmailToken(ctx, verifyToken.Token)
+	// Get code by email
+	retrieved, err := rc.GetVerifyEmailToken(ctx, verifyToken.Email)
 	require.NoError(t, err)
 	require.NotNil(t, retrieved)
 	require.Equal(t, verifyToken.UserID, retrieved.UserID)
 	require.Equal(t, verifyToken.Email, retrieved.Email)
+	require.Equal(t, verifyToken.Code, retrieved.Code)
 
-	// Delete token
-	err = rc.DeleteVerifyEmailToken(ctx, verifyToken.Token)
+	// Delete code
+	err = rc.DeleteVerifyEmailToken(ctx, verifyToken.Email)
 	require.NoError(t, err)
 
 	// Verify it's gone
-	retrieved, err = rc.GetVerifyEmailToken(ctx, verifyToken.Token)
+	retrieved, err = rc.GetVerifyEmailToken(ctx, verifyToken.Email)
 	require.Error(t, err)
 	require.ErrorIs(t, err, cache.ErrTokenNotFound)
 	require.Nil(t, retrieved)

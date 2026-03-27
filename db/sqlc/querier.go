@@ -28,6 +28,8 @@ type Querier interface {
 	CountEnvironmentsByTenantTypeAndStatus(ctx context.Context, arg CountEnvironmentsByTenantTypeAndStatusParams) (int64, error)
 	CountErrorGroupsByEnv(ctx context.Context, envID uuid.UUID) (int64, error)
 	CountErrorGroupsByStatus(ctx context.Context, arg CountErrorGroupsByStatusParams) (int64, error)
+	// Counts distinct time windows that contain at least one N+1 detection.
+	CountN1Windows(ctx context.Context, arg CountN1WindowsParams) (int32, error)
 	CountRecordingsByEnv(ctx context.Context, envID uuid.UUID) (int64, error)
 	CountSchemasByEnv(ctx context.Context, envID uuid.UUID) (int64, error)
 	CountUnacknowledgedAlerts(ctx context.Context, envID uuid.UUID) (int64, error)
@@ -92,6 +94,7 @@ type Querier interface {
 	GetAuditLogsByTenant(ctx context.Context, arg GetAuditLogsByTenantParams) ([]AuditLog, error)
 	GetBillingEventByStripeID(ctx context.Context, stripeEventID string) (BillingEvent, error)
 	GetBudgetAverage7d(ctx context.Context, budgetID uuid.UUID) (GetBudgetAverage7dRow, error)
+	GetBudgetSampleByID(ctx context.Context, arg GetBudgetSampleByIDParams) (PerfBudgetSample, error)
 	GetEnvironmentByAgentID(ctx context.Context, agentID *string) (Environment, error)
 	GetEnvironmentByID(ctx context.Context, arg GetEnvironmentByIDParams) (Environment, error)
 	GetEnvironmentByRegistrationToken(ctx context.Context, registrationToken *string) (Environment, error)
@@ -103,6 +106,12 @@ type Querier interface {
 	GetLatestMigrationScan(ctx context.Context, envID uuid.UUID) (MigrationScan, error)
 	GetLatestSchema(ctx context.Context, envID uuid.UUID) (SchemaSnapshot, error)
 	GetMigrationScan(ctx context.Context, arg GetMigrationScanParams) (MigrationScan, error)
+	// Aggregates N+1 detections by model:method across time windows.
+	// Returns per-pattern stats including occurrence count, total/peak calls,
+	// total/peak duration, sample SQL, and first/last seen timestamps.
+	GetN1PatternsSummary(ctx context.Context, arg GetN1PatternsSummaryParams) ([]GetN1PatternsSummaryRow, error)
+	// Returns per-period N+1 event counts for trend visualization.
+	GetN1Timeline(ctx context.Context, arg GetN1TimelineParams) ([]GetN1TimelineRow, error)
 	GetNotificationChannel(ctx context.Context, arg GetNotificationChannelParams) (NotificationChannel, error)
 	GetORMStatsAggregated(ctx context.Context, arg GetORMStatsAggregatedParams) ([]GetORMStatsAggregatedRow, error)
 	GetPerfBudget(ctx context.Context, arg GetPerfBudgetParams) (PerfBudget, error)
@@ -123,6 +132,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, arg GetUserByIDParams) (User, error)
 	// Fetch user by id across tenants (used by password reset flows)
 	GetUserByIDGlobal(ctx context.Context, id uuid.UUID) (GetUserByIDGlobalRow, error)
+	HasRecentAlert(ctx context.Context, arg HasRecentAlertParams) (bool, error)
 	// ════════════════════════════════════════════
 	//  Budget Samples (from ingest worker)
 	// ════════════════════════════════════════════
@@ -157,6 +167,8 @@ type Querier interface {
 	ListHeartbeats(ctx context.Context, arg ListHeartbeatsParams) ([]AgentHeartbeat, error)
 	ListMigrationScans(ctx context.Context, arg ListMigrationScansParams) ([]MigrationScan, error)
 	ListN1Detections(ctx context.Context, arg ListN1DetectionsParams) ([]OrmStat, error)
+	// Extracts N+1 patterns from profiler recordings' n1_patterns JSONB.
+	ListN1RecordingPatterns(ctx context.Context, arg ListN1RecordingPatternsParams) ([]ListN1RecordingPatternsRow, error)
 	ListNotificationChannels(ctx context.Context, tenantID uuid.UUID) ([]NotificationChannel, error)
 	ListORMStatsByPeriod(ctx context.Context, arg ListORMStatsByPeriodParams) ([]OrmStat, error)
 	ListPendingDeliveries(ctx context.Context, limit int32) ([]ListPendingDeliveriesRow, error)

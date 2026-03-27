@@ -1,5 +1,58 @@
 basePath: /api/v1
 definitions:
+  acl.StageResult:
+    properties:
+      detail: {}
+      reason:
+        type: string
+      stage:
+        type: string
+      verdict:
+        $ref: '#/definitions/acl.Verdict'
+    type: object
+  acl.Suggestion:
+    properties:
+      detail:
+        description: |-
+          Detail provides the concrete Odoo action (e.g. which menu to open,
+          which XML ID to add, which field to change).
+        type: string
+      severity:
+        description: |-
+          Severity indicates how disruptive the fix is:
+            "low"    = safe, targeted change
+            "medium" = broader impact, review recommended
+            "high"   = affects many users, proceed with caution
+        type: string
+      stage:
+        description: Stage is the pipeline stage that triggered this suggestion.
+        type: string
+      summary:
+        description: Summary is a short, human-readable description of the fix.
+        type: string
+    type: object
+  acl.Verdict:
+    enum:
+    - OK
+    - DENIED
+    - SKIPPED
+    - ERROR
+    type: string
+    x-enum-comments:
+      VerdictDenied: Stage blocked access — pipeline stops.
+      VerdictError: Stage could not be evaluated.
+      VerdictOK: Stage passed — continue pipeline.
+      VerdictSkipped: Stage not applicable (e.g. no rules).
+    x-enum-descriptions:
+    - Stage passed — continue pipeline.
+    - Stage blocked access — pipeline stops.
+    - Stage not applicable (e.g. no rules).
+    - Stage could not be evaluated.
+    x-enum-varnames:
+    - VerdictOK
+    - VerdictDenied
+    - VerdictSkipped
+    - VerdictError
   api.Error:
     properties:
       code:
@@ -142,6 +195,70 @@ definitions:
       message:
         type: string
       value: {}
+    type: object
+  dto.ACLTraceRequest:
+    properties:
+      group_data:
+        description: 'GroupData is all res.groups records from the agent. Each must
+          have: id, name, implied_ids.'
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      model:
+        description: Model is the Odoo model technical name (e.g. "sale.order").
+        type: string
+      operation:
+        description: 'Operation is the CRUD operation to check: read, write, create,
+          unlink.'
+        enum:
+        - read
+        - write
+        - create
+        - unlink
+        type: string
+      record_data:
+        additionalProperties: {}
+        description: |-
+          RecordData is the optional field values of the target record (for domain eval).
+          Required when record_id > 0. Keys are field names, values are JSON-decoded Odoo values.
+        type: object
+      record_id:
+        description: |-
+          RecordID is the optional database ID of a specific record to evaluate
+          domain conditions against. If 0, domain evaluation is skipped.
+        type: integer
+      user_data:
+        additionalProperties: {}
+        description: |-
+          UserData is the raw res.users record as fetched from Odoo by the agent.
+          Must contain at least: id, login, name, active, groups_id, company_id.
+        type: object
+      user_id:
+        description: UserID is the Odoo uid to trace (e.g. 2 for admin).
+        minimum: 1
+        type: integer
+    required:
+    - group_data
+    - model
+    - operation
+    - user_data
+    - user_id
+    type: object
+  dto.ACLTraceResponse:
+    properties:
+      stages:
+        items:
+          $ref: '#/definitions/acl.StageResult'
+        type: array
+      suggestions:
+        description: actionable fix suggestions (only when denied)
+        items:
+          $ref: '#/definitions/acl.Suggestion'
+        type: array
+      verdict:
+        description: '"ALLOWED" or "DENIED"'
+        type: string
     type: object
   dto.APIKeyCreatedResponse:
     properties:
@@ -289,6 +406,80 @@ definitions:
         example: 200
         type: integer
     type: object
+  dto.BudgetDetailResponse:
+    properties:
+      budget:
+        $ref: '#/definitions/dto.BudgetResponse'
+      latest_sample:
+        $ref: '#/definitions/dto.BudgetSampleResponse'
+      trend:
+        $ref: '#/definitions/dto.BudgetTrendResponse'
+    type: object
+  dto.BudgetListResponse:
+    properties:
+      budgets:
+        items:
+          $ref: '#/definitions/dto.BudgetResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.BudgetResponse:
+    properties:
+      created_at:
+        type: string
+      endpoint:
+        type: string
+      env_id:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      module:
+        type: string
+      threshold_pct:
+        type: integer
+    type: object
+  dto.BudgetSampleListResponse:
+    properties:
+      samples:
+        items:
+          $ref: '#/definitions/dto.BudgetSampleResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.BudgetSampleResponse:
+    properties:
+      breakdown:
+        items:
+          type: integer
+        type: array
+      budget_id:
+        type: string
+      id:
+        type: string
+      module_ms:
+        type: integer
+      overhead_pct:
+        type: string
+      sampled_at:
+        type: string
+      total_ms:
+        type: integer
+    type: object
+  dto.BudgetTrendResponse:
+    properties:
+      avg_overhead:
+        type: number
+      budget_id:
+        type: string
+      max_overhead:
+        type: integer
+      sample_count:
+        type: integer
+    type: object
   dto.ChangePasswordRequest:
     properties:
       current_password:
@@ -299,6 +490,98 @@ definitions:
     required:
     - current_password
     - new_password
+    type: object
+  dto.ComputeChain:
+    properties:
+      edges:
+        description: Edges are the dependency links between nodes.
+        items:
+          $ref: '#/definitions/dto.ComputeEdge'
+        type: array
+      nodes:
+        description: Nodes are the individual computed field evaluations.
+        items:
+          $ref: '#/definitions/dto.ComputeNode'
+        type: array
+      summary:
+        allOf:
+        - $ref: '#/definitions/dto.ComputeChainSummary'
+        description: Summary provides aggregate statistics.
+    type: object
+  dto.ComputeChainSummary:
+    properties:
+      bottleneck_count:
+        description: BottleneckCount is the number of nodes flagged as bottlenecks.
+        type: integer
+      max_depth:
+        description: MaxDepth is the deepest dependency chain depth.
+        type: integer
+      node_count:
+        description: NodeCount is the number of computed field evaluations.
+        type: integer
+      slowest_ms:
+        description: SlowestMS is the duration of the slowest compute node.
+        type: integer
+      slowest_node:
+        description: SlowestNode is the ID of the slowest compute node.
+        type: string
+      total_ms:
+        description: TotalMS is the total time spent in compute field evaluations.
+        type: integer
+      trigger_field:
+        description: TriggerField is the root field write that started the chain.
+        type: string
+    type: object
+  dto.ComputeEdge:
+    properties:
+      from:
+        description: From is the source node ID (the field that was written/changed).
+        type: string
+      to:
+        description: To is the target node ID (the computed field that was triggered).
+        type: string
+      trigger_field:
+        description: TriggerField is the specific field that triggered the recomputation.
+        type: string
+    type: object
+  dto.ComputeNode:
+    properties:
+      depends_on:
+        description: DependsOn lists the field names this computation depends on.
+        items:
+          type: string
+        type: array
+      depth:
+        description: Depth is the nesting level in the dependency chain (0 = root
+          trigger).
+        type: integer
+      duration_ms:
+        description: DurationMS is how long this computation took.
+        type: integer
+      field_name:
+        description: FieldName is the computed field (e.g. "amount_total").
+        type: string
+      id:
+        description: ID is a unique identifier for this node within the chain.
+        type: string
+      is_bottleneck:
+        description: IsBottleneck flags nodes that are disproportionately slow.
+        type: boolean
+      method:
+        description: Method is the compute method (e.g. "_compute_amount_total").
+        type: string
+      model:
+        description: Model is the Odoo model (e.g. "sale.order").
+        type: string
+      module:
+        description: Module is the Odoo module that defines this compute (e.g. "sale").
+        type: string
+      parent_id:
+        description: ParentID links to the node that triggered this computation.
+        type: string
+      sql_count:
+        description: SQLCount is the number of SQL queries executed during this computation.
+        type: integer
     type: object
   dto.CreateAPIKeyRequest:
     properties:
@@ -318,6 +601,25 @@ definitions:
         type: array
     required:
     - name
+    type: object
+  dto.CreateBudgetRequest:
+    properties:
+      endpoint:
+        maxLength: 256
+        minLength: 1
+        type: string
+      module:
+        maxLength: 128
+        minLength: 1
+        type: string
+      threshold_pct:
+        maximum: 100
+        minimum: 1
+        type: integer
+    required:
+    - endpoint
+    - module
+    - threshold_pct
     type: object
   dto.CreateEnvironmentRequest:
     properties:
@@ -522,6 +824,50 @@ definitions:
     required:
     - email
     type: object
+  dto.FunctionBreakdownResponse:
+    properties:
+      budget_id:
+        type: string
+      functions:
+        items:
+          $ref: '#/definitions/dto.FunctionStat'
+        type: array
+      module_ms:
+        type: integer
+      orm_count:
+        type: integer
+      orm_ms:
+        type: integer
+      overhead_pct:
+        type: string
+      python_ms:
+        type: integer
+      sample_id:
+        type: string
+      sampled_at:
+        type: string
+      sql_count:
+        type: integer
+      sql_ms:
+        type: integer
+      total_ms:
+        type: integer
+    type: object
+  dto.FunctionStat:
+    properties:
+      call_count:
+        type: integer
+      category:
+        type: string
+      duration_ms:
+        type: integer
+      method:
+        type: string
+      model:
+        type: string
+      pct:
+        type: number
+    type: object
   dto.IngestBatchRequest:
     properties:
       duration_ms:
@@ -615,6 +961,170 @@ definitions:
       total_pages:
         type: integer
     type: object
+  dto.N1DetectionResponse:
+    properties:
+      patterns:
+        items:
+          $ref: '#/definitions/dto.N1Pattern'
+        type: array
+      summary:
+        $ref: '#/definitions/dto.N1Summary'
+    type: object
+  dto.N1Pattern:
+    properties:
+      avg_calls_per_window:
+        description: AvgCallsPerWindow is the average call count per detection window.
+        type: number
+      first_seen:
+        description: FirstSeen is the earliest detection window.
+        type: string
+      impact_score:
+        description: |-
+          ImpactScore ranks the pattern: higher = more damaging. Computed as
+          total_ms × occurrences / 1000 (normalized to seconds of wasted time).
+        type: number
+      last_seen:
+        description: LastSeen is the most recent detection window.
+        type: string
+      method:
+        description: Method is the ORM method (e.g. "search_read").
+        type: string
+      model:
+        description: Model is the Odoo model (e.g. "res.partner").
+        type: string
+      occurrences:
+        description: Occurrences is how many time windows this pattern was detected
+          in.
+        type: integer
+      peak_calls:
+        description: PeakCalls is the highest call count seen in a single window.
+        type: integer
+      peak_ms:
+        description: PeakMS is the highest duration seen in a single window.
+        type: integer
+      sample_sql:
+        description: SampleSQL is a concrete SQL example from the pattern.
+        type: string
+      severity:
+        description: 'Severity categorizes the impact: "critical", "high", "medium",
+          "low".'
+        type: string
+      signature:
+        description: Signature is the normalized SQL signature (literals replaced
+          with ?).
+        type: string
+      suggestion:
+        description: Suggestion is an actionable fix recommendation.
+        type: string
+      total_calls:
+        description: TotalCalls is the cumulative call count across all detected windows.
+        type: integer
+      total_ms:
+        description: TotalMS is the cumulative duration in milliseconds.
+        type: integer
+    type: object
+  dto.N1Summary:
+    properties:
+      critical_count:
+        description: CriticalCount is patterns with severity "critical".
+        type: integer
+      high_count:
+        description: HighCount is patterns with severity "high".
+        type: integer
+      top_method:
+        description: TopMethod is the method with the most N+1 impact.
+        type: string
+      top_model:
+        description: TopModel is the model with the most N+1 impact.
+        type: string
+      total_patterns:
+        description: TotalPatterns is the number of distinct model:method patterns.
+        type: integer
+      total_wasted_ms:
+        description: TotalWastedMS is the cumulative time spent in N+1 queries.
+        type: integer
+    type: object
+  dto.N1TimelinePoint:
+    properties:
+      pattern_count:
+        type: integer
+      period:
+        type: string
+      total_calls:
+        type: integer
+      total_ms:
+        type: integer
+    type: object
+  dto.N1TimelineResponse:
+    properties:
+      points:
+        items:
+          $ref: '#/definitions/dto.N1TimelinePoint'
+        type: array
+    type: object
+  dto.ProfilerRecordingListItem:
+    properties:
+      endpoint:
+        type: string
+      env_id:
+        type: string
+      has_compute_chain:
+        type: boolean
+      has_n1:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      python_ms:
+        type: integer
+      recorded_at:
+        type: string
+      sql_count:
+        type: integer
+      sql_ms:
+        type: integer
+      total_ms:
+        type: integer
+      triggered_by:
+        type: string
+    type: object
+  dto.ProfilerRecordingListResponse:
+    properties:
+      recordings:
+        items:
+          $ref: '#/definitions/dto.ProfilerRecordingListItem'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.ProfilerRecordingResponse:
+    properties:
+      compute_chain:
+        $ref: '#/definitions/dto.ComputeChain'
+      endpoint:
+        type: string
+      env_id:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      python_ms:
+        type: integer
+      recorded_at:
+        type: string
+      sql_count:
+        type: integer
+      sql_ms:
+        type: integer
+      total_ms:
+        type: integer
+      triggered_by:
+        type: string
+      waterfall:
+        $ref: '#/definitions/dto.Waterfall'
+    type: object
   dto.RefreshTokenRequest:
     properties:
       refresh_token:
@@ -642,6 +1152,9 @@ definitions:
     type: object
   dto.RegisterRequest:
     properties:
+      confirm_password:
+        minLength: 8
+        type: string
       email:
         type: string
       full_name:
@@ -659,6 +1172,7 @@ definitions:
         minLength: 2
         type: string
     required:
+    - confirm_password
     - email
     - password
     - tenant_name
@@ -666,12 +1180,16 @@ definitions:
     type: object
   dto.ResetPasswordRequest:
     properties:
+      confirm_new_password:
+        minLength: 8
+        type: string
       new_password:
         minLength: 8
         type: string
       token:
         type: string
     required:
+    - confirm_new_password
     - new_password
     - token
     type: object
@@ -825,6 +1343,18 @@ definitions:
     - models
     - version
     type: object
+  dto.UpdateBudgetRequest:
+    properties:
+      is_active:
+        type: boolean
+      threshold_pct:
+        maximum: 100
+        minimum: 1
+        type: integer
+    required:
+    - is_active
+    - threshold_pct
+    type: object
   dto.UpdateEnvironmentRequest:
     properties:
       db_name:
@@ -914,10 +1444,105 @@ definitions:
     type: object
   dto.VerifyEmailRequest:
     properties:
-      token:
+      code:
+        type: string
+      email:
         type: string
     required:
-    - token
+    - code
+    - email
+    type: object
+  dto.Waterfall:
+    properties:
+      lanes:
+        items:
+          $ref: '#/definitions/dto.WaterfallLane'
+        type: array
+      spans:
+        items:
+          $ref: '#/definitions/dto.WaterfallSpan'
+        type: array
+      summary:
+        $ref: '#/definitions/dto.WaterfallSummary'
+    type: object
+  dto.WaterfallLane:
+    properties:
+      category:
+        type: string
+      label:
+        type: string
+      pct:
+        type: number
+      total_ms:
+        type: integer
+    type: object
+  dto.WaterfallSpan:
+    properties:
+      category:
+        description: 'Category classifies the span: "sql", "orm", "python", "rpc",
+          "http".'
+        type: string
+      depth:
+        description: Depth is the nesting level (0 = top-level).
+        type: integer
+      duration_ms:
+        description: DurationMS is the span duration in milliseconds.
+        type: integer
+      id:
+        description: ID is a unique identifier for this span within the waterfall.
+        type: string
+      is_error:
+        description: IsError flags spans that resulted in an error.
+        type: boolean
+      is_n1:
+        description: IsN1 flags spans that are part of an N+1 pattern.
+        type: boolean
+      label:
+        description: Label is a human-readable description (e.g. "res.partner.search_read").
+        type: string
+      method:
+        description: Method is the ORM method name (optional).
+        type: string
+      model:
+        description: Model is the Odoo model involved (optional).
+        type: string
+      module:
+        description: Module is the Odoo module that originated this span (optional).
+        type: string
+      parent_id:
+        description: ParentID links child spans to their parent (e.g. ORM → SQL).
+        type: string
+      sql:
+        description: SQL is the query text for SQL spans (optional, truncated).
+        type: string
+      start_ms:
+        description: StartMS is the offset from the recording start in milliseconds.
+        type: integer
+    type: object
+  dto.WaterfallSummary:
+    properties:
+      critical_sql:
+        type: string
+      error_count:
+        type: integer
+      n1_count:
+        type: integer
+      n1_ms:
+        type: integer
+      orm_count:
+        type: integer
+      orm_ms:
+        type: integer
+      python_ms:
+        type: integer
+      span_count:
+        type: integer
+      sql_count:
+        type: integer
+      sql_ms:
+        type: integer
+      total_ms:
+        type: integer
     type: object
 host: localhost:8080
 info:
@@ -1495,10 +2120,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: Consumes the one-time Redis verification token and marks the user's
-        email as verified in the database.
+      description: Validates the 6-digit verification code and marks the user's email
+        as verified.
       parameters:
-      - description: Verification token
+      - description: Email and 6-digit verification code
         in: body
         name: request
         required: true
@@ -1702,6 +2327,47 @@ paths:
       summary: Update environment
       tags:
       - environments
+  /environments/{env_id}/acl/trace:
+    post:
+      consumes:
+      - application/json
+      description: 'Run the 5-stage ACL pipeline: "why can''t user X see record Y?"'
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: ACL trace request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ACLTraceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ACLTraceResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Trace ACL access
+      tags:
+      - acl
   /environments/{env_id}/agent:
     post:
       description: Generate a one-time token that an agent uses to self-register and
@@ -1837,6 +2503,318 @@ paths:
       summary: Revoke API key
       tags:
       - api-keys
+  /environments/{env_id}/budgets:
+    get:
+      description: List performance budgets for an environment
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Include inactive budgets (default false)
+        in: query
+        name: include_inactive
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BudgetListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List performance budgets
+      tags:
+      - budgets
+    post:
+      consumes:
+      - application/json
+      description: Create a new performance budget for an environment
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Budget config
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateBudgetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.BudgetResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Create performance budget
+      tags:
+      - budgets
+  /environments/{env_id}/budgets/{budget_id}:
+    delete:
+      description: Delete a performance budget and its samples
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Budget ID
+        in: path
+        name: budget_id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Delete performance budget
+      tags:
+      - budgets
+    get:
+      description: Retrieve a budget with latest sample and 7-day trend
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Budget ID
+        in: path
+        name: budget_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BudgetDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get performance budget
+      tags:
+      - budgets
+    patch:
+      consumes:
+      - application/json
+      description: Update a budget's threshold percentage and active status
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Budget ID
+        in: path
+        name: budget_id
+        required: true
+        type: string
+      - description: Updated budget config
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateBudgetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BudgetResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Update performance budget
+      tags:
+      - budgets
+  /environments/{env_id}/budgets/{budget_id}/samples:
+    get:
+      description: List performance overhead samples for a budget
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Budget ID
+        in: path
+        name: budget_id
+        required: true
+        type: string
+      - description: Max results (default 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BudgetSampleListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List budget samples
+      tags:
+      - budgets
+  /environments/{env_id}/budgets/{budget_id}/samples/{sample_id}/breakdown:
+    get:
+      description: Get per-function performance breakdown for a specific budget sample
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Budget ID
+        in: path
+        name: budget_id
+        required: true
+        type: string
+      - description: Sample ID
+        in: path
+        name: sample_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.FunctionBreakdownResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get function-level breakdown
+      tags:
+      - budgets
+  /environments/{env_id}/budgets/{budget_id}/trend:
+    get:
+      description: Get the 7-day average, max, and sample count for a budget
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Budget ID
+        in: path
+        name: budget_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.BudgetTrendResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get budget trend
+      tags:
+      - budgets
   /environments/{env_id}/errors:
     get:
       description: Returns aggregated error groups for the given environment, sorted
@@ -1974,6 +2952,199 @@ paths:
       summary: Update feature flags
       tags:
       - environments
+  /environments/{env_id}/n1/detect:
+    get:
+      description: Analyze ORM stats and profiler recordings to detect, score, and
+        suggest fixes for N+1 query patterns
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: 'ISO 8601 timestamp to limit analysis window (default: last 24h)'
+        in: query
+        name: since
+        type: string
+      - description: Max patterns to return (default 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.N1DetectionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Detect N+1 patterns
+      tags:
+      - n1
+  /environments/{env_id}/n1/timeline:
+    get:
+      description: Returns per-period N+1 detection counts and durations for trend
+        visualization
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: 'ISO 8601 start time (default: last 24h)'
+        in: query
+        name: since
+        type: string
+      - description: Max data points (default 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.N1TimelineResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: N+1 timeline
+      tags:
+      - n1
+  /environments/{env_id}/profiler/recordings:
+    get:
+      description: List profiler recordings for an environment (lightweight, no waterfall)
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Page size (default 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProfilerRecordingListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List profiler recordings
+      tags:
+      - profiler
+  /environments/{env_id}/profiler/recordings/{recording_id}:
+    get:
+      description: Retrieve a profiler recording with a fully-built waterfall timeline
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Recording ID
+        in: path
+        name: recording_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProfilerRecordingResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get profiler recording
+      tags:
+      - profiler
+  /environments/{env_id}/profiler/recordings/slow:
+    get:
+      description: List profiler recordings that exceed the given ms threshold
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Duration threshold in milliseconds
+        in: query
+        name: threshold_ms
+        required: true
+        type: integer
+      - description: Max results (default 20)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProfilerRecordingListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List slow profiler recordings
+      tags:
+      - profiler
   /environments/{env_id}/schema:
     get:
       description: Return schema snapshot summaries for the given environment, newest
