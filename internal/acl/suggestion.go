@@ -57,7 +57,7 @@ func (g *SuggestionGenerator) suggestForDenied(stage StageResult) []Suggestion {
 		return g.suggestUserFixes(stage)
 	case "groups":
 		return g.suggestGroupFixes(stage)
-	case "model_acl":
+	case stageModelACL:
 		return g.suggestModelACLFixes(stage)
 	case stageRecordRule:
 		return g.suggestRecordRuleFixes(stage)
@@ -133,7 +133,7 @@ func (g *SuggestionGenerator) suggestModelACLFixes(stage StageResult) []Suggesti
 	detail, ok := stage.Detail.(*ModelACLDetail)
 	if !ok {
 		suggestions = append(suggestions, Suggestion{
-			Stage:    "model_acl",
+			Stage:    stageModelACL,
 			Summary:  "Add or update ir.model.access rules for this model",
 			Detail:   stage.Reason,
 			Severity: "medium",
@@ -144,7 +144,7 @@ func (g *SuggestionGenerator) suggestModelACLFixes(stage StageResult) []Suggesti
 	// No rules at all for the model.
 	if len(detail.Rules) == 0 {
 		suggestions = append(suggestions, Suggestion{
-			Stage:   "model_acl",
+			Stage:   stageModelACL,
 			Summary: fmt.Sprintf("Create an ir.model.access rule for model %q", detail.Model),
 			Detail: fmt.Sprintf(
 				"No access rules exist for %q. Create a CSV line in your module's security/ir.model.access.csv:\n"+
@@ -176,7 +176,7 @@ func (g *SuggestionGenerator) suggestModelACLFixes(stage StageResult) []Suggesti
 
 	if len(applicableNoGrant) > 0 {
 		suggestions = append(suggestions, Suggestion{
-			Stage:   "model_acl",
+			Stage:   stageModelACL,
 			Summary: fmt.Sprintf("Grant %s permission on existing access rule(s)", detail.Operation),
 			Detail: fmt.Sprintf(
 				"The user's groups match %d rule(s) for %q but none grant perm_%s. "+
@@ -189,7 +189,7 @@ func (g *SuggestionGenerator) suggestModelACLFixes(stage StageResult) []Suggesti
 
 	if len(notApplicable) > 0 && len(applicableNoGrant) == 0 {
 		suggestions = append(suggestions, Suggestion{
-			Stage:   "model_acl",
+			Stage:   stageModelACL,
 			Summary: fmt.Sprintf("Add the user to a group that has %s access on %q", detail.Operation, detail.Model),
 			Detail: fmt.Sprintf(
 				"%d rule(s) grant access to %q but the user doesn't belong to any of their groups (group IDs: %s). "+
