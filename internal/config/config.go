@@ -150,6 +150,14 @@ type Config struct {
 	AgentORMN1Threshold int    `mapstructure:"AGENT_ORM_N1_THRESHOLD"`
 	AgentORMN1WindowSec int    `mapstructure:"AGENT_ORM_N1_WINDOW_SEC"`
 
+	// ── Agent pg_stat_statements ─────────────────────────────
+	// PG_ODOO_DSN is the direct PostgreSQL connection string for Odoo's database.
+	// Required for the pg_stat_statements collector.
+	// Example: postgres://odoo:odoo@localhost:5432/odoo?sslmode=disable
+	PgOdooDSN           string `mapstructure:"PG_ODOO_DSN"`
+	AgentPgStatInterval int    `mapstructure:"AGENT_PGSTAT_INTERVAL_SEC"`
+	AgentPgStatEnabled  bool   `mapstructure:"AGENT_PGSTAT_ENABLED"`
+
 	// ── Agent Debug (temporary — DELETE before production) ────
 	// AGENT_DEBUG_FEEDER=true enables a synthetic event generator that
 	// pumps fake ORM events into the aggregator for local testing.
@@ -302,6 +310,11 @@ func LoadAgentConfig(path string) (Config, error) {
 	applyAgentStringOverrides(v, &cfg)
 	applyAgentNumericOverrides(v, &cfg)
 
+	// ── pg_stat_statements collector ──────
+	if s := v.GetString("AGENT_PGSTAT_ENABLED"); s != "" {
+		cfg.AgentPgStatEnabled = strings.EqualFold(s, "true") || s == "1"
+	}
+
 	// ── Debug feeder (temporary — DELETE before production) ──────
 	if s := v.GetString("AGENT_DEBUG_FEEDER"); s != "" {
 		cfg.AgentDebugFeeder = strings.EqualFold(s, "true") || s == "1"
@@ -330,6 +343,7 @@ func applyAgentStringOverrides(v *viper.Viper, cfg *Config) {
 	overrideStr("AGENT_SAMPLER_MODE", &cfg.AgentSamplerMode)
 	overrideStr("AGENT_ORM_COLLECTOR", &cfg.AgentORMCollector)
 	overrideStr("AGENT_LOG_FILE", &cfg.AgentLogFile)
+	overrideStr("PG_ODOO_DSN", &cfg.PgOdooDSN)
 }
 
 // applyAgentNumericOverrides applies int and float overrides from .env.agent.
@@ -357,4 +371,5 @@ func applyAgentNumericOverrides(v *viper.Viper, cfg *Config) {
 	overrideInt("AGENT_AGGREGATOR_MAX_RAW", &cfg.AgentAggregatorMaxRaw)
 	overrideInt("AGENT_ORM_N1_THRESHOLD", &cfg.AgentORMN1Threshold)
 	overrideInt("AGENT_ORM_N1_WINDOW_SEC", &cfg.AgentORMN1WindowSec)
+	overrideInt("AGENT_PGSTAT_INTERVAL_SEC", &cfg.AgentPgStatInterval)
 }

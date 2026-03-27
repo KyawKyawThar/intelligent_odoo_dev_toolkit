@@ -322,6 +322,35 @@ func (q *Queries) GetNotificationChannel(ctx context.Context, arg GetNotificatio
 	return i, err
 }
 
+const hasRecentAlert = `-- name: HasRecentAlert :one
+SELECT EXISTS (
+    SELECT 1 FROM alerts
+    WHERE env_id = $1
+      AND type = $2
+      AND metadata @> $3::jsonb
+      AND created_at > now() - make_interval(mins => $4::int)
+) AS exists
+`
+
+type HasRecentAlertParams struct {
+	EnvID   uuid.UUID       `db:"env_id" json:"env_id"`
+	Type    string          `db:"type" json:"type"`
+	Column3 json.RawMessage `db:"column_3" json:"column_3"`
+	Column4 int32           `db:"column_4" json:"column_4"`
+}
+
+func (q *Queries) HasRecentAlert(ctx context.Context, arg HasRecentAlertParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasRecentAlert,
+		arg.EnvID,
+		arg.Type,
+		arg.Column3,
+		arg.Column4,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listActiveNotificationChannels = `-- name: ListActiveNotificationChannels :many
 SELECT id, tenant_id, name, type, config, is_active, created_at FROM notification_channels nc
 WHERE nc.tenant_id = $1 AND nc.is_active = true

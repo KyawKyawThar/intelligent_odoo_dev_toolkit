@@ -6,7 +6,6 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/smtp"
@@ -45,39 +44,35 @@ func (s *AuthService) persistSession(
 // Email delivery — MailHog SMTP (no auth)
 // =============================================================================
 
-// sendVerificationEmail generates a one-time token, stores it in Redis,
-// and delivers an email via MailHog. An error is returned if delivery fails
-// so callers (such as registration) can rollback any database changes.
+// sendVerificationEmail generates a 6-digit verification code, stores it in
+// Redis, and delivers an email via MailHog. An error is returned if delivery
+// fails so callers (such as registration) can rollback any database changes.
 func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email string) error {
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		log.Error().Err(err).Str("email", email).Msg("failed to generate verify token")
+	code, err := generate6DigitCode()
+	if err != nil {
+		log.Error().Err(err).Str("email", email).Msg("failed to generate verification code")
 		return err
 	}
-	tokenStr := hex.EncodeToString(tokenBytes)
 
 	if err := s.cache.StoreVerifyEmailToken(ctx, &cache.VerifyEmailToken{
 		UserID:    userID,
 		Email:     email,
-		Token:     tokenStr,
+		Code:      code,
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {
-		log.Error().Err(err).Str("email", email).Msg("failed to store verify token")
+		log.Error().Err(err).Str("email", email).Msg("failed to store verification code")
 		return err
 	}
 
-	verifyURL := fmt.Sprintf(
-		"%s/api/v1/auth/verify-email?token=%s",
-		s.config.AppBaseURL, tokenStr,
-	)
 	body := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: Verify your email address\r\n\r\n"+
 			"Hello,\r\n\r\n"+
-			"Please verify your email address by visiting the link below:\r\n\r\n"+
+			"Your email verification code is:\r\n\r\n"+
 			"  %s\r\n\r\n"+
-			"This link expires in 24 hours.\r\n\r\n"+
+			"Enter this 6-digit code to verify your email address.\r\n\r\n"+
+			"This code expires in 10 minutes.\r\n\r\n"+
 			"If you did not create an account, you can safely ignore this email.\r\n",
-		s.config.SMTPFrom, email, verifyURL,
+		s.config.SMTPFrom, email, code,
 	)
 
 	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
@@ -86,8 +81,19 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email s
 		log.Error().Err(err).Str("email", email).Str("addr", addr).Msg("failed to send verify email")
 		return err
 	}
-	log.Info().Str("email", email).Str("addr", addr).Msg("sent verify email")
+	log.Info().Str("email", email).Str("addr", addr).Msg("sent verification code email")
 	return nil
+}
+
+// generate6DigitCode returns a cryptographically random 6-digit numeric string.
+func generate6DigitCode() (string, error) {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	// Convert to uint32 and mod 1_000_000 to get a 6-digit number
+	n := (uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])) % 1_000_000
+	return fmt.Sprintf("%06d", n), nil
 }
 
 // sendPasswordResetEmail sends the reset link via MailHog.

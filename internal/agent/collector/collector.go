@@ -6,11 +6,38 @@ import (
 	"fmt"
 	"maps"
 	"strconv"
+	"time"
 
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/odoo"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
+
+// runPollLoop is a shared polling loop used by collectors. It calls pollFn
+// immediately, then on every tick of interval until ctx is canceled.
+func runPollLoop(ctx context.Context, interval time.Duration, logger zerolog.Logger, name string, pollFn func(context.Context) error) {
+	logger.Info().Dur("interval", interval).Msgf("starting %s collector", name)
+
+	if err := pollFn(ctx); err != nil {
+		logger.Error().Err(err).Msgf("initial %s poll failed", name)
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info().Msgf("%s collector stopped", name)
+			return
+		case <-ticker.C:
+			if err := pollFn(ctx); err != nil {
+				logger.Error().Err(err).Msgf("%s poll failed", name)
+			}
+		}
+	}
+}
 
 // ─── XML-RPC Response Parsing Structs ───────────────────────────────────────
 

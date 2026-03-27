@@ -19,8 +19,11 @@ type Services struct {
 	Error         ErrorServicer
 	APIKey        APIKeyServicer
 	AgentRegister AgentRegisterServicer
+	ACL           ACLServicer
+	Profiler      ProfilerServicer
+	N1            N1Servicer
+	Budget        BudgetServicer
 	// Future services:
-	// Profiler    ProfilerServicer
 	// Alert       AlertServicer
 	// Audit       AuditServicer
 }
@@ -104,6 +107,10 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 	errorSvc := NewErrorService(store)
 	apiKeySvc := NewAPIKeyService(store)
 	agentRegSvc := NewAgentRegisterService(store)
+	aclSvc := NewACLService(store)
+	profilerSvc := NewProfilerService(store)
+	n1Svc := NewN1Service(store)
+	budgetSvc := NewBudgetService(store)
 
 	return &Services{
 		Auth:          authSvc,
@@ -112,5 +119,9 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 		Error:         errorSvc,
 		APIKey:        apiKeySvc,
 		AgentRegister: agentRegSvc,
+		ACL:           aclSvc,
+		Profiler:      profilerSvc,
+		N1:            n1Svc,
+		Budget:        budgetSvc,
 	}
 }

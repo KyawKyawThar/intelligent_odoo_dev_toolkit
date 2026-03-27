@@ -874,7 +874,7 @@ const docTemplate = `{
         },
         "/auth/verify-email": {
             "post": {
-                "description": "Consumes the one-time Redis verification token and marks the user's email as verified in the database.",
+                "description": "Validates the 6-digit verification code and marks the user's email as verified.",
                 "consumes": [
                     "application/json"
                 ],
@@ -887,7 +887,7 @@ const docTemplate = `{
                 "summary": "Verify email",
                 "parameters": [
                     {
-                        "description": "Verification token",
+                        "description": "Email and 6-digit verification code",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -1198,6 +1198,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/environments/{env_id}/acl/trace": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Run the 5-stage ACL pipeline: \"why can't user X see record Y?\"",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "acl"
+                ],
+                "summary": "Trace ACL access",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "ACL trace request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ACLTraceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ACLTraceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/environments/{env_id}/agent": {
             "post": {
                 "security": [
@@ -1386,6 +1450,489 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/budgets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List performance budgets for an environment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "List performance budgets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include inactive budgets (default false)",
+                        "name": "include_inactive",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BudgetListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new performance budget for an environment",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "Create performance budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Budget config",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateBudgetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BudgetResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/budgets/{budget_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a budget with latest sample and 7-day trend",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "Get performance budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Budget ID",
+                        "name": "budget_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BudgetDetailResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a performance budget and its samples",
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "Delete performance budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Budget ID",
+                        "name": "budget_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update a budget's threshold percentage and active status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "Update performance budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Budget ID",
+                        "name": "budget_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated budget config",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateBudgetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BudgetResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/budgets/{budget_id}/samples": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List performance overhead samples for a budget",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "List budget samples",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Budget ID",
+                        "name": "budget_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max results (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BudgetSampleListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/budgets/{budget_id}/samples/{sample_id}/breakdown": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get per-function performance breakdown for a specific budget sample",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "Get function-level breakdown",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Budget ID",
+                        "name": "budget_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sample ID",
+                        "name": "sample_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FunctionBreakdownResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/budgets/{budget_id}/trend": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the 7-day average, max, and sample count for a budget",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "budgets"
+                ],
+                "summary": "Get budget trend",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Budget ID",
+                        "name": "budget_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.BudgetTrendResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
                     },
                     "401": {
                         "description": "Unauthorized",
@@ -1613,6 +2160,304 @@ const docTemplate = `{
                 }
             }
         },
+        "/environments/{env_id}/n1/detect": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Analyze ORM stats and profiler recordings to detect, score, and suggest fixes for N+1 query patterns",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "n1"
+                ],
+                "summary": "Detect N+1 patterns",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp to limit analysis window (default: last 24h)",
+                        "name": "since",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max patterns to return (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.N1DetectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/n1/timeline": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns per-period N+1 detection counts and durations for trend visualization",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "n1"
+                ],
+                "summary": "N+1 timeline",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ISO 8601 start time (default: last 24h)",
+                        "name": "since",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max data points (default 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.N1TimelineResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/profiler/recordings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List profiler recordings for an environment (lightweight, no waterfall)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiler"
+                ],
+                "summary": "List profiler recordings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProfilerRecordingListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/profiler/recordings/slow": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List profiler recordings that exceed the given ms threshold",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiler"
+                ],
+                "summary": "List slow profiler recordings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Duration threshold in milliseconds",
+                        "name": "threshold_ms",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max results (default 20)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProfilerRecordingListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/profiler/recordings/{recording_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a profiler recording with a fully-built waterfall timeline",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiler"
+                ],
+                "summary": "Get profiler recording",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Recording ID",
+                        "name": "recording_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ProfilerRecordingResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/environments/{env_id}/schema": {
             "get": {
                 "security": [
@@ -1777,6 +2622,69 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "acl.StageResult": {
+            "type": "object",
+            "properties": {
+                "detail": {},
+                "reason": {
+                    "type": "string"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "verdict": {
+                    "$ref": "#/definitions/acl.Verdict"
+                }
+            }
+        },
+        "acl.Suggestion": {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "description": "Detail provides the concrete Odoo action (e.g. which menu to open,\nwhich XML ID to add, which field to change).",
+                    "type": "string"
+                },
+                "severity": {
+                    "description": "Severity indicates how disruptive the fix is:\n  \"low\"    = safe, targeted change\n  \"medium\" = broader impact, review recommended\n  \"high\"   = affects many users, proceed with caution",
+                    "type": "string"
+                },
+                "stage": {
+                    "description": "Stage is the pipeline stage that triggered this suggestion.",
+                    "type": "string"
+                },
+                "summary": {
+                    "description": "Summary is a short, human-readable description of the fix.",
+                    "type": "string"
+                }
+            }
+        },
+        "acl.Verdict": {
+            "type": "string",
+            "enum": [
+                "OK",
+                "DENIED",
+                "SKIPPED",
+                "ERROR"
+            ],
+            "x-enum-comments": {
+                "VerdictDenied": "Stage blocked access — pipeline stops.",
+                "VerdictError": "Stage could not be evaluated.",
+                "VerdictOK": "Stage passed — continue pipeline.",
+                "VerdictSkipped": "Stage not applicable (e.g. no rules)."
+            },
+            "x-enum-descriptions": [
+                "Stage passed — continue pipeline.",
+                "Stage blocked access — pipeline stops.",
+                "Stage not applicable (e.g. no rules).",
+                "Stage could not be evaluated."
+            ],
+            "x-enum-varnames": [
+                "VerdictOK",
+                "VerdictDenied",
+                "VerdictSkipped",
+                "VerdictError"
+            ]
+        },
         "api.Error": {
             "type": "object",
             "properties": {
@@ -1935,6 +2843,81 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {}
+            }
+        },
+        "dto.ACLTraceRequest": {
+            "type": "object",
+            "required": [
+                "group_data",
+                "model",
+                "operation",
+                "user_data",
+                "user_id"
+            ],
+            "properties": {
+                "group_data": {
+                    "description": "GroupData is all res.groups records from the agent. Each must have: id, name, implied_ids.",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "model": {
+                    "description": "Model is the Odoo model technical name (e.g. \"sale.order\").",
+                    "type": "string"
+                },
+                "operation": {
+                    "description": "Operation is the CRUD operation to check: read, write, create, unlink.",
+                    "type": "string",
+                    "enum": [
+                        "read",
+                        "write",
+                        "create",
+                        "unlink"
+                    ]
+                },
+                "record_data": {
+                    "description": "RecordData is the optional field values of the target record (for domain eval).\nRequired when record_id \u003e 0. Keys are field names, values are JSON-decoded Odoo values.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "record_id": {
+                    "description": "RecordID is the optional database ID of a specific record to evaluate\ndomain conditions against. If 0, domain evaluation is skipped.",
+                    "type": "integer"
+                },
+                "user_data": {
+                    "description": "UserData is the raw res.users record as fetched from Odoo by the agent.\nMust contain at least: id, login, name, active, groups_id, company_id.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "user_id": {
+                    "description": "UserID is the Odoo uid to trace (e.g. 2 for admin).",
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "dto.ACLTraceResponse": {
+            "type": "object",
+            "properties": {
+                "stages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/acl.StageResult"
+                    }
+                },
+                "suggestions": {
+                    "description": "actionable fix suggestions (only when denied)",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/acl.Suggestion"
+                    }
+                },
+                "verdict": {
+                    "description": "\"ALLOWED\" or \"DENIED\"",
+                    "type": "string"
+                }
             }
         },
         "dto.APIKeyCreatedResponse": {
@@ -2143,6 +3126,120 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.BudgetDetailResponse": {
+            "type": "object",
+            "properties": {
+                "budget": {
+                    "$ref": "#/definitions/dto.BudgetResponse"
+                },
+                "latest_sample": {
+                    "$ref": "#/definitions/dto.BudgetSampleResponse"
+                },
+                "trend": {
+                    "$ref": "#/definitions/dto.BudgetTrendResponse"
+                }
+            }
+        },
+        "dto.BudgetListResponse": {
+            "type": "object",
+            "properties": {
+                "budgets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BudgetResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.BudgetResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "env_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "module": {
+                    "type": "string"
+                },
+                "threshold_pct": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.BudgetSampleListResponse": {
+            "type": "object",
+            "properties": {
+                "samples": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.BudgetSampleResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.BudgetSampleResponse": {
+            "type": "object",
+            "properties": {
+                "breakdown": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "budget_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "module_ms": {
+                    "type": "integer"
+                },
+                "overhead_pct": {
+                    "type": "string"
+                },
+                "sampled_at": {
+                    "type": "string"
+                },
+                "total_ms": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.BudgetTrendResponse": {
+            "type": "object",
+            "properties": {
+                "avg_overhead": {
+                    "type": "number"
+                },
+                "budget_id": {
+                    "type": "string"
+                },
+                "max_overhead": {
+                    "type": "integer"
+                },
+                "sample_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.ChangePasswordRequest": {
             "type": "object",
             "required": [
@@ -2156,6 +3253,135 @@ const docTemplate = `{
                 "new_password": {
                     "type": "string",
                     "minLength": 8
+                }
+            }
+        },
+        "dto.ComputeChain": {
+            "type": "object",
+            "properties": {
+                "edges": {
+                    "description": "Edges are the dependency links between nodes.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ComputeEdge"
+                    }
+                },
+                "nodes": {
+                    "description": "Nodes are the individual computed field evaluations.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ComputeNode"
+                    }
+                },
+                "summary": {
+                    "description": "Summary provides aggregate statistics.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ComputeChainSummary"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.ComputeChainSummary": {
+            "type": "object",
+            "properties": {
+                "bottleneck_count": {
+                    "description": "BottleneckCount is the number of nodes flagged as bottlenecks.",
+                    "type": "integer"
+                },
+                "max_depth": {
+                    "description": "MaxDepth is the deepest dependency chain depth.",
+                    "type": "integer"
+                },
+                "node_count": {
+                    "description": "NodeCount is the number of computed field evaluations.",
+                    "type": "integer"
+                },
+                "slowest_ms": {
+                    "description": "SlowestMS is the duration of the slowest compute node.",
+                    "type": "integer"
+                },
+                "slowest_node": {
+                    "description": "SlowestNode is the ID of the slowest compute node.",
+                    "type": "string"
+                },
+                "total_ms": {
+                    "description": "TotalMS is the total time spent in compute field evaluations.",
+                    "type": "integer"
+                },
+                "trigger_field": {
+                    "description": "TriggerField is the root field write that started the chain.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ComputeEdge": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "description": "From is the source node ID (the field that was written/changed).",
+                    "type": "string"
+                },
+                "to": {
+                    "description": "To is the target node ID (the computed field that was triggered).",
+                    "type": "string"
+                },
+                "trigger_field": {
+                    "description": "TriggerField is the specific field that triggered the recomputation.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ComputeNode": {
+            "type": "object",
+            "properties": {
+                "depends_on": {
+                    "description": "DependsOn lists the field names this computation depends on.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "depth": {
+                    "description": "Depth is the nesting level in the dependency chain (0 = root trigger).",
+                    "type": "integer"
+                },
+                "duration_ms": {
+                    "description": "DurationMS is how long this computation took.",
+                    "type": "integer"
+                },
+                "field_name": {
+                    "description": "FieldName is the computed field (e.g. \"amount_total\").",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is a unique identifier for this node within the chain.",
+                    "type": "string"
+                },
+                "is_bottleneck": {
+                    "description": "IsBottleneck flags nodes that are disproportionately slow.",
+                    "type": "boolean"
+                },
+                "method": {
+                    "description": "Method is the compute method (e.g. \"_compute_amount_total\").",
+                    "type": "string"
+                },
+                "model": {
+                    "description": "Model is the Odoo model (e.g. \"sale.order\").",
+                    "type": "string"
+                },
+                "module": {
+                    "description": "Module is the Odoo module that defines this compute (e.g. \"sale\").",
+                    "type": "string"
+                },
+                "parent_id": {
+                    "description": "ParentID links to the node that triggered this computation.",
+                    "type": "string"
+                },
+                "sql_count": {
+                    "description": "SQLCount is the number of SQL queries executed during this computation.",
+                    "type": "integer"
                 }
             }
         },
@@ -2183,6 +3409,31 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "dto.CreateBudgetRequest": {
+            "type": "object",
+            "required": [
+                "endpoint",
+                "module",
+                "threshold_pct"
+            ],
+            "properties": {
+                "endpoint": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "minLength": 1
+                },
+                "module": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "minLength": 1
+                },
+                "threshold_pct": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 1
                 }
             }
         },
@@ -2482,6 +3733,73 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.FunctionBreakdownResponse": {
+            "type": "object",
+            "properties": {
+                "budget_id": {
+                    "type": "string"
+                },
+                "functions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.FunctionStat"
+                    }
+                },
+                "module_ms": {
+                    "type": "integer"
+                },
+                "orm_count": {
+                    "type": "integer"
+                },
+                "orm_ms": {
+                    "type": "integer"
+                },
+                "overhead_pct": {
+                    "type": "string"
+                },
+                "python_ms": {
+                    "type": "integer"
+                },
+                "sample_id": {
+                    "type": "string"
+                },
+                "sampled_at": {
+                    "type": "string"
+                },
+                "sql_count": {
+                    "type": "integer"
+                },
+                "sql_ms": {
+                    "type": "integer"
+                },
+                "total_ms": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.FunctionStat": {
+            "type": "object",
+            "properties": {
+                "call_count": {
+                    "type": "integer"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "duration_ms": {
+                    "type": "integer"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "pct": {
+                    "type": "number"
+                }
+            }
+        },
         "dto.IngestBatchRequest": {
             "type": "object",
             "required": [
@@ -2621,6 +3939,238 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.N1DetectionResponse": {
+            "type": "object",
+            "properties": {
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.N1Pattern"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/dto.N1Summary"
+                }
+            }
+        },
+        "dto.N1Pattern": {
+            "type": "object",
+            "properties": {
+                "avg_calls_per_window": {
+                    "description": "AvgCallsPerWindow is the average call count per detection window.",
+                    "type": "number"
+                },
+                "first_seen": {
+                    "description": "FirstSeen is the earliest detection window.",
+                    "type": "string"
+                },
+                "impact_score": {
+                    "description": "ImpactScore ranks the pattern: higher = more damaging. Computed as\ntotal_ms × occurrences / 1000 (normalized to seconds of wasted time).",
+                    "type": "number"
+                },
+                "last_seen": {
+                    "description": "LastSeen is the most recent detection window.",
+                    "type": "string"
+                },
+                "method": {
+                    "description": "Method is the ORM method (e.g. \"search_read\").",
+                    "type": "string"
+                },
+                "model": {
+                    "description": "Model is the Odoo model (e.g. \"res.partner\").",
+                    "type": "string"
+                },
+                "occurrences": {
+                    "description": "Occurrences is how many time windows this pattern was detected in.",
+                    "type": "integer"
+                },
+                "peak_calls": {
+                    "description": "PeakCalls is the highest call count seen in a single window.",
+                    "type": "integer"
+                },
+                "peak_ms": {
+                    "description": "PeakMS is the highest duration seen in a single window.",
+                    "type": "integer"
+                },
+                "sample_sql": {
+                    "description": "SampleSQL is a concrete SQL example from the pattern.",
+                    "type": "string"
+                },
+                "severity": {
+                    "description": "Severity categorizes the impact: \"critical\", \"high\", \"medium\", \"low\".",
+                    "type": "string"
+                },
+                "signature": {
+                    "description": "Signature is the normalized SQL signature (literals replaced with ?).",
+                    "type": "string"
+                },
+                "suggestion": {
+                    "description": "Suggestion is an actionable fix recommendation.",
+                    "type": "string"
+                },
+                "total_calls": {
+                    "description": "TotalCalls is the cumulative call count across all detected windows.",
+                    "type": "integer"
+                },
+                "total_ms": {
+                    "description": "TotalMS is the cumulative duration in milliseconds.",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.N1Summary": {
+            "type": "object",
+            "properties": {
+                "critical_count": {
+                    "description": "CriticalCount is patterns with severity \"critical\".",
+                    "type": "integer"
+                },
+                "high_count": {
+                    "description": "HighCount is patterns with severity \"high\".",
+                    "type": "integer"
+                },
+                "top_method": {
+                    "description": "TopMethod is the method with the most N+1 impact.",
+                    "type": "string"
+                },
+                "top_model": {
+                    "description": "TopModel is the model with the most N+1 impact.",
+                    "type": "string"
+                },
+                "total_patterns": {
+                    "description": "TotalPatterns is the number of distinct model:method patterns.",
+                    "type": "integer"
+                },
+                "total_wasted_ms": {
+                    "description": "TotalWastedMS is the cumulative time spent in N+1 queries.",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.N1TimelinePoint": {
+            "type": "object",
+            "properties": {
+                "pattern_count": {
+                    "type": "integer"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "total_calls": {
+                    "type": "integer"
+                },
+                "total_ms": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.N1TimelineResponse": {
+            "type": "object",
+            "properties": {
+                "points": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.N1TimelinePoint"
+                    }
+                }
+            }
+        },
+        "dto.ProfilerRecordingListItem": {
+            "type": "object",
+            "properties": {
+                "endpoint": {
+                    "type": "string"
+                },
+                "env_id": {
+                    "type": "string"
+                },
+                "has_compute_chain": {
+                    "type": "boolean"
+                },
+                "has_n1": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "python_ms": {
+                    "type": "integer"
+                },
+                "recorded_at": {
+                    "type": "string"
+                },
+                "sql_count": {
+                    "type": "integer"
+                },
+                "sql_ms": {
+                    "type": "integer"
+                },
+                "total_ms": {
+                    "type": "integer"
+                },
+                "triggered_by": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ProfilerRecordingListResponse": {
+            "type": "object",
+            "properties": {
+                "recordings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ProfilerRecordingListItem"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ProfilerRecordingResponse": {
+            "type": "object",
+            "properties": {
+                "compute_chain": {
+                    "$ref": "#/definitions/dto.ComputeChain"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "env_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "python_ms": {
+                    "type": "integer"
+                },
+                "recorded_at": {
+                    "type": "string"
+                },
+                "sql_count": {
+                    "type": "integer"
+                },
+                "sql_ms": {
+                    "type": "integer"
+                },
+                "total_ms": {
+                    "type": "integer"
+                },
+                "triggered_by": {
+                    "type": "string"
+                },
+                "waterfall": {
+                    "$ref": "#/definitions/dto.Waterfall"
+                }
+            }
+        },
         "dto.RefreshTokenRequest": {
             "type": "object",
             "required": [
@@ -2663,12 +4213,17 @@ const docTemplate = `{
         "dto.RegisterRequest": {
             "type": "object",
             "required": [
+                "confirm_password",
                 "email",
                 "password",
                 "tenant_name",
                 "tenant_slug"
             ],
             "properties": {
+                "confirm_password": {
+                    "type": "string",
+                    "minLength": 8
+                },
                 "email": {
                     "type": "string"
                 },
@@ -2695,10 +4250,15 @@ const docTemplate = `{
         "dto.ResetPasswordRequest": {
             "type": "object",
             "required": [
+                "confirm_new_password",
                 "new_password",
                 "token"
             ],
             "properties": {
+                "confirm_new_password": {
+                    "type": "string",
+                    "minLength": 8
+                },
                 "new_password": {
                     "type": "string",
                     "minLength": 8
@@ -2937,6 +4497,23 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.UpdateBudgetRequest": {
+            "type": "object",
+            "required": [
+                "is_active",
+                "threshold_pct"
+            ],
+            "properties": {
+                "is_active": {
+                    "type": "boolean"
+                },
+                "threshold_pct": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 1
+                }
+            }
+        },
         "dto.UpdateEnvironmentRequest": {
             "type": "object",
             "properties": {
@@ -3061,11 +4638,147 @@ const docTemplate = `{
         "dto.VerifyEmailRequest": {
             "type": "object",
             "required": [
-                "token"
+                "code",
+                "email"
             ],
             "properties": {
-                "token": {
+                "code": {
                     "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.Waterfall": {
+            "type": "object",
+            "properties": {
+                "lanes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.WaterfallLane"
+                    }
+                },
+                "spans": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.WaterfallSpan"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/dto.WaterfallSummary"
+                }
+            }
+        },
+        "dto.WaterfallLane": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "pct": {
+                    "type": "number"
+                },
+                "total_ms": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.WaterfallSpan": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "description": "Category classifies the span: \"sql\", \"orm\", \"python\", \"rpc\", \"http\".",
+                    "type": "string"
+                },
+                "depth": {
+                    "description": "Depth is the nesting level (0 = top-level).",
+                    "type": "integer"
+                },
+                "duration_ms": {
+                    "description": "DurationMS is the span duration in milliseconds.",
+                    "type": "integer"
+                },
+                "id": {
+                    "description": "ID is a unique identifier for this span within the waterfall.",
+                    "type": "string"
+                },
+                "is_error": {
+                    "description": "IsError flags spans that resulted in an error.",
+                    "type": "boolean"
+                },
+                "is_n1": {
+                    "description": "IsN1 flags spans that are part of an N+1 pattern.",
+                    "type": "boolean"
+                },
+                "label": {
+                    "description": "Label is a human-readable description (e.g. \"res.partner.search_read\").",
+                    "type": "string"
+                },
+                "method": {
+                    "description": "Method is the ORM method name (optional).",
+                    "type": "string"
+                },
+                "model": {
+                    "description": "Model is the Odoo model involved (optional).",
+                    "type": "string"
+                },
+                "module": {
+                    "description": "Module is the Odoo module that originated this span (optional).",
+                    "type": "string"
+                },
+                "parent_id": {
+                    "description": "ParentID links child spans to their parent (e.g. ORM → SQL).",
+                    "type": "string"
+                },
+                "sql": {
+                    "description": "SQL is the query text for SQL spans (optional, truncated).",
+                    "type": "string"
+                },
+                "start_ms": {
+                    "description": "StartMS is the offset from the recording start in milliseconds.",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.WaterfallSummary": {
+            "type": "object",
+            "properties": {
+                "critical_sql": {
+                    "type": "string"
+                },
+                "error_count": {
+                    "type": "integer"
+                },
+                "n1_count": {
+                    "type": "integer"
+                },
+                "n1_ms": {
+                    "type": "integer"
+                },
+                "orm_count": {
+                    "type": "integer"
+                },
+                "orm_ms": {
+                    "type": "integer"
+                },
+                "python_ms": {
+                    "type": "integer"
+                },
+                "span_count": {
+                    "type": "integer"
+                },
+                "sql_count": {
+                    "type": "integer"
+                },
+                "sql_ms": {
+                    "type": "integer"
+                },
+                "total_ms": {
+                    "type": "integer"
                 }
             }
         }

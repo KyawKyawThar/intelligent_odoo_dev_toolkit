@@ -78,6 +78,11 @@ FROM perf_budget_samples
 WHERE budget_id = $1
   AND sampled_at > now() - interval '7 days';
 
+-- name: GetBudgetSampleByID :one
+SELECT * FROM perf_budget_samples
+WHERE id = $1 AND budget_id = $2
+LIMIT 1;
+
 -- name: DeleteOldBudgetSamples :execresult
 DELETE FROM perf_budget_samples
 WHERE budget_id IN (

@@ -42,6 +42,20 @@ type Event struct {
 
 	// Timestamp is when the event was captured.
 	Timestamp time.Time `json:"timestamp"`
+
+	// FieldName is the Odoo field being computed (e.g. "amount_total").
+	// Only set for compute-category events.
+	FieldName string `json:"field_name,omitempty"`
+
+	// IsCompute is true when this event represents a computed field evaluation.
+	IsCompute bool `json:"is_compute,omitempty"`
+
+	// DependsOn lists the fields that triggered this computation
+	// (from @api.depends decorator).
+	DependsOn []string `json:"depends_on,omitempty"`
+
+	// TriggerField is the field whose write triggered this recomputation chain.
+	TriggerField string `json:"trigger_field,omitempty"`
 }
 
 // ORMModelStat holds aggregated statistics for one model:method combination

@@ -62,6 +62,15 @@ SET
     acknowledged_at = now()
 WHERE env_id = $1 AND acknowledged = false;
 
+-- name: HasRecentAlert :one
+SELECT EXISTS (
+    SELECT 1 FROM alerts
+    WHERE env_id = $1
+      AND type = $2
+      AND metadata @> $3::jsonb
+      AND created_at > now() - make_interval(mins => $4::int)
+) AS exists;
+
 -- name: DeleteOldAlerts :execresult
 DELETE FROM alerts
 WHERE env_id IN (

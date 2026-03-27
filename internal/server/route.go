@@ -190,35 +190,72 @@ func (s *Server) registerEnvironmentRoutes(r chi.Router) {
 			r.Patch("/", s.handler.Environment.HandleUpdate)
 			r.Delete("/", s.handler.Environment.HandleDelete)
 
-			// Feature flags (admin push to connected agent)
-			if s.handler.Ws != nil {
-				r.Put("/flags", s.handler.Ws.HandleUpdateFlags)
-			}
-
-			if s.handler.Schema != nil {
-				r.Route("/errors", func(r chi.Router) {
-					r.Get("/", s.handler.Error.HandleListErrors)
-					r.Get("/{error_id}", s.handler.Error.HandleGetErrorGroup)
-				})
-
-				r.Route("/schema", func(r chi.Router) {
-					r.Get("/", s.handler.Schema.HandleList)
-					r.Get("/latest", s.handler.Schema.HandleGetLatest)
-					r.Get("/models", s.handler.Schema.HandleSearchModels)
-				})
-			}
-
-			r.Post("/agent", s.handler.Environment.HandleRegisterAgent)
-
-			if s.handler.APIKey != nil {
-				r.Route("/api-keys", func(r chi.Router) {
-					r.Post("/", s.handler.APIKey.HandleCreate)
-					r.Get("/", s.handler.APIKey.HandleList)
-					r.Delete("/{key_id}", s.handler.APIKey.HandleRevoke)
-				})
-			}
+			s.registerEnvSubRoutes(r)
 		})
 	})
+}
+
+// registerEnvSubRoutes mounts feature-specific sub-routes under /{env_id}.
+func (s *Server) registerEnvSubRoutes(r chi.Router) {
+	if s.handler.Ws != nil {
+		r.Put("/flags", s.handler.Ws.HandleUpdateFlags)
+	}
+
+	if s.handler.Schema != nil {
+		r.Route("/errors", func(r chi.Router) {
+			r.Get("/", s.handler.Error.HandleListErrors)
+			r.Get("/{error_id}", s.handler.Error.HandleGetErrorGroup)
+		})
+		r.Route("/schema", func(r chi.Router) {
+			r.Get("/", s.handler.Schema.HandleList)
+			r.Get("/latest", s.handler.Schema.HandleGetLatest)
+			r.Get("/models", s.handler.Schema.HandleSearchModels)
+		})
+	}
+
+	if s.handler.ACL != nil {
+		r.Post("/acl/trace", s.handler.ACL.HandleTraceAccess)
+	}
+
+	if s.handler.Profiler != nil {
+		r.Route("/profiler/recordings", func(r chi.Router) {
+			r.Get("/", s.handler.Profiler.HandleListRecordings)
+			r.Get("/slow", s.handler.Profiler.HandleListSlowRecordings)
+			r.Get("/{recording_id}", s.handler.Profiler.HandleGetRecording)
+		})
+	}
+
+	if s.handler.N1 != nil {
+		r.Route("/n1", func(r chi.Router) {
+			r.Get("/detect", s.handler.N1.HandleDetect)
+			r.Get("/timeline", s.handler.N1.HandleTimeline)
+		})
+	}
+
+	if s.handler.Budget != nil {
+		r.Route("/budgets", func(r chi.Router) {
+			r.Post("/", s.handler.Budget.HandleCreate)
+			r.Get("/", s.handler.Budget.HandleList)
+			r.Route("/{budget_id}", func(r chi.Router) {
+				r.Get("/", s.handler.Budget.HandleGet)
+				r.Patch("/", s.handler.Budget.HandleUpdate)
+				r.Delete("/", s.handler.Budget.HandleDelete)
+				r.Get("/samples", s.handler.Budget.HandleListSamples)
+				r.Get("/samples/{sample_id}/breakdown", s.handler.Budget.HandleGetBreakdown)
+				r.Get("/trend", s.handler.Budget.HandleGetTrend)
+			})
+		})
+	}
+
+	r.Post("/agent", s.handler.Environment.HandleRegisterAgent)
+
+	if s.handler.APIKey != nil {
+		r.Route("/api-keys", func(r chi.Router) {
+			r.Post("/", s.handler.APIKey.HandleCreate)
+			r.Get("/", s.handler.APIKey.HandleList)
+			r.Delete("/{key_id}", s.handler.APIKey.HandleRevoke)
+		})
+	}
 }
 
 func (s *Server) setupAgentPublicRoutes(r chi.Router) {

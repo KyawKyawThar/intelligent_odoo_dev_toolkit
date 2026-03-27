@@ -266,14 +266,14 @@ func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Reques
 // POST /api/v1/auth/verify-email
 // ---------------------------------------------------------------------------
 
-// HandleVerifyEmail consumes the one-time Redis verification token and marks
-// the user's email as verified in the database.
+// HandleVerifyEmail validates the 6-digit verification code sent to the user's
+// email and marks the email as verified in the database.
 // @Summary      Verify email
-// @Description  Consumes the one-time Redis verification token and marks the user's email as verified in the database.
+// @Description  Validates the 6-digit verification code and marks the user's email as verified.
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param        request body dto.VerifyEmailRequest true "Verification token"
+// @Param        request body dto.VerifyEmailRequest true "Email and 6-digit verification code"
 // @Success      200  {object}  map[string]string
 // @Failure      400  {object}  api.Error
 // @Failure      500  {object}  api.Error

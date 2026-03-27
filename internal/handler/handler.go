@@ -29,9 +29,12 @@ type Handlers struct {
 	APIKey        *APIKeyHandler
 	Batch         *BatchHandler
 	AgentRegister *AgentRegisterHandler
+	ACL           *ACLHandler
+	Profiler      *ProfilerHandler
+	N1            *N1Handler
+	Budget        *BudgetHandler
 
 	// Future handlers:
-	// Profiler    *ProfilerHandler
 	// Alert       *AlertHandler
 	// Tenant *TenantHandler
 	// User   *UserHandler
@@ -79,6 +82,22 @@ func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Log
 	if !ok {
 		panic("invalid agent register service type")
 	}
+	aclSvc, ok := services.ACL.(*service.ACLService)
+	if !ok {
+		panic("invalid acl service type")
+	}
+	profilerSvc, ok := services.Profiler.(*service.ProfilerService)
+	if !ok {
+		panic("invalid profiler service type")
+	}
+	n1Svc, ok := services.N1.(*service.N1Service)
+	if !ok {
+		panic("invalid n1 service type")
+	}
+	budgetSvc, ok := services.Budget.(*service.BudgetService)
+	if !ok {
+		panic("invalid budget service type")
+	}
 
 	h := &Handlers{
 		Auth:          NewAuthHandler(authSvc, base),
@@ -88,6 +107,10 @@ func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Log
 		APIKey:        NewAPIKeyHandler(apiKeySvc, base),
 		Ws:            NewWsHandler(base, store),
 		AgentRegister: NewAgentRegisterHandler(agentRegSvc, base),
+		ACL:           NewACLHandler(aclSvc, base),
+		Profiler:      NewProfilerHandler(profilerSvc, base),
+		N1:            NewN1Handler(n1Svc, base),
+		Budget:        NewBudgetHandler(budgetSvc, base),
 	}
 
 	// Wire up stream-based handlers when Redis is available.
@@ -258,6 +281,28 @@ func ParseQueryInt32(r *http.Request, key string, defaultVal int32) int32 {
 		return defaultVal
 	}
 	return int32(v)
+}
+
+// MustTenantAndEnvID extracts both the tenant ID (from context) and the env_id
+// path parameter. Returns false and writes an error if either fails.
+func (h *BaseHandler) MustTenantAndEnvID(w http.ResponseWriter, r *http.Request) (tenantID, envID uuid.UUID, ok bool) {
+	tenantID, ok = h.MustTenantID(w, r)
+	if !ok {
+		return
+	}
+	envID, ok = h.MustUUIDParam(w, r, "env_id")
+	return
+}
+
+// MustTenantEnvAndExtraID extracts tenant ID, env_id, and one additional UUID
+// path parameter. Returns false and writes an error if any fails.
+func (h *BaseHandler) MustTenantEnvAndExtraID(w http.ResponseWriter, r *http.Request, param string) (tenantID, envID, extraID uuid.UUID, ok bool) {
+	tenantID, envID, ok = h.MustTenantAndEnvID(w, r)
+	if !ok {
+		return
+	}
+	extraID, ok = h.MustUUIDParam(w, r, param)
+	return
 }
 
 // MustUUIDParam extracts a UUID path parameter. Returns false and writes an

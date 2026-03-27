@@ -4,8 +4,10 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/token"
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 // AuthServicer defines the contract for authentication operations.
@@ -55,6 +57,37 @@ type APIKeyServicer interface {
 // AgentRegisterServicer handles agent self-registration with one-time tokens.
 type AgentRegisterServicer interface {
 	SelfRegister(ctx context.Context, req *dto.AgentSelfRegisterRequest) (*dto.AgentSelfRegisterResponse, error)
+}
+
+// ACLServicer defines the contract for the ACL debugger pipeline.
+type ACLServicer interface {
+	TraceAccess(ctx context.Context, tenantID, envID uuid.UUID, req *dto.ACLTraceRequest) (*dto.ACLTraceResponse, error)
+}
+
+// N1Servicer defines the business operations for N+1 detection and analysis.
+type N1Servicer interface {
+	Detect(ctx context.Context, tenantID, envID uuid.UUID, req *dto.N1DetectionRequest) (*dto.N1DetectionResponse, error)
+	GetTimeline(ctx context.Context, tenantID, envID uuid.UUID, since time.Time, limit int32) ([]dto.N1TimelinePoint, error)
+}
+
+// ProfilerServicer defines the business operations for profiler recordings.
+type ProfilerServicer interface {
+	GetRecording(ctx context.Context, tenantID, envID, recordingID uuid.UUID) (*dto.ProfilerRecordingResponse, error)
+	ListRecordings(ctx context.Context, tenantID, envID uuid.UUID, req *dto.ListProfilerRecordingsRequest) (*dto.ProfilerRecordingListResponse, error)
+	ListSlowRecordings(ctx context.Context, tenantID, envID uuid.UUID, req *dto.ListSlowRecordingsRequest) (*dto.ProfilerRecordingListResponse, error)
+}
+
+// BudgetServicer defines the business operations for performance budgets.
+type BudgetServicer interface {
+	Create(ctx context.Context, tenantID, envID uuid.UUID, req *dto.CreateBudgetRequest) (*dto.BudgetResponse, error)
+	GetByID(ctx context.Context, tenantID, envID, budgetID uuid.UUID) (*dto.BudgetDetailResponse, error)
+	List(ctx context.Context, tenantID, envID uuid.UUID, includeInactive bool) (*dto.BudgetListResponse, error)
+	Update(ctx context.Context, tenantID, envID, budgetID uuid.UUID, req *dto.UpdateBudgetRequest) (*dto.BudgetResponse, error)
+	Delete(ctx context.Context, tenantID, envID, budgetID uuid.UUID) error
+	ListSamples(ctx context.Context, tenantID, envID, budgetID uuid.UUID, limit int32) (*dto.BudgetSampleListResponse, error)
+	GetTrend(ctx context.Context, tenantID, envID, budgetID uuid.UUID) (*dto.BudgetTrendResponse, error)
+	GetBreakdown(ctx context.Context, tenantID, envID, budgetID, sampleID uuid.UUID) (*dto.FunctionBreakdownResponse, error)
+	CalculateOverhead(ctx context.Context, envID uuid.UUID, events []ProfilerEvent, logger zerolog.Logger) (*OverheadResult, error)
 }
 
 // SchemaServicer defines the business operations for schema snapshots.

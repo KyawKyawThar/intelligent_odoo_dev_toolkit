@@ -20,10 +20,28 @@ import (
 	"github.com/google/uuid"
 )
 
+// mapRegisterUniqueViolation inspects a unique-violation error from the
+// registration transaction and returns a user-friendly API error.
+func mapRegisterUniqueViolation(err error) error {
+	pgAPIErr := api.FromPgError(err)
+	for _, d := range pgAPIErr.Details {
+		if d.Field == "slug" {
+			return api.ErrSlugAlreadyExists()
+		}
+		if d.Field == "email" {
+			return api.ErrEmailAlreadyExists()
+		}
+	}
+	return api.ErrSlugAlreadyExists() // safe fallback (tenant is step 1)
+}
+
 func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, ipAddress, userAgent string) (*dto.RegisterResponse, error) {
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	slug := strings.ToLower(strings.TrimSpace(req.TenantSlug))
+	if req.Password != req.ConfirmPassword {
+		return nil, api.ErrValidation("Password and confirm password do not match")
+	}
 	if err := utils.ValidatePassword(req.Password, s.config.PasswordMinLength); err != nil {
 		return nil, api.ErrValidation(err.Error())
 	}
@@ -43,18 +61,7 @@ func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, ip
 
 	if err != nil {
 		if api.IsUniqueViolation(err) {
-			// The DB tx creates tenant first (slug), then user (email).
-			// We check the error detail field returned by api.FromPgError.
-			pgAPIErr := api.FromPgError(err)
-			for _, d := range pgAPIErr.Details {
-				if d.Field == "slug" {
-					return nil, api.ErrSlugAlreadyExists()
-				}
-				if d.Field == "email" {
-					return nil, api.ErrEmailAlreadyExists()
-				}
-			}
-			return nil, api.ErrSlugAlreadyExists() // safe fallback (tenant is step 1)
+			return nil, mapRegisterUniqueViolation(err)
 		}
 		return nil, api.FromPgError(err)
 	}
@@ -318,6 +325,10 @@ func (s *AuthService) ForgotPassword(ctx context.Context, req *dto.ForgotPasswor
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, req *dto.ResetPasswordRequest) error {
+	if req.NewPassword != req.ConfirmNewPassword {
+		return api.ErrValidation("Password and confirm password do not match")
+	}
+
 	resetToken, err := s.cache.GetResetToken(ctx, req.Token)
 	if err != nil || resetToken == nil {
 		return api.ErrInvalidToken("Invalid or expired password reset token")
@@ -414,9 +425,15 @@ func (s *AuthService) ChangePassword(
 }
 
 func (s *AuthService) VerifyEmail(ctx context.Context, req *dto.VerifyEmailRequest) error {
-	verifyToken, err := s.cache.GetVerifyEmailToken(ctx, req.Token)
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	verifyToken, err := s.cache.GetVerifyEmailToken(ctx, email)
 	if err != nil || verifyToken == nil {
-		return api.ErrInvalidToken("Invalid or expired email verification token")
+		return api.ErrInvalidToken("Invalid or expired verification code")
+	}
+
+	if verifyToken.Code != req.Code {
+		return api.ErrValidation("Incorrect verification code")
 	}
 
 	userID, err := uuid.Parse(verifyToken.UserID)
@@ -442,7 +459,7 @@ func (s *AuthService) VerifyEmail(ctx context.Context, req *dto.VerifyEmailReque
 	}
 
 	// One-time use — always delete
-	s.cache.DeleteVerifyEmailToken(ctx, req.Token) //nolint:errcheck // One-time token, we don't care about the result
+	s.cache.DeleteVerifyEmailToken(ctx, email) //nolint:errcheck // One-time code, we don't care about the result
 	return nil
 }
 

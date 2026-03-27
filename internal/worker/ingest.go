@@ -9,6 +9,7 @@ import (
 
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/agent/aggregator"
+	"Intelligent_Dev_ToolKit_Odoo/internal/service"
 	"Intelligent_Dev_ToolKit_Odoo/internal/storage"
 
 	"bytes"
@@ -23,12 +24,14 @@ import (
 //  1. Upserts error groups into PostgreSQL (metadata only)
 //  2. Stores raw tracebacks in S3 (full traceback data)
 //  3. Stores ORM stats in PostgreSQL
+//  4. Computes module overhead and inserts budget samples
 type IngestWorker struct {
-	store  db.Store
-	s3     *storage.S3Client
-	rdb    *redis.Client
-	config IngestConfig
-	logger zerolog.Logger
+	store     db.Store
+	s3        *storage.S3Client
+	rdb       *redis.Client
+	budgetSvc service.BudgetServicer
+	config    IngestConfig
+	logger    zerolog.Logger
 }
 
 // IngestConfig holds worker-specific configuration.
@@ -36,6 +39,9 @@ type IngestConfig struct {
 	Consumer ConsumerConfig
 	// WorkerCount is how many parallel consumer goroutines to run (default: 2).
 	WorkerCount int
+	// AlertStream is the Redis stream key for publishing threshold breaches
+	// (default: "agent:alert"). Empty string disables alert publishing.
+	AlertStream string
 }
 
 // DefaultIngestConfig returns sensible defaults.
@@ -51,6 +57,7 @@ func NewIngestWorker(
 	store db.Store,
 	s3Client *storage.S3Client,
 	rdb *redis.Client,
+	budgetSvc service.BudgetServicer,
 	cfg IngestConfig,
 	logger zerolog.Logger,
 ) *IngestWorker {
@@ -58,11 +65,12 @@ func NewIngestWorker(
 		cfg.WorkerCount = 2
 	}
 	return &IngestWorker{
-		store:  store,
-		s3:     s3Client,
-		rdb:    rdb,
-		config: cfg,
-		logger: logger.With().Str("component", "ingest-worker").Logger(),
+		store:     store,
+		s3:        s3Client,
+		rdb:       rdb,
+		budgetSvc: budgetSvc,
+		config:    cfg,
+		logger:    logger.With().Str("component", "ingest-worker").Logger(),
 	}
 }
 
@@ -112,7 +120,26 @@ func (w *IngestWorker) processMessage(ctx context.Context, tenantID, data string
 		return fmt.Errorf("invalid env_id %q: %w", batch.EnvID, err)
 	}
 
-	// 1. Process raw error events → upsert error_groups + store tracebacks in S3.
+	errCount := w.processErrorEvents(ctx, tid, envID, &batch)
+	ormCount := w.processORMStats(ctx, envID, &batch)
+
+	profilerEvents := extractProfilerEvents(&batch)
+	profilerCount := w.processProfilerEvents(ctx, envID, &batch, profilerEvents)
+	budgetSamples := w.processBudgetAndAlerts(ctx, tenantID, envID, &batch, profilerEvents)
+
+	w.logger.Info().
+		Str("env_id", batch.EnvID).
+		Int("errors_processed", errCount).
+		Int("orm_stats_stored", ormCount).
+		Int("profiler_events", profilerCount).
+		Int("budget_samples", budgetSamples).
+		Int("total_queries", batch.Summary.TotalQueries).
+		Msg("batch processed")
+
+	return nil
+}
+
+func (w *IngestWorker) processErrorEvents(ctx context.Context, tid, envID uuid.UUID, batch *aggregator.AggregatedBatch) int {
 	errCount := 0
 	for i := range batch.RawEvents {
 		ev := &batch.RawEvents[i]
@@ -128,12 +155,14 @@ func (w *IngestWorker) processMessage(ctx context.Context, tenantID, data string
 		}
 		errCount++
 	}
+	return errCount
+}
 
-	// 2. Store ORM stats in PostgreSQL.
+func (w *IngestWorker) processORMStats(ctx context.Context, envID uuid.UUID, batch *aggregator.AggregatedBatch) int {
 	ormCount := 0
 	for i := range batch.ORMStats {
 		stat := &batch.ORMStats[i]
-		if err := w.storeORMStat(ctx, envID, &batch, stat); err != nil {
+		if err := w.storeORMStat(ctx, envID, batch, stat); err != nil {
 			w.logger.Error().Err(err).
 				Str("model", stat.Model).
 				Str("method", stat.Method).
@@ -142,15 +171,65 @@ func (w *IngestWorker) processMessage(ctx context.Context, tenantID, data string
 		}
 		ormCount++
 	}
+	return ormCount
+}
 
-	w.logger.Info().
-		Str("env_id", batch.EnvID).
-		Int("errors_processed", errCount).
-		Int("orm_stats_stored", ormCount).
-		Int("total_queries", batch.Summary.TotalQueries).
-		Msg("batch processed")
+func (w *IngestWorker) processProfilerEvents(ctx context.Context, envID uuid.UUID, batch *aggregator.AggregatedBatch, profilerEvents []service.ProfilerEvent) int {
+	if len(profilerEvents) == 0 {
+		return 0
+	}
+	if err := w.processProfilerEventsFromSlice(ctx, envID, batch, profilerEvents); err != nil {
+		w.logger.Error().Err(err).
+			Str("env_id", batch.EnvID).
+			Msg("failed to process profiler events")
+		return 0
+	}
+	return len(profilerEvents)
+}
 
-	return nil
+func (w *IngestWorker) processBudgetAndAlerts(ctx context.Context, tenantID string, envID uuid.UUID, batch *aggregator.AggregatedBatch, profilerEvents []service.ProfilerEvent) int {
+	if w.budgetSvc == nil || len(profilerEvents) == 0 {
+		return 0
+	}
+
+	result, err := w.budgetSvc.CalculateOverhead(ctx, envID, profilerEvents, w.logger)
+	if err != nil {
+		w.logger.Error().Err(err).
+			Str("env_id", batch.EnvID).
+			Msg("failed to calculate overhead")
+		return 0
+	}
+
+	w.publishThresholdBreaches(ctx, tenantID, batch.EnvID, result.Breaches)
+
+	return result.SamplesInserted
+}
+
+func (w *IngestWorker) publishThresholdBreaches(ctx context.Context, tenantID, envID string, breaches []service.OverheadBreach) {
+	if w.rdb == nil || w.config.AlertStream == "" || len(breaches) == 0 {
+		return
+	}
+
+	for _, b := range breaches {
+		breach := ThresholdBreach{
+			TenantID:     tenantID,
+			EnvID:        envID,
+			BudgetID:     b.BudgetID.String(),
+			Module:       b.Module,
+			Endpoint:     b.Endpoint,
+			OverheadPct:  b.OverheadPct,
+			ThresholdPct: b.ThresholdPct,
+			TotalMS:      b.TotalMS,
+			ModuleMS:     b.ModuleMS,
+			Breakdown:    b.Breakdown,
+		}
+		if err := PublishThresholdBreach(ctx, w.rdb, w.config.AlertStream, breach); err != nil {
+			w.logger.Error().Err(err).
+				Str("module", b.Module).
+				Float64("overhead_pct", b.OverheadPct).
+				Msg("failed to publish threshold breach")
+		}
+	}
 }
 
 // processErrorEvent upserts an error group in the DB and stores the raw
@@ -297,6 +376,76 @@ func errorSignature(ev *aggregator.Event) string {
 		sig += ":" + ev.Method
 	}
 	return sig
+}
+
+// extractProfilerEvents pulls profiler/orm/sql events from the batch into
+// service.ProfilerEvent slice for reuse by both waterfall building and
+// overhead calculation.
+func extractProfilerEvents(batch *aggregator.AggregatedBatch) []service.ProfilerEvent {
+	var events []service.ProfilerEvent
+	for i := range batch.RawEvents {
+		ev := &batch.RawEvents[i]
+		if ev.Category == "profiler" || ev.Category == "orm" || ev.Category == "sql" {
+			events = append(events, service.ProfilerEvent{
+				Category:     ev.Category,
+				Model:        ev.Model,
+				Method:       ev.Method,
+				DurationMS:   ev.DurationMS,
+				IsError:      ev.IsError,
+				IsN1:         ev.IsN1,
+				SQL:          ev.SQL,
+				Module:       ev.Module,
+				Traceback:    ev.Traceback,
+				UserID:       ev.UserID,
+				Timestamp:    ev.Timestamp,
+				FieldName:    ev.FieldName,
+				IsCompute:    ev.IsCompute,
+				DependsOn:    ev.DependsOn,
+				TriggerField: ev.TriggerField,
+			})
+		}
+	}
+	return events
+}
+
+// processProfilerEventsFromSlice builds a waterfall and stores a profiler
+// recording from pre-extracted profiler events.
+func (w *IngestWorker) processProfilerEventsFromSlice(
+	ctx context.Context,
+	envID uuid.UUID,
+	batch *aggregator.AggregatedBatch,
+	profilerEvents []service.ProfilerEvent,
+) error {
+	waterfallJSON, n1JSON, meta := service.BuildWaterfallFromEvents(profilerEvents)
+	computeChainJSON := service.BuildComputeChainFromEvents(profilerEvents)
+
+	totalMS := int32(meta.TotalMS) //nolint:gosec // profiler durations fit int32
+	if totalMS == 0 {
+		totalMS = int32(batch.Summary.TotalDurationMS) //nolint:gosec // batch durations fit int32
+	}
+
+	sqlCount := int32(meta.SQLCount) //nolint:gosec // count fits int32
+	sqlMS := int32(meta.SQLMS)       //nolint:gosec // duration fits int32
+	pythonMS := int32(meta.PythonMS) //nolint:gosec // duration fits int32
+
+	name := fmt.Sprintf("batch-%s", batch.Period.UTC().Format("20060102T150405Z"))
+
+	_, err := w.store.CreateProfilerRecording(ctx, db.CreateProfilerRecordingParams{
+		EnvID:        envID,
+		Name:         name,
+		TotalMs:      totalMS,
+		SqlCount:     &sqlCount,
+		SqlMs:        &sqlMS,
+		PythonMs:     &pythonMS,
+		Waterfall:    waterfallJSON,
+		ComputeChain: computeChainJSON,
+		N1Patterns:   n1JSON,
+	})
+	if err != nil {
+		return fmt.Errorf("create profiler recording: %w", err)
+	}
+
+	return nil
 }
 
 // gzipJSON marshals v to JSON and gzip-compresses it.
