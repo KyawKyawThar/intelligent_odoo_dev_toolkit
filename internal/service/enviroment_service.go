@@ -220,6 +220,54 @@ func (s *EnvironmentService) RegisterAgent(ctx context.Context, tenantID, envID 
 	}, nil
 }
 
+func (s *EnvironmentService) GetLatestHeartbeat(ctx context.Context, tenantID, envID uuid.UUID) (*dto.HeartbeatResponse, error) {
+	// Verify environment belongs to tenant.
+	if _, err := s.store.GetEnvironmentByID(ctx, db.GetEnvironmentByIDParams{
+		ID:       envID,
+		TenantID: tenantID,
+	}); err != nil {
+		return nil, api.ErrNotFound("environment")
+	}
+
+	hb, err := s.store.GetLatestHeartbeat(ctx, envID)
+	if err != nil {
+		return nil, api.NewError(api.ErrCodeNotFound, "no heartbeats found", http.StatusNotFound)
+	}
+
+	return dto.ToHeartbeatResponse(&hb), nil
+}
+
+func (s *EnvironmentService) ListHeartbeats(ctx context.Context, tenantID, envID uuid.UUID, limit int32) (*dto.HeartbeatListResponse, error) {
+	// Verify environment belongs to tenant.
+	if _, err := s.store.GetEnvironmentByID(ctx, db.GetEnvironmentByIDParams{
+		ID:       envID,
+		TenantID: tenantID,
+	}); err != nil {
+		return nil, api.ErrNotFound("environment")
+	}
+
+	if limit <= 0 {
+		limit = 20
+	}
+
+	hbs, err := s.store.ListHeartbeats(ctx, db.ListHeartbeatsParams{
+		EnvID: envID,
+		Limit: limit,
+	})
+	if err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	resp := &dto.HeartbeatListResponse{
+		Heartbeats: make([]dto.HeartbeatResponse, 0, len(hbs)),
+		Total:      len(hbs),
+	}
+	for i := range hbs {
+		resp.Heartbeats = append(resp.Heartbeats, *dto.ToHeartbeatResponse(&hbs[i]))
+	}
+	return resp, nil
+}
+
 func (s *EnvironmentService) Delete(ctx context.Context, tenantID, envID uuid.UUID) error {
 	rows, err := s.store.DeleteEnvironment(ctx, db.DeleteEnvironmentParams{
 		ID:       envID,

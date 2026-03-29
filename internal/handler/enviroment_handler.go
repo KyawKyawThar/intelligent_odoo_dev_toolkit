@@ -5,6 +5,7 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
 	"context"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 )
@@ -218,6 +219,80 @@ func (h *EnvironmentHandler) HandleRegisterAgent(w http.ResponseWriter, r *http.
 	}
 
 	resp, err := h.svc.RegisterAgent(r.Context(), tenantID, envID, nil)
+	if err != nil {
+		h.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, resp)
+}
+
+// =============================================================================
+// GET /api/v1/environments/{env_id}/heartbeats
+// =============================================================================
+
+// HandleGetLatestHeartbeat returns the most recent heartbeat for an environment.
+//
+//	@Summary      Get latest heartbeat
+//	@Description  Get the latest agent heartbeat for an environment
+//	@Tags         environments
+//	@Produce      json
+//	@Param        env_id  path      string  true  "Environment ID (UUID)"
+//	@Success      200     {object}  dto.HeartbeatResponse
+//	@Failure      401     {object}  api.Error
+//	@Failure      404     {object}  api.Error
+//	@Router       /environments/{env_id}/heartbeats/latest [get]
+//	@Security     BearerAuth
+func (h *EnvironmentHandler) HandleGetLatestHeartbeat(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := h.MustTenantID(w, r)
+	if !ok {
+		return
+	}
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
+	if !ok {
+		return
+	}
+
+	resp, err := h.svc.GetLatestHeartbeat(r.Context(), tenantID, envID)
+	if err != nil {
+		h.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, resp)
+}
+
+// HandleListHeartbeats returns recent heartbeats for an environment.
+//
+//	@Summary      List heartbeats
+//	@Description  List recent agent heartbeats for an environment
+//	@Tags         environments
+//	@Produce      json
+//	@Param        env_id  path      string  true   "Environment ID (UUID)"
+//	@Param        limit   query     int     false  "Number of heartbeats to return (default 20, max 100)"
+//	@Success      200     {object}  dto.HeartbeatListResponse
+//	@Failure      401     {object}  api.Error
+//	@Failure      404     {object}  api.Error
+//	@Router       /environments/{env_id}/heartbeats [get]
+//	@Security     BearerAuth
+func (h *EnvironmentHandler) HandleListHeartbeats(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := h.MustTenantID(w, r)
+	if !ok {
+		return
+	}
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
+	if !ok {
+		return
+	}
+
+	limit := int32(20)
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 32); err == nil && n > 0 && n <= 100 {
+			limit = int32(n)
+		}
+	}
+
+	resp, err := h.svc.ListHeartbeats(r.Context(), tenantID, envID, limit)
 	if err != nil {
 		h.HandleErr(w, r, err)
 		return

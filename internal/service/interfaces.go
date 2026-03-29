@@ -37,6 +37,8 @@ type EnvironmentServicer interface {
 	Update(ctx context.Context, tenantID, envID uuid.UUID, req *dto.UpdateEnvironmentRequest) (*dto.EnvironmentResponse, error)
 	Delete(ctx context.Context, tenantID, envID uuid.UUID) error
 	RegisterAgent(ctx context.Context, tenantID, envID uuid.UUID, req *dto.RegisterAgentRequest) (*dto.RegisterAgentResponse, error)
+	GetLatestHeartbeat(ctx context.Context, tenantID, envID uuid.UUID) (*dto.HeartbeatResponse, error)
+	ListHeartbeats(ctx context.Context, tenantID, envID uuid.UUID, limit int32) (*dto.HeartbeatListResponse, error)
 }
 
 // ErrorServicer defines the agent error ingestion and query operations.

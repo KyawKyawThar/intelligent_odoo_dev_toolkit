@@ -116,6 +116,35 @@ type UpdateFlagsResponse struct {
 	Pushed         bool            `json:"pushed"`
 }
 
+// HeartbeatResponse is the public representation of an agent heartbeat.
+type HeartbeatResponse struct {
+	ID           uuid.UUID       `json:"id"`
+	EnvID        uuid.UUID       `json:"env_id"`
+	AgentID      string          `json:"agent_id"`
+	AgentVersion *string         `json:"agent_version,omitempty"`
+	Status       string          `json:"status"`
+	Metadata     json.RawMessage `json:"metadata,omitempty"`
+	ReceivedAt   time.Time       `json:"received_at"`
+}
+
+// HeartbeatListResponse wraps a list of heartbeats with the latest one highlighted.
+type HeartbeatListResponse struct {
+	Heartbeats []HeartbeatResponse `json:"heartbeats"`
+	Total      int                 `json:"total"`
+}
+
+func ToHeartbeatResponse(hb *db.AgentHeartbeat) *HeartbeatResponse {
+	return &HeartbeatResponse{
+		ID:           hb.ID,
+		EnvID:        hb.EnvID,
+		AgentID:      hb.AgentID,
+		AgentVersion: hb.AgentVersion,
+		Status:       hb.Status,
+		Metadata:     hb.Metadata,
+		ReceivedAt:   hb.ReceivedAt,
+	}
+}
+
 func ToEnvironmentResponse(env *db.Environment) *EnvironmentResponse {
 	return &EnvironmentResponse{
 		ID:           env.ID,
