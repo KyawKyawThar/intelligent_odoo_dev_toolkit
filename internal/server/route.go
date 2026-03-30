@@ -249,6 +249,11 @@ func (s *Server) registerEnvSubRoutes(r chi.Router) {
 
 	r.Post("/agent", s.handler.Environment.HandleRegisterAgent)
 
+	r.Route("/heartbeats", func(r chi.Router) {
+		r.Get("/", s.handler.Environment.HandleListHeartbeats)
+		r.Get("/latest", s.handler.Environment.HandleGetLatestHeartbeat)
+	})
+
 	if s.handler.APIKey != nil {
 		r.Route("/api-keys", func(r chi.Router) {
 			r.Post("/", s.handler.APIKey.HandleCreate)
