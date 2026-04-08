@@ -4,6 +4,7 @@ cmd/server/tmp
 .env
 .env.agent
 deploy/.env
+deploy/custom-addons
 *.md
 *.toml
 *.json

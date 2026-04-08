@@ -23,9 +23,9 @@ type Services struct {
 	Profiler      ProfilerServicer
 	N1            N1Servicer
 	Budget        BudgetServicer
-	// Future services:
-	// Alert       AlertServicer
-	// Audit       AuditServicer
+	Alert         AlertServicer
+	Overview      OverviewServicer
+	Migration     MigrationServicer
 }
 
 type Config struct {
@@ -111,6 +111,9 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 	profilerSvc := NewProfilerService(store)
 	n1Svc := NewN1Service(store)
 	budgetSvc := NewBudgetService(store)
+	alertSvc := NewAlertService(store)
+	overviewSvc := NewOverviewService(store)
+	migrationSvc := NewMigrationService(store)
 
 	return &Services{
 		Auth:          authSvc,
@@ -123,5 +126,8 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 		Profiler:      profilerSvc,
 		N1:            n1Svc,
 		Budget:        budgetSvc,
+		Alert:         alertSvc,
+		Overview:      overviewSvc,
+		Migration:     migrationSvc,
 	}
 }

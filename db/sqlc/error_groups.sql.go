@@ -501,10 +501,15 @@ INSERT INTO error_groups (
     $1, $2, $3, $4, $5, $6, $7, $7, 1, $8, $9
 )
 ON CONFLICT (env_id, signature) DO UPDATE SET
-    last_seen = EXCLUDED.last_seen,
+    last_seen        = EXCLUDED.last_seen,
     occurrence_count = error_groups.occurrence_count + 1,
-    raw_trace_ref = EXCLUDED.raw_trace_ref,
-    message = EXCLUDED.message
+    raw_trace_ref    = EXCLUDED.raw_trace_ref,
+    message          = EXCLUDED.message,
+    -- auto-reopen: if the error fires again after being resolved/acknowledged,
+    -- reset back to open so a false-resolve doesn't hide recurring issues
+    status           = CASE WHEN error_groups.status IN ('resolved', 'acknowledged') THEN 'open' ELSE error_groups.status END,
+    resolved_by      = CASE WHEN error_groups.status IN ('resolved', 'acknowledged') THEN NULL ELSE error_groups.resolved_by END,
+    resolved_at      = CASE WHEN error_groups.status IN ('resolved', 'acknowledged') THEN NULL ELSE error_groups.resolved_at END
 RETURNING id, env_id, signature, error_type, message, module, model, first_seen, last_seen, occurrence_count, affected_users, status, resolved_by, resolved_at, raw_trace_ref, created_at
 `
 

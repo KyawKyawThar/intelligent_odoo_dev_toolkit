@@ -82,15 +82,21 @@ type Fault struct {
 // combined slice of raw record maps ready for JSON serialization.
 // Each model entry includes a "fields" key containing its field definitions.
 func CollectModels(ctx context.Context, client *odoo.Client) ([]map[string]any, error) {
-	models, err := fetchRecords(ctx, client, "ir.model", []string{"id", "model", "name"})
+	// Paginate both fetches to avoid loading tens-of-thousands of XML-RPC
+	// records in a single response. Odoo 17 standard has ~450 models and
+	// ~35 000 fields; large enterprise instances can exceed 1 200 models and
+	// 100 000 fields. A single unbounded fetch would produce a 50–150 MB XML
+	// payload and risk OOM / timeouts on both ends.
+	models, err := fetchAllPages(ctx, client, "ir.model",
+		[]string{"id", "model", "name"}, []any{}, 500)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ir.model: %w", err)
 	}
 
-	fields, err := fetchRecords(ctx, client, "ir.model.fields", []string{
-		"id", "name", "model", "ttype", "relation",
+	fields, err := fetchAllPages(ctx, client, "ir.model.fields", []string{
+		"id", "name", "field_description", "model", "ttype", "relation",
 		"required", "readonly", "store", "index",
-	})
+	}, []any{}, 5000)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ir.model.fields: %w", err)
 	}
@@ -177,6 +183,50 @@ func FetchRecordsWithDomain(
 }
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
+
+// fetchAllPages fetches every record for modelName by issuing repeated
+// search_read calls with a fixed page size (batchSize) until Odoo returns
+// fewer records than requested, indicating the last page.
+//
+// This avoids:
+//   - The default Odoo search_read cap (~80 records) silently truncating results.
+//   - A single unbounded fetch (limit=0) generating a 50–150 MB XML response
+//     for large models like ir.model.fields, risking OOM / request timeouts.
+//
+// Compatible with Odoo 15, 16, and 17.
+func fetchAllPages(
+	ctx context.Context,
+	client *odoo.Client,
+	modelName string,
+	fields []string,
+	domain []any,
+	batchSize int,
+) ([]map[string]any, error) {
+	var all []map[string]any
+	offset := 0
+
+	for {
+		batch, err := FetchRecordsWithDomain(ctx, client, modelName, fields, domain, map[string]any{
+			"limit":  batchSize,
+			"offset": offset,
+			"order":  "id asc",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("page offset=%d: %w", offset, err)
+		}
+
+		all = append(all, batch...)
+
+		// Fewer records than requested → we've reached the last page.
+		if len(batch) < batchSize {
+			break
+		}
+
+		offset += len(batch)
+	}
+
+	return all, nil
+}
 
 // fetchRecords performs a search_read on the given model with an empty domain.
 func fetchRecords(ctx context.Context, client *odoo.Client, modelName string, fields []string) ([]map[string]any, error) {

@@ -213,6 +213,69 @@ func (q *Queries) ListProfilerRecordings(ctx context.Context, arg ListProfilerRe
 	return items, nil
 }
 
+const listRecordingsWithChain = `-- name: ListRecordingsWithChain :many
+SELECT id, env_id, triggered_by, name, endpoint,
+       total_ms, sql_count, sql_ms, python_ms,
+       compute_chain, recorded_at
+FROM profiler_recordings
+WHERE env_id = $1
+  AND compute_chain IS NOT NULL
+ORDER BY recorded_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListRecordingsWithChainParams struct {
+	EnvID  uuid.UUID `db:"env_id" json:"env_id"`
+	Limit  int32     `db:"limit" json:"limit"`
+	Offset int32     `db:"offset" json:"offset"`
+}
+
+type ListRecordingsWithChainRow struct {
+	ID           uuid.UUID        `db:"id" json:"id"`
+	EnvID        uuid.UUID        `db:"env_id" json:"env_id"`
+	TriggeredBy  *uuid.UUID       `db:"triggered_by" json:"triggered_by"`
+	Name         string           `db:"name" json:"name"`
+	Endpoint     *string          `db:"endpoint" json:"endpoint"`
+	TotalMs      int32            `db:"total_ms" json:"total_ms"`
+	SqlCount     *int32           `db:"sql_count" json:"sql_count"`
+	SqlMs        *int32           `db:"sql_ms" json:"sql_ms"`
+	PythonMs     *int32           `db:"python_ms" json:"python_ms"`
+	ComputeChain *json.RawMessage `db:"compute_chain" json:"compute_chain"`
+	RecordedAt   time.Time        `db:"recorded_at" json:"recorded_at"`
+}
+
+func (q *Queries) ListRecordingsWithChain(ctx context.Context, arg ListRecordingsWithChainParams) ([]ListRecordingsWithChainRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingsWithChain, arg.EnvID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingsWithChainRow{}
+	for rows.Next() {
+		var i ListRecordingsWithChainRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EnvID,
+			&i.TriggeredBy,
+			&i.Name,
+			&i.Endpoint,
+			&i.TotalMs,
+			&i.SqlCount,
+			&i.SqlMs,
+			&i.PythonMs,
+			&i.ComputeChain,
+			&i.RecordedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSlowRecordings = `-- name: ListSlowRecordings :many
 SELECT id, env_id, triggered_by, name, endpoint, total_ms, sql_count, sql_ms, python_ms, waterfall, compute_chain, n1_patterns, raw_log_ref, recorded_at FROM profiler_recordings
 WHERE env_id = $1 AND total_ms > $2

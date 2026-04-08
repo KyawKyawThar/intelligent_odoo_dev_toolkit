@@ -81,6 +81,67 @@ func (h *ProfilerHandler) HandleListRecordings(w http.ResponseWriter, r *http.Re
 	h.WriteSuccess(w, r, result)
 }
 
+// HandleListChainRecordings returns recordings that contain compute-chain data.
+//
+//	@Summary      List chain recordings
+//	@Description  List profiler recordings that contain compute-chain dependency data
+//	@Tags         profiler
+//	@Produce      json
+//	@Param        env_id  path   string  true   "Environment ID"
+//	@Param        limit   query  int     false  "Page size (default 20)"
+//	@Param        offset  query  int     false  "Offset (default 0)"
+//	@Success      200  {object}  dto.ChainRecordingListResponse
+//	@Failure      401  {object}  api.Error
+//	@Failure      404  {object}  api.Error
+//	@Router       /environments/{env_id}/profiler/chain [get]
+//	@Security     BearerAuth
+func (h *ProfilerHandler) HandleListChainRecordings(w http.ResponseWriter, r *http.Request) {
+	tenantID, envID, ok := h.MustTenantAndEnvID(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := h.svc.ListChainRecordings(
+		r.Context(), tenantID, envID,
+		ParseQueryInt32(r, "limit", 20),
+		ParseQueryInt32(r, "offset", 0),
+	)
+	if err != nil {
+		h.HandleErr(w, r, err)
+		return
+	}
+
+	h.WriteSuccess(w, r, result)
+}
+
+// HandleGetChain returns just the compute-chain for a single recording.
+//
+//	@Summary      Get compute chain
+//	@Description  Returns only the compute-chain dependency graph for a profiler recording (lighter than the full recording detail)
+//	@Tags         profiler
+//	@Produce      json
+//	@Param        env_id        path  string  true  "Environment ID"
+//	@Param        recording_id  path  string  true  "Recording ID"
+//	@Success      200  {object}  dto.ChainResponse
+//	@Failure      401  {object}  api.Error
+//	@Failure      404  {object}  api.Error
+//	@Router       /environments/{env_id}/profiler/chain/{recording_id} [get]
+//	@Security     BearerAuth
+func (h *ProfilerHandler) HandleGetChain(w http.ResponseWriter, r *http.Request) {
+	tenantID, envID, recordingID, ok := h.MustTenantEnvAndExtraID(w, r, "recording_id")
+	if !ok {
+		return
+	}
+
+	result, err := h.svc.GetChain(r.Context(), tenantID, envID, recordingID)
+	if err != nil {
+		h.HandleErr(w, r, err)
+		return
+	}
+
+	h.WriteSuccess(w, r, result)
+}
+
 // HandleListSlowRecordings returns recordings exceeding a duration threshold.
 //
 //	@Summary      List slow profiler recordings

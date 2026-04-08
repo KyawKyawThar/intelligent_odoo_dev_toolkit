@@ -121,6 +121,11 @@ func (s *Syncer) RunOnce(ctx context.Context) error {
 	}
 
 	// ── 6. Push to server ──────────────────────────────────────────────────
+	s.logger.Debug().
+		Int("body_bytes", len(body)).
+		Int("models", modelCount).
+		Msg("pushing schema snapshot")
+
 	if err := s.push(ctx, body); err != nil {
 		return fmt.Errorf("push schema: %w", err)
 	}
@@ -234,7 +239,7 @@ func convertModel(m map[string]any) map[string]any {
 			}
 			fieldsMap[fname] = map[string]any{
 				"type":     f["ttype"],
-				"string":   f["name"],
+				"string":   f["field_description"],
 				"required": f["required"],
 			}
 		}
@@ -288,6 +293,7 @@ func mergeAccessesAndRules(models []map[string]any, acls []odoo.IrModelAccess, r
 		}
 		entry := map[string]any{
 			"name":        r.Name,
+			"group_ids":   r.Groups,
 			"domain":      r.Domain,
 			"perm_read":   r.PermRead,
 			"perm_write":  r.PermWrite,

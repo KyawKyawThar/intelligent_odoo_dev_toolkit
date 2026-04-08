@@ -154,6 +154,20 @@ func (s *Server) setupProtectedRoutes(r chi.Router) {
 
 		s.registerAuthRoutes(r)
 		s.registerEnvironmentRoutes(r)
+		s.registerStandaloneMigrationRoutes(r)
+	})
+}
+
+// registerStandaloneMigrationRoutes mounts migration endpoints that do not require an
+// environment ID. These are used by the offline Source Scanner and the transitions list.
+func (s *Server) registerStandaloneMigrationRoutes(r chi.Router) {
+	if s.handler.Migration == nil {
+		return
+	}
+	r.Route("/api/v1/migration", func(r chi.Router) {
+		r.Use(mw.MaxBodySize(2 << 20)) // 2 MB — source scan payloads can be large
+		r.Post("/scan/source", s.handler.Migration.HandleScanSource)
+		r.Get("/transitions", s.handler.Migration.HandleSupportedTransitions)
 	})
 }
 
@@ -204,12 +218,16 @@ func (s *Server) registerEnvSubRoutes(r chi.Router) {
 	if s.handler.Schema != nil {
 		r.Route("/errors", func(r chi.Router) {
 			r.Get("/", s.handler.Error.HandleListErrors)
-			r.Get("/{error_id}", s.handler.Error.HandleGetErrorGroup)
+			r.Route("/{error_id}", func(r chi.Router) {
+				r.Get("/", s.handler.Error.HandleGetErrorGroup)
+				r.Patch("/", s.handler.Error.HandleUpdateErrorGroup)
+			})
 		})
 		r.Route("/schema", func(r chi.Router) {
 			r.Get("/", s.handler.Schema.HandleList)
 			r.Get("/latest", s.handler.Schema.HandleGetLatest)
 			r.Get("/models", s.handler.Schema.HandleSearchModels)
+			r.Get("/{snapshot_id}", s.handler.Schema.HandleGetSnapshot)
 		})
 	}
 
@@ -217,11 +235,19 @@ func (s *Server) registerEnvSubRoutes(r chi.Router) {
 		r.Post("/acl/trace", s.handler.ACL.HandleTraceAccess)
 	}
 
+	if s.handler.Overview != nil {
+		r.Get("/overview", s.handler.Overview.HandleGet)
+	}
+	//nolint:dupl // similar routing structures are expected
 	if s.handler.Profiler != nil {
 		r.Route("/profiler/recordings", func(r chi.Router) {
 			r.Get("/", s.handler.Profiler.HandleListRecordings)
 			r.Get("/slow", s.handler.Profiler.HandleListSlowRecordings)
 			r.Get("/{recording_id}", s.handler.Profiler.HandleGetRecording)
+		})
+		r.Route("/profiler/chain", func(r chi.Router) {
+			r.Get("/", s.handler.Profiler.HandleListChainRecordings)
+			r.Get("/{recording_id}", s.handler.Profiler.HandleGetChain)
 		})
 	}
 
@@ -229,6 +255,18 @@ func (s *Server) registerEnvSubRoutes(r chi.Router) {
 		r.Route("/n1", func(r chi.Router) {
 			r.Get("/detect", s.handler.N1.HandleDetect)
 			r.Get("/timeline", s.handler.N1.HandleTimeline)
+		})
+	}
+	//nolint:dupl // similar routing structures are expected
+	if s.handler.Alert != nil {
+		r.Route("/alerts", func(r chi.Router) {
+			r.Get("/", s.handler.Alert.HandleList)
+			r.Get("/count", s.handler.Alert.HandleCount)
+			r.Post("/acknowledge-all", s.handler.Alert.HandleAcknowledgeAll)
+			r.Route("/{alert_id}", func(r chi.Router) {
+				r.Get("/", s.handler.Alert.HandleGet)
+				r.Post("/acknowledge", s.handler.Alert.HandleAcknowledge)
+			})
 		})
 	}
 
@@ -243,6 +281,22 @@ func (s *Server) registerEnvSubRoutes(r chi.Router) {
 				r.Get("/samples", s.handler.Budget.HandleListSamples)
 				r.Get("/samples/{sample_id}/breakdown", s.handler.Budget.HandleGetBreakdown)
 				r.Get("/trend", s.handler.Budget.HandleGetTrend)
+			})
+		})
+	}
+
+	if s.handler.Migration != nil {
+		r.Route("/migration", func(r chi.Router) {
+			r.Post("/scan", s.handler.Migration.HandleRunScan)
+			r.Post("/scan/source", s.handler.Migration.HandleScanSource)
+			r.Get("/transitions", s.handler.Migration.HandleSupportedTransitions)
+			r.Route("/scans", func(r chi.Router) {
+				r.Get("/", s.handler.Migration.HandleListScans)
+				r.Get("/latest", s.handler.Migration.HandleGetLatestScan)
+				r.Route("/{scan_id}", func(r chi.Router) {
+					r.Get("/", s.handler.Migration.HandleGetScan)
+					r.Delete("/", s.handler.Migration.HandleDeleteScan)
+				})
 			})
 		})
 	}

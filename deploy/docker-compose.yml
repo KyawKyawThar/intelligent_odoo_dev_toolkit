@@ -73,24 +73,48 @@ services:
         condition: service_healthy # wait until Postgres is actually ready
     ports:
       - "8069:8069"
+    volumes:
+      - ./custom-addons:/mnt/extra-addons
+      - ../odoo-server.log:/var/log/odoo/odoo-server.log  # bind-mount so agent can tail it
     env_file:
       - ../.env
     environment:
       HOST: ${PG_HOST}
       USER: ${PG_ODOO_USER}
       PASSWORD: ${PG_ODOO_PASSWORD}
-    # -d  : target database (created by odoo-db Postgres service)
-    # -i base : install base module on first start (idempotent on restarts)
-    # --without-demo : skip demo data — faster cold start
     command:
-      - "-d"
-      - "${PG_ODOO_DB}"
-      - "-i"
-      - "base"
-      - "--without-demo=all"
-      - "--log-db=${PG_ODOO_DB}"
-      - "--log-handler=:WARNING"
-      - "--db_host=${PG_HOST}"
+      [
+        "-d",
+        "${PG_ODOO_DB}",
+        "-i",
+        "base",
+        "--logfile",
+        "/var/log/odoo/odoo-server.log",
+        # info keeps useful messages; change to warn to cut even further
+        # dev: info  |  production: warning  (set via LOG_LEVEL env var, default info)
+        "--log-level",
+        "${ODOO_LOG_LEVEL:-info}",
+        # suppress noisy low-signal handlers regardless of global level
+        "--log-handler",
+        "werkzeug:WARNING",
+        "--log-handler",
+        "PIL:WARNING",
+        "--log-handler",
+        "odoo.service.server:WARNING",
+        "--log-handler",
+        "odoo.sql_db:WARNING",
+        "--db_host",
+        "${PG_HOST}",
+        "--addons-path",
+        "/mnt/extra-addons,/usr/lib/python3/dist-packages/odoo/addons",
+      ]
+    # Docker stdout/stderr buffer — separate from the bind-mounted log file.
+    # logrotate handles the bind-mounted file (deploy/logrotate/odoo).
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"   # rotate each json log file at 50 MB
+        max-file: "3"     # keep 3 files max = 150 MB ceiling for Docker's own buffer
     networks: [backend]
     profiles: [odoo-dev]
 

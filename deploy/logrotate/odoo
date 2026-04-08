@@ -1,0 +1,68 @@
+# logrotate config for the Odoo server log
+#
+# INSTALL (run once on the production server):
+#   sudo cp deploy/logrotate/odoo /etc/logrotate.d/odoo
+#   sudo logrotate -d /etc/logrotate.d/odoo   # dry-run test
+#   sudo logrotate -f /etc/logrotate.d/odoo   # force first rotation
+#
+# HOW IT WORKS:
+#   logrotate runs daily via cron (/etc/cron.daily/logrotate).
+#   It rotates when the file exceeds 100 MB OR once a day, whichever
+#   comes first. Rotated files are compressed and kept for 14 days.
+#   After 14 rotations the oldest file is deleted automatically.
+#
+# WHY copytruncate:
+#   Odoo holds the log file open. If we moved/renamed the file, Odoo
+#   would keep writing to the old inode (now renamed). copytruncate
+#   copies the file then truncates it in place so Odoo never loses
+#   its file handle.
+#
+# PRODUCTION LOG PATH — update this to match your server path:
+/var/log/odoo/odoo-server.log {
+
+    # Rotate when the file hits 100 MB, regardless of age.
+    # This is the primary trigger on busy servers.
+    size 100M
+
+    # Also rotate at least once a day even if under 100 MB.
+    # Ensures you always have a clean file to start each day.
+    daily
+
+    # Keep 14 rotated files (= ~14 days of history with daily rotation,
+    # or fewer days if size-triggered more often).
+    # Increase to 30 for compliance requirements, decrease to 7 to save disk.
+    rotate 14
+
+    # Compress old files with gzip (saves ~80-90% space on text logs)
+    compress
+
+    # Don't compress the most-recently rotated file yet.
+    # Gives you one uncompressed file to grep quickly after an incident.
+    delaycompress
+
+    # No error if the file doesn't exist (e.g. Odoo not started yet)
+    missingok
+
+    # Skip rotation if the file is empty
+    notifempty
+
+    # Safe for processes that keep the file open (Odoo, Docker bind-mount)
+    copytruncate
+
+    # Send a mail to this address if rotation fails (optional — remove if not configured)
+    # mail root
+}
+
+# ── Dev override (local machine) ─────────────────────────────────────────────
+# Uncomment this block when running locally instead of the production path above.
+#
+# /Users/kkt/go/src/Intelligent_Dev_ToolKit_Odoo/odoo-server.log {
+#     size 50M
+#     daily
+#     rotate 7
+#     compress
+#     delaycompress
+#     missingok
+#     notifempty
+#     copytruncate
+# }

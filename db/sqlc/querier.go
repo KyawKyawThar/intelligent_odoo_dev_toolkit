@@ -174,6 +174,7 @@ type Querier interface {
 	ListPendingDeliveries(ctx context.Context, limit int32) ([]ListPendingDeliveriesRow, error)
 	ListPerfBudgets(ctx context.Context, envID uuid.UUID) ([]PerfBudget, error)
 	ListProfilerRecordings(ctx context.Context, arg ListProfilerRecordingsParams) ([]ListProfilerRecordingsRow, error)
+	ListRecordingsWithChain(ctx context.Context, arg ListRecordingsWithChainParams) ([]ListRecordingsWithChainRow, error)
 	ListSchemaSnapshots(ctx context.Context, arg ListSchemaSnapshotsParams) ([]ListSchemaSnapshotsRow, error)
 	ListSessions(ctx context.Context, userID uuid.UUID) ([]Session, error)
 	ListSlowRecordings(ctx context.Context, arg ListSlowRecordingsParams) ([]ProfilerRecording, error)

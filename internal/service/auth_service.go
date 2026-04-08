@@ -34,7 +34,6 @@ func mapRegisterUniqueViolation(err error) error {
 	}
 	return api.ErrSlugAlreadyExists() // safe fallback (tenant is step 1)
 }
-
 func (s *AuthService) Register(ctx context.Context, req *dto.RegisterRequest, ipAddress, userAgent string) (*dto.RegisterResponse, error) {
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
@@ -453,6 +452,15 @@ func (s *AuthService) VerifyEmail(ctx context.Context, req *dto.VerifyEmailReque
 		if err := s.store.VerifyUserEmail(ctx, db.VerifyUserEmailParams{
 			ID:       userID,
 			TenantID: user.TenantID,
+		}); err != nil {
+			return api.FromPgError(err)
+		}
+
+		// Activate tenant plan after first email verification
+		if _, err := s.store.UpdateTenantPlan(ctx, db.UpdateTenantPlanParams{
+			ID:         user.TenantID,
+			Plan:       user.TenantPlan,
+			PlanStatus: "active",
 		}); err != nil {
 			return api.FromPgError(err)
 		}

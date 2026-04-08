@@ -318,6 +318,64 @@ definitions:
       total:
         type: integer
     type: object
+  dto.AcknowledgeAllResponse:
+    properties:
+      acknowledged:
+        type: integer
+    type: object
+  dto.AgentOverview:
+    properties:
+      last_heartbeat_at:
+        description: LastHeartbeatAt is the time of the most recent heartbeat (nil
+          if never seen).
+        type: string
+      status:
+        description: Status is the latest heartbeat status ("healthy", "degraded",
+          "offline", "unknown").
+        type: string
+    type: object
+  dto.AlertCountResponse:
+    properties:
+      count:
+        type: integer
+    type: object
+  dto.AlertListResponse:
+    properties:
+      alerts:
+        items:
+          $ref: '#/definitions/dto.AlertResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.AlertResponse:
+    properties:
+      acknowledged:
+        type: boolean
+      acknowledged_at:
+        type: string
+      acknowledged_by:
+        type: string
+      created_at:
+        type: string
+      env_id:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      metadata: {}
+      severity:
+        type: string
+      type:
+        type: string
+    type: object
+  dto.AlertsOverview:
+    properties:
+      unacknowledged:
+        description: Unacknowledged is the number of alerts not yet acknowledged.
+        type: integer
+    type: object
   dto.BatchORMStat:
     properties:
       avg_ms:
@@ -479,6 +537,54 @@ definitions:
         type: integer
       sample_count:
         type: integer
+    type: object
+  dto.BudgetsOverview:
+    properties:
+      active:
+        description: Active is the number of currently active budgets.
+        type: integer
+      total:
+        description: Total is the total number of configured budgets (active + inactive).
+        type: integer
+    type: object
+  dto.ChainRecordingItem:
+    properties:
+      compute_chain:
+        $ref: '#/definitions/dto.ComputeChain'
+      endpoint:
+        type: string
+      env_id:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      recorded_at:
+        type: string
+      total_ms:
+        type: integer
+      triggered_by:
+        type: string
+    type: object
+  dto.ChainRecordingListResponse:
+    properties:
+      recordings:
+        items:
+          $ref: '#/definitions/dto.ChainRecordingItem'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.ChainResponse:
+    properties:
+      compute_chain:
+        $ref: '#/definitions/dto.ComputeChain'
+      name:
+        type: string
+      recorded_at:
+        type: string
+      recording_id:
+        type: string
     type: object
   dto.ChangePasswordRequest:
     properties:
@@ -817,6 +923,15 @@ definitions:
       status:
         type: string
     type: object
+  dto.ErrorsOverview:
+    properties:
+      open:
+        description: Open is the count of error groups still in "open" status.
+        type: integer
+      total:
+        description: Total is the total number of error groups for this environment.
+        type: integer
+    type: object
   dto.ForgotPasswordRequest:
     properties:
       email:
@@ -867,6 +982,34 @@ definitions:
         type: string
       pct:
         type: number
+    type: object
+  dto.HeartbeatListResponse:
+    properties:
+      heartbeats:
+        items:
+          $ref: '#/definitions/dto.HeartbeatResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  dto.HeartbeatResponse:
+    properties:
+      agent_id:
+        type: string
+      agent_version:
+        type: string
+      env_id:
+        type: string
+      id:
+        type: string
+      metadata:
+        items:
+          type: integer
+        type: array
+      received_at:
+        type: string
+      status:
+        type: string
     type: object
   dto.IngestBatchRequest:
     properties:
@@ -970,6 +1113,17 @@ definitions:
       summary:
         $ref: '#/definitions/dto.N1Summary'
     type: object
+  dto.N1Overview:
+    properties:
+      critical_count:
+        description: CriticalCount is the number of patterns classified as critical
+          severity.
+        type: integer
+      patterns_detected:
+        description: PatternsDetected is the number of distinct N+1 patterns found
+          in the last 24h.
+        type: integer
+    type: object
   dto.N1Pattern:
     properties:
       avg_calls_per_window:
@@ -1061,6 +1215,31 @@ definitions:
         items:
           $ref: '#/definitions/dto.N1TimelinePoint'
         type: array
+    type: object
+  dto.OverviewResponse:
+    properties:
+      agent:
+        $ref: '#/definitions/dto.AgentOverview'
+      alerts:
+        $ref: '#/definitions/dto.AlertsOverview'
+      budgets:
+        $ref: '#/definitions/dto.BudgetsOverview'
+      errors:
+        $ref: '#/definitions/dto.ErrorsOverview'
+      n1:
+        $ref: '#/definitions/dto.N1Overview'
+      profiler:
+        $ref: '#/definitions/dto.ProfilerOverview'
+    type: object
+  dto.ProfilerOverview:
+    properties:
+      total_recordings:
+        description: TotalRecordings is the total number of profiler recordings.
+        type: integer
+      with_compute_chain:
+        description: WithComputeChain is the count of recordings that contain compute-chain
+          data.
+        type: integer
     type: object
   dto.ProfilerRecordingListItem:
     properties:
@@ -2398,6 +2577,175 @@ paths:
       summary: Generate agent registration token
       tags:
       - environments
+  /environments/{env_id}/alerts:
+    get:
+      description: Returns alerts for the environment, optionally filtered to unacknowledged
+        only
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Max alerts to return (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      - description: If true, return only unacknowledged alerts
+        in: query
+        name: unacknowledged
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AlertListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List alerts
+      tags:
+      - alerts
+  /environments/{env_id}/alerts/{alert_id}:
+    get:
+      description: Returns a single alert by its ID, scoped to the environment
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Alert ID
+        in: path
+        name: alert_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AlertResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get alert
+      tags:
+      - alerts
+  /environments/{env_id}/alerts/{alert_id}/acknowledge:
+    post:
+      description: Marks the alert as acknowledged by the authenticated user
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Alert ID
+        in: path
+        name: alert_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AlertResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Acknowledge alert
+      tags:
+      - alerts
+  /environments/{env_id}/alerts/acknowledge-all:
+    post:
+      description: Marks every unacknowledged alert in the environment as acknowledged
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AcknowledgeAllResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Acknowledge all alerts
+      tags:
+      - alerts
+  /environments/{env_id}/alerts/count:
+    get:
+      description: Returns the count of unacknowledged alerts for the environment,
+        useful for notification badges
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AlertCountResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Count unacknowledged alerts
+      tags:
+      - alerts
   /environments/{env_id}/api-keys:
     get:
       description: Return all API keys for the given environment. Raw key values are
@@ -2952,6 +3300,68 @@ paths:
       summary: Update feature flags
       tags:
       - environments
+  /environments/{env_id}/heartbeats:
+    get:
+      description: List recent agent heartbeats for an environment
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Number of heartbeats to return (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.HeartbeatListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List heartbeats
+      tags:
+      - environments
+  /environments/{env_id}/heartbeats/latest:
+    get:
+      description: Get the latest agent heartbeat for an environment
+      parameters:
+      - description: Environment ID (UUID)
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.HeartbeatResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get latest heartbeat
+      tags:
+      - environments
   /environments/{env_id}/n1/detect:
     get:
       description: Analyze ORM stats and profiler recordings to detect, score, and
@@ -3032,6 +3442,109 @@ paths:
       summary: N+1 timeline
       tags:
       - n1
+  /environments/{env_id}/overview:
+    get:
+      description: Returns aggregated stats across all features (errors, profiler,
+        N+1, alerts, budgets, agent) for a single environment
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.OverviewResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Environment overview
+      tags:
+      - overview
+  /environments/{env_id}/profiler/chain:
+    get:
+      description: List profiler recordings that contain compute-chain dependency
+        data
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Page size (default 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ChainRecordingListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: List chain recordings
+      tags:
+      - profiler
+  /environments/{env_id}/profiler/chain/{recording_id}:
+    get:
+      description: Returns only the compute-chain dependency graph for a profiler
+        recording (lighter than the full recording detail)
+      parameters:
+      - description: Environment ID
+        in: path
+        name: env_id
+        required: true
+        type: string
+      - description: Recording ID
+        in: path
+        name: recording_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ChainResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.Error'
+      security:
+      - BearerAuth: []
+      summary: Get compute chain
+      tags:
+      - profiler
   /environments/{env_id}/profiler/recordings:
     get:
       description: List profiler recordings for an environment (lightweight, no waterfall)
