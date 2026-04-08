@@ -67,12 +67,18 @@ func TestLogTailer_CapturesErrors(t *testing.T) {
 	)
 
 	// Wait for the tailer to process.
-	time.Sleep(500 * time.Millisecond)
+	var events []agenterrors.ErrorEvent
+	for i := 0; i < 20; i++ {
+		time.Sleep(100 * time.Millisecond)
+		events = buf.DrainAll()
+		if len(events) > 0 {
+			break
+		}
+	}
 
 	cancel()
 	<-done
 
-	events := buf.DrainAll()
 	if len(events) == 0 {
 		t.Fatal("expected at least one error event from log tailer")
 	}
@@ -170,12 +176,18 @@ func TestLogTailer_DetectsTruncation(t *testing.T) {
 		"2024-01-15 11:00:01,000 1 INFO db odoo.http: flusher",
 	)
 
-	time.Sleep(500 * time.Millisecond)
+	var events []agenterrors.ErrorEvent
+	for i := 0; i < 20; i++ {
+		time.Sleep(100 * time.Millisecond)
+		events = buf.DrainAll()
+		if len(events) > 0 {
+			break
+		}
+	}
 
 	cancel()
 	<-done
 
-	events := buf.DrainAll()
 	if len(events) == 0 {
 		t.Fatal("expected error event after log rotation")
 	}
@@ -205,8 +217,9 @@ func TestLogTailer_MissingFile(t *testing.T) {
 	// Create the empty file first so the tailer opens it and seeks to offset 0.
 	writeLines(t, logPath)
 
-	// Give the tailer time to open the file and reach its poll loop.
-	time.Sleep(300 * time.Millisecond)
+	// Give the tailer time to finish its backoff sleep, open the file, and reach its poll loop.
+	// Since backoff doubles (100ms -> 200ms -> 400ms -> 800ms -> ...), we might need to wait a bit longer here.
+	time.Sleep(2 * time.Second)
 
 	// Now append an error after the tailer is already watching.
 	writeLines(t, logPath,
@@ -214,12 +227,18 @@ func TestLogTailer_MissingFile(t *testing.T) {
 		"2024-01-15 12:00:01,000 1 INFO db odoo.http: flush",
 	)
 
-	time.Sleep(500 * time.Millisecond)
+	var events []agenterrors.ErrorEvent
+	for i := 0; i < 20; i++ {
+		time.Sleep(100 * time.Millisecond)
+		events = buf.DrainAll()
+		if len(events) > 0 {
+			break
+		}
+	}
 
 	cancel()
 	<-done
 
-	events := buf.DrainAll()
 	if len(events) == 0 {
 		t.Fatal("expected error event after file was created")
 	}
