@@ -22,6 +22,47 @@ func NewErrorHandler(svc *service.ErrorService, base *BaseHandler) *ErrorHandler
 	return &ErrorHandler{BaseHandler: base, svc: svc}
 }
 
+// HandleUpdateErrorGroup transitions an error group to open, acknowledged, or resolved.
+//
+//	@Summary      Update error group status
+//	@Description  Set the status of an error group to open, acknowledged, or resolved
+//	@Tags         errors
+//	@Accept       json
+//	@Produce      json
+//	@Param        env_id    path   string                             true  "Environment ID"
+//	@Param        error_id  path   string                             true  "Error group ID"
+//	@Param        body      body   dto.UpdateErrorGroupStatusRequest  true  "New status"
+//	@Success      200  {object}  dto.ErrorGroupDetailResponse
+//	@Failure      400  {object}  api.Error
+//	@Failure      401  {object}  api.Error
+//	@Failure      404  {object}  api.Error
+//	@Router       /environments/{env_id}/errors/{error_id} [patch]
+//	@Security     BearerAuth
+func (h *ErrorHandler) HandleUpdateErrorGroup(w http.ResponseWriter, r *http.Request) {
+	tenantID, envID, errorID, ok := h.MustTenantEnvAndExtraID(w, r, "error_id")
+	if !ok {
+		return
+	}
+
+	userID, ok := h.MustUserID(w, r)
+	if !ok {
+		return
+	}
+
+	var req dto.UpdateErrorGroupStatusRequest
+	if !h.DecodeAndValidate(w, r, &req) {
+		return
+	}
+
+	resp, err := h.svc.UpdateErrorGroupStatus(r.Context(), tenantID, envID, errorID, userID, req.Status)
+	if err != nil {
+		h.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, resp)
+}
+
 // mustTenantID reads the tenant_id set by either JWT or API-key middleware.
 func (h *ErrorHandler) mustTenantID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	raw := middleware.GetTenantID(r.Context())

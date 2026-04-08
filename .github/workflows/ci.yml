@@ -75,6 +75,16 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    - name: Install golang-migrate
+      run: |
+        curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
+        sudo mv migrate /usr/local/bin/migrate
+
+    - name: Run database migrations
+      run: |
+        migrate -path db/migrations -database "postgres://testuser:testpassword@localhost:5432/odoodevtools_test?sslmode=disable" up
+      continue-on-error: true
+
     - name: Create test config
       run: |
         cat > .env << EOF
@@ -94,6 +104,11 @@ jobs:
         go test -v -race -short -coverprofile=coverage-unit.out ./...
       env:
         CGO_ENABLED: 1
+        DATABASE_URL: postgres://testuser:testpassword@localhost:5432/odoodevtools_test?sslmode=disable
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        REDIS_PASSWORD: ""
+        JWT_SECRET: test-secret-key-for-ci-testing-only
 
     - name: Upload unit test coverage
       uses: actions/upload-artifact@v4
@@ -149,7 +164,6 @@ jobs:
       run: go mod download
 
     - name: Create test config
-      # FIX: all keys updated to match .env variable names exactly
       run: |
         cat > .env << EOF
         DATABASE_URL=postgres://testuser:testpassword@localhost:5432/odoodevtools_test?sslmode=disable
@@ -162,12 +176,6 @@ jobs:
         JWT_REFRESH_TOKEN_TTL=24h
         APP_ENV=test
         EOF
-        # DB_SOURCE          → DATABASE_URL         (.env:32)
-        # REDIS_ADDRESS      → REDIS_HOST + REDIS_PORT (.env:42-43)
-        # SERVER_ADDRESS     → SERVER_PORT           (.env:9)
-        # TOKEN_DURATION     → JWT_ACCESS_TOKEN_TTL  (.env:102)
-        # REFRESH_TOKEN_DURATION → JWT_REFRESH_TOKEN_TTL (.env:103)
-        # ENVIRONMENT        → APP_ENV               (.env:2)
 
     - name: Run integration tests
       run: |
@@ -179,11 +187,11 @@ jobs:
         REDIS_PORT: 6379
         REDIS_PASSWORD: ""
         JWT_SECRET: test-secret-key-for-ci-testing-only
-    #     - name: Upload integration test coverage
-    #       uses: actions/upload-artifact@v4
-    #       with:
-    #         name: coverage-integration
-    #         path: coverage-integration.out
+    # - name: Upload integration test coverage
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: coverage-integration
+    #     path: coverage-integration.out
 
     # ─────────────────────────────────────────────────────────────────
     # Security Scanning

@@ -224,6 +224,54 @@ func (s *ErrorService) GetErrorGroupBySignature(
 	}, nil
 }
 
+// UpdateErrorGroupStatus transitions an error group to open, acknowledged, or resolved.
+// Resolved groups record the resolving user ID and timestamp.
+func (s *ErrorService) UpdateErrorGroupStatus(
+	ctx context.Context,
+	tenantID, envID, errorID, userID uuid.UUID,
+	status string,
+) (*dto.ErrorGroupDetailResponse, error) {
+	// Verify env belongs to tenant.
+	if _, err := s.store.GetEnvironmentByID(ctx, db.GetEnvironmentByIDParams{
+		ID:       envID,
+		TenantID: tenantID,
+	}); err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	var eg db.ErrorGroup
+	var err error
+
+	switch status {
+	case "acknowledged":
+		eg, err = s.store.AcknowledgeErrorGroup(ctx, db.AcknowledgeErrorGroupParams{
+			ID:    errorID,
+			EnvID: envID,
+		})
+	case "resolved":
+		eg, err = s.store.ResolveErrorGroup(ctx, db.ResolveErrorGroupParams{
+			ID:         errorID,
+			ResolvedBy: &userID,
+			EnvID:      envID,
+		})
+	case "open":
+		eg, err = s.store.ReopenErrorGroup(ctx, db.ReopenErrorGroupParams{
+			ID:    errorID,
+			EnvID: envID,
+		})
+	default:
+		return nil, api.ErrBadRequest("status must be one of: open, acknowledged, resolved")
+	}
+
+	if err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	return &dto.ErrorGroupDetailResponse{
+		ErrorGroupResponse: toErrorGroupResponse(eg),
+	}, nil
+}
+
 // toErrorGroupResponse converts a DB model to an API response DTO.
 func toErrorGroupResponse(eg db.ErrorGroup) dto.ErrorGroupResponse {
 	return dto.ErrorGroupResponse{

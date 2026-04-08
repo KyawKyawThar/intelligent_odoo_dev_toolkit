@@ -140,7 +140,7 @@ type SchemaAccessRule struct {
 //   - The final effective domain is: global_domains AND (group_domains).
 type SchemaRecordRule struct {
 	Name       string `json:"name"`
-	GroupIDs   []int  `json:"group_ids,omitempty"` // empty = global rule
+	GroupIDs   []int  `json:"group_ids,omitempty"` // empty = global rule (applies to all users)
 	Domain     string `json:"domain"`
 	PermRead   bool   `json:"perm_read"`
 	PermWrite  bool   `json:"perm_write"`

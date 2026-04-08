@@ -74,3 +74,8 @@ type ListErrorGroupsRequest struct {
 	Page      int    `json:"page,omitempty"`
 	PerPage   int    `json:"per_page,omitempty"`
 }
+
+// UpdateErrorGroupStatusRequest is the body for PATCH /environments/{env_id}/errors/{error_id}.
+type UpdateErrorGroupStatusRequest struct {
+	Status string `json:"status" validate:"required,oneof=open acknowledged resolved"`
+}

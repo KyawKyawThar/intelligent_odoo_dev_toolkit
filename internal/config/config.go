@@ -158,6 +158,17 @@ type Config struct {
 	AgentPgStatInterval int    `mapstructure:"AGENT_PGSTAT_INTERVAL_SEC"`
 	AgentPgStatEnabled  bool   `mapstructure:"AGENT_PGSTAT_ENABLED"`
 
+	// ── Agent Compute Chain Collector ───────────────────────
+	// AGENT_COMPUTE_COLLECTOR_ENABLED=true activates the ir.profile-based
+	// compute chain collector (requires Odoo 15+ with profiling enabled).
+	AgentComputeCollectorEnabled bool `mapstructure:"AGENT_COMPUTE_COLLECTOR_ENABLED"`
+	// AGENT_COMPUTE_POLL_SEC is the polling interval in seconds (default: 30).
+	AgentComputePollSec int `mapstructure:"AGENT_COMPUTE_POLL_SEC"`
+	// AGENT_ODOO_ENABLE_PROFILING=true causes the agent to automatically set
+	// base_setup.profiling_enabled_until in Odoo so ir.profile records are
+	// created. Safe for development; avoid in production (profiling has overhead).
+	AgentOdooEnableProfiling bool `mapstructure:"AGENT_ODOO_ENABLE_PROFILING"`
+
 	// ── Agent Debug (temporary — DELETE before production) ────
 	// AGENT_DEBUG_FEEDER=true enables a synthetic event generator that
 	// pumps fake ORM events into the aggregator for local testing.
@@ -315,6 +326,14 @@ func LoadAgentConfig(path string) (Config, error) {
 		cfg.AgentPgStatEnabled = strings.EqualFold(s, "true") || s == "1"
 	}
 
+	// ── Compute chain collector ──────────
+	if s := v.GetString("AGENT_COMPUTE_COLLECTOR_ENABLED"); s != "" {
+		cfg.AgentComputeCollectorEnabled = strings.EqualFold(s, "true") || s == "1"
+	}
+	if s := v.GetString("AGENT_ODOO_ENABLE_PROFILING"); s != "" {
+		cfg.AgentOdooEnableProfiling = strings.EqualFold(s, "true") || s == "1"
+	}
+
 	// ── Debug feeder (temporary — DELETE before production) ──────
 	if s := v.GetString("AGENT_DEBUG_FEEDER"); s != "" {
 		cfg.AgentDebugFeeder = strings.EqualFold(s, "true") || s == "1"
@@ -372,4 +391,5 @@ func applyAgentNumericOverrides(v *viper.Viper, cfg *Config) {
 	overrideInt("AGENT_ORM_N1_THRESHOLD", &cfg.AgentORMN1Threshold)
 	overrideInt("AGENT_ORM_N1_WINDOW_SEC", &cfg.AgentORMN1WindowSec)
 	overrideInt("AGENT_PGSTAT_INTERVAL_SEC", &cfg.AgentPgStatInterval)
+	overrideInt("AGENT_COMPUTE_POLL_SEC", &cfg.AgentComputePollSec)
 }

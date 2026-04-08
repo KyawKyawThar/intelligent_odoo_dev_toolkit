@@ -123,6 +123,9 @@ func main() {
 	// ── pg_stat_statements collector ──────────────────────────────────────
 	startPgStatCollector(ctx, &cfg, agg, smp)
 
+	// ── Compute chain collector (ir.profile-based) ────────────────────────
+	startComputeChainCollector(ctx, &cfg, agg, client)
+
 	// Debug feeder: explicit opt-in for local development.
 	if cfg.AgentDebugFeeder {
 		go runDebugFeeder(ctx, agg)
@@ -322,6 +325,27 @@ func startPgStatCollector(ctx context.Context, cfg *config.Config, agg *aggregat
 	log.Info().
 		Dur("interval", interval).
 		Msg("pg_stat_statements collector started")
+}
+
+// startComputeChainCollector launches the ir.profile-based compute chain
+// collector when AGENT_COMPUTE_COLLECTOR_ENABLED=true.
+func startComputeChainCollector(ctx context.Context, cfg *config.Config, agg *aggregator.Aggregator, client *odoo.Client) {
+	if !cfg.AgentComputeCollectorEnabled {
+		log.Info().Msg("compute chain collector disabled (set AGENT_COMPUTE_COLLECTOR_ENABLED=true to enable)")
+		return
+	}
+
+	interval := 30 * time.Second
+	if cfg.AgentComputePollSec > 0 {
+		interval = time.Duration(cfg.AgentComputePollSec) * time.Second
+	}
+
+	c := collector.NewComputeChainCollector(client, agg.EventCh, log.Logger, cfg.AgentOdooEnableProfiling)
+	go c.RunLoop(ctx, interval)
+
+	log.Info().
+		Dur("interval", interval).
+		Msg("compute chain collector started (polling ir.profile)")
 }
 
 // initRateLimiter creates a rate limiter if configured, or returns nil.
@@ -690,36 +714,22 @@ func loadOrRegister(cfg *config.Config) (*credentialManager, error) {
 	}
 
 	// 2. Try loading from credentials file.
-	if data, err := os.ReadFile(credsPath); err == nil {
-		var cached agentCredentials
-		if err := json.Unmarshal(data, &cached); err == nil && cached.AgentID != "" && cached.APIKey != "" {
-			log.Info().Str("path", credsPath).Msg("loaded saved credentials, validating…")
-
-			if validateAPIKey(httpBase, cached.APIKey) {
-				log.Info().Msg("cached credentials are valid")
-				cm.apiKey = cached.APIKey
-				cm.agentID = cached.AgentID
-				cm.envID = cached.EnvironmentID
-				return cm, nil
-			}
-
-			// Cached key is stale — fall through to re-registration.
-			log.Warn().Msg("cached API key is no longer valid (401)")
-			if err := os.Remove(credsPath); err != nil && !os.IsNotExist(err) {
-				log.Warn().Err(err).Msg("failed to remove stale credentials file")
-			}
-		}
+	if cached, ok := tryLoadValidCredentials(credsPath, httpBase); ok {
+		cm.apiKey = cached.APIKey
+		cm.agentID = cached.AgentID
+		cm.envID = cached.EnvironmentID
+		return cm, nil
 	}
 
-	// 3. Self-register using the registration token.
+	// 3. Self-register using the registration token (with retry).
 	if cfg.AgentRegistrationToken == "" {
 		return nil, fmt.Errorf("no credentials found and AGENT_REGISTRATION_TOKEN is not set — " +
 			"generate a token via POST /environments/{env_id}/agent on the dashboard")
 	}
 
-	regCreds, err := selfRegister(httpBase, cfg.AgentRegistrationToken)
+	regCreds, err := registerWithRetry(httpBase, cfg.AgentRegistrationToken, 5)
 	if err != nil {
-		return nil, fmt.Errorf("self-register: %w", err)
+		return nil, err
 	}
 
 	// 4. Save credentials to disk.
@@ -733,6 +743,60 @@ func loadOrRegister(cfg *config.Config) (*credentialManager, error) {
 	cm.agentID = regCreds.AgentID
 	cm.envID = regCreds.EnvironmentID
 	return cm, nil
+}
+
+func tryLoadValidCredentials(credsPath, httpBase string) (*agentCredentials, bool) {
+	data, err := os.ReadFile(credsPath)
+	if err != nil {
+		return nil, false
+	}
+	var cached agentCredentials
+	if err := json.Unmarshal(data, &cached); err != nil || cached.AgentID == "" || cached.APIKey == "" {
+		return nil, false
+	}
+	log.Info().Str("path", credsPath).Msg("loaded saved credentials, validating…")
+
+	if validateAPIKey(httpBase, cached.APIKey) {
+		log.Info().Msg("cached credentials are valid")
+		return &cached, true
+	}
+
+	// Cached key is stale — fall through to re-registration.
+	log.Warn().Msg("cached API key is no longer valid (401)")
+	if err := os.Remove(credsPath); err != nil && !os.IsNotExist(err) {
+		log.Warn().Err(err).Msg("failed to remove stale credentials file")
+	}
+	return nil, false
+}
+
+func registerWithRetry(httpBase, token string, maxRetries int) (*agentCredentials, error) {
+	var (
+		regCreds *agentCredentials
+		err      error
+	)
+	backoff := 2 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		regCreds, err = selfRegister(httpBase, token)
+		if err == nil {
+			return regCreds, nil
+		}
+
+		if attempt == maxRetries {
+			return nil, fmt.Errorf("self-register failed after %d attempts: %w", maxRetries, err)
+		}
+
+		log.Warn().
+			Err(err).
+			Int("attempt", attempt).
+			Int("max_retries", maxRetries).
+			Dur("retry_in", backoff).
+			Msg("self-registration failed, retrying…")
+
+		time.Sleep(backoff)
+		backoff *= 2 // exponential backoff: 2s, 4s, 8s, 16s
+	}
+	return nil, err
 }
 
 // selfRegister calls POST /api/v1/agent/register with the one-time token.

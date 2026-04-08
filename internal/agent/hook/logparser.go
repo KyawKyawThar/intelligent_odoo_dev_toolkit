@@ -84,13 +84,26 @@ func (t *LogTailer) Run(ctx context.Context) {
 		Dur("poll_interval", t.cfg.PollInterval).
 		Msg("starting log tailer")
 
+	retryBackoff := t.cfg.PollInterval
+	const maxBackoff = 30 * time.Second
+
 	for {
 		// Try to open the file. If it doesn't exist yet (Odoo hasn't started
-		// logging), wait and retry.
+		// logging), wait and retry with exponential backoff.
 		err := t.tailFile(ctx)
 		if err != nil && ctx.Err() == nil {
-			t.logger.Warn().Err(err).Msg("log tailer error, will retry")
+			t.logger.Warn().Err(err).Dur("retry_in", retryBackoff).Msg("log tailer error, will retry")
+
+			select {
+			case <-ctx.Done():
+			case <-time.After(retryBackoff):
+			}
+			retryBackoff = min(retryBackoff*2, maxBackoff)
+			continue
 		}
+
+		// tailFile returned normally (file was tailed successfully) — reset backoff.
+		retryBackoff = t.cfg.PollInterval
 
 		select {
 		case <-ctx.Done():

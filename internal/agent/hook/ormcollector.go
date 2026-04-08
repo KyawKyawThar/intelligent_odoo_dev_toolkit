@@ -116,11 +116,24 @@ func (c *ORMCollector) Run(ctx context.Context) {
 		}
 	}()
 
+	retryBackoff := c.cfg.PollInterval
+	const maxBackoff = 30 * time.Second
+
 	for {
 		err := c.tailFile(ctx)
 		if err != nil && ctx.Err() == nil {
-			c.logger.Warn().Err(err).Msg("ORM collector error, will retry")
+			c.logger.Warn().Err(err).Dur("retry_in", retryBackoff).Msg("ORM collector error, will retry")
+
+			select {
+			case <-ctx.Done():
+			case <-time.After(retryBackoff):
+			}
+			retryBackoff = min(retryBackoff*2, maxBackoff)
+			continue
 		}
+
+		// tailFile returned normally — reset backoff.
+		retryBackoff = c.cfg.PollInterval
 
 		select {
 		case <-ctx.Done():

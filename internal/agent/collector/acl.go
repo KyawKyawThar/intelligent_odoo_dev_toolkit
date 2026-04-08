@@ -33,10 +33,10 @@ func CollectACLAndRules(ctx context.Context, client *odoo.Client) ([]odoo.IrMode
 // ─── ir.model.access ─────────────────────────────────────────────────────────
 
 func collectModelAccess(ctx context.Context, client *odoo.Client) ([]odoo.IrModelAccess, error) {
-	raw, err := fetchRecords(ctx, client, "ir.model.access", []string{
+	raw, err := fetchAllPages(ctx, client, "ir.model.access", []string{
 		"id", "name", "model_id", "group_id",
 		"perm_read", "perm_write", "perm_create", "perm_unlink",
-	})
+	}, []any{}, 1000)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ir.model.access: %w", err)
 	}
@@ -89,11 +89,11 @@ func collectRecordRules(ctx context.Context, client *odoo.Client) ([]odoo.IrRule
 		[]any{"active", "in", []any{true, false}},
 	}
 
-	raw, err := fetchRecordsWithDomain(ctx, client, "ir.rule", []string{
+	raw, err := fetchAllPages(ctx, client, "ir.rule", []string{
 		"id", "name", "model_id", "groups",
 		"domain_force", "perm_read", "perm_write", "perm_create", "perm_unlink",
 		"global", "active",
-	}, domain)
+	}, domain, 1000)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ir.rule: %w", err)
 	}

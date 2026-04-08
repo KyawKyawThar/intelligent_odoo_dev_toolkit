@@ -8,6 +8,7 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 )
+
+const trueString = "true"
 
 // Handlers is the main container for all HTTP handlers.
 type Handlers struct {
@@ -33,11 +36,9 @@ type Handlers struct {
 	Profiler      *ProfilerHandler
 	N1            *N1Handler
 	Budget        *BudgetHandler
-
-	// Future handlers:
-	// Alert       *AlertHandler
-	// Tenant *TenantHandler
-	// User   *UserHandler
+	Alert         *AlertHandler
+	Overview      *OverviewHandler
+	Migration     *MigrationHandler
 }
 
 // HandlerDeps holds optional dependencies for handler construction.
@@ -49,55 +50,47 @@ type HandlerDeps struct {
 	IngestStreamName string
 }
 
+func mustCast[T any](svc any, name string) *T {
+	v, ok := svc.(*T)
+	if !ok {
+		panic("invalid " + name + " service type")
+	}
+	return v
+}
+
 // NewHandlers creates all handlers with their service dependencies.
-func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Logger, deps *HandlerDeps) *Handlers {
+// NewHandlers creates all handlers with their service dependencies.
+func NewHandlers(
+	services *service.Services,
+	store db.Store,
+	logger *zerolog.Logger,
+	deps *HandlerDeps,
+) *Handlers {
+
 	v := validator.New()
 	if err := api.RegisterCustomValidations(v); err != nil {
 		panic(err)
 	}
 
-	base := &BaseHandler{validate: v, logger: logger}
+	base := &BaseHandler{
+		validate: v,
+		logger:   logger,
+	}
 
-	authSvc, ok := services.Auth.(*service.AuthService)
-	if !ok {
-		panic("invalid auth service type")
-	}
-	envSvc, ok := services.Environment.(*service.EnvironmentService)
-	if !ok {
-		panic("invalid environment service type")
-	}
-	schemaSvc, ok := services.Schema.(*service.SchemaService)
-	if !ok {
-		panic("invalid schema service type")
-	}
-	errorSvc, ok := services.Error.(*service.ErrorService)
-	if !ok {
-		panic("invalid error service type")
-	}
-	apiKeySvc, ok := services.APIKey.(*service.APIKeyService)
-	if !ok {
-		panic("invalid api key service type")
-	}
-	agentRegSvc, ok := services.AgentRegister.(*service.AgentRegisterService)
-	if !ok {
-		panic("invalid agent register service type")
-	}
-	aclSvc, ok := services.ACL.(*service.ACLService)
-	if !ok {
-		panic("invalid acl service type")
-	}
-	profilerSvc, ok := services.Profiler.(*service.ProfilerService)
-	if !ok {
-		panic("invalid profiler service type")
-	}
-	n1Svc, ok := services.N1.(*service.N1Service)
-	if !ok {
-		panic("invalid n1 service type")
-	}
-	budgetSvc, ok := services.Budget.(*service.BudgetService)
-	if !ok {
-		panic("invalid budget service type")
-	}
+	// --- Extract services (NO cyclomatic explosion) ---
+	authSvc := mustCast[service.AuthService](services.Auth, "auth")
+	envSvc := mustCast[service.EnvironmentService](services.Environment, "environment")
+	schemaSvc := mustCast[service.SchemaService](services.Schema, "schema")
+	errorSvc := mustCast[service.ErrorService](services.Error, "error")
+	apiKeySvc := mustCast[service.APIKeyService](services.APIKey, "api key")
+	agentRegSvc := mustCast[service.AgentRegisterService](services.AgentRegister, "agent register")
+	aclSvc := mustCast[service.ACLService](services.ACL, "acl")
+	profilerSvc := mustCast[service.ProfilerService](services.Profiler, "profiler")
+	n1Svc := mustCast[service.N1Service](services.N1, "n1")
+	budgetSvc := mustCast[service.BudgetService](services.Budget, "budget")
+	alertSvc := mustCast[service.AlertService](services.Alert, "alert")
+	overviewSvc := mustCast[service.OverviewService](services.Overview, "overview")
+	migrationSvc := mustCast[service.MigrationService](services.Migration, "migration")
 
 	h := &Handlers{
 		Auth:          NewAuthHandler(authSvc, base),
@@ -111,15 +104,104 @@ func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Log
 		Profiler:      NewProfilerHandler(profilerSvc, base),
 		N1:            NewN1Handler(n1Svc, base),
 		Budget:        NewBudgetHandler(budgetSvc, base),
+		Alert:         NewAlertHandler(alertSvc, base),
+		Overview:      NewOverviewHandler(overviewSvc, base),
+		Migration:     NewMigrationHandler(migrationSvc, base),
 	}
 
-	// Wire up stream-based handlers when Redis is available.
+	// Optional dependency (single branch only)
 	if deps != nil && deps.RedisClient != nil {
 		h.Batch = NewBatchHandler(base, deps.RedisClient, deps.IngestStreamName)
 	}
 
 	return h
 }
+
+// func NewHandlers(services *service.Services, store db.Store, logger *zerolog.Logger, deps *HandlerDeps) *Handlers {
+// 	v := validator.New()
+// 	if err := api.RegisterCustomValidations(v); err != nil {
+// 		panic(err)
+// 	}
+
+// 	base := &BaseHandler{validate: v, logger: logger}
+
+// 	authSvc, ok := services.Auth.(*service.AuthService)
+// 	if !ok {
+// 		panic("invalid auth service type")
+// 	}
+// 	envSvc, ok := services.Environment.(*service.EnvironmentService)
+// 	if !ok {
+// 		panic("invalid environment service type")
+// 	}
+// 	schemaSvc, ok := services.Schema.(*service.SchemaService)
+// 	if !ok {
+// 		panic("invalid schema service type")
+// 	}
+// 	errorSvc, ok := services.Error.(*service.ErrorService)
+// 	if !ok {
+// 		panic("invalid error service type")
+// 	}
+// 	apiKeySvc, ok := services.APIKey.(*service.APIKeyService)
+// 	if !ok {
+// 		panic("invalid api key service type")
+// 	}
+// 	agentRegSvc, ok := services.AgentRegister.(*service.AgentRegisterService)
+// 	if !ok {
+// 		panic("invalid agent register service type")
+// 	}
+// 	aclSvc, ok := services.ACL.(*service.ACLService)
+// 	if !ok {
+// 		panic("invalid acl service type")
+// 	}
+// 	profilerSvc, ok := services.Profiler.(*service.ProfilerService)
+// 	if !ok {
+// 		panic("invalid profiler service type")
+// 	}
+// 	n1Svc, ok := services.N1.(*service.N1Service)
+// 	if !ok {
+// 		panic("invalid n1 service type")
+// 	}
+// 	budgetSvc, ok := services.Budget.(*service.BudgetService)
+// 	if !ok {
+// 		panic("invalid budget service type")
+// 	}
+// 	alertSvc, ok := services.Alert.(*service.AlertService)
+// 	if !ok {
+// 		panic("invalid alert service type")
+// 	}
+// 	overviewSvc, ok := services.Overview.(*service.OverviewService)
+// 	if !ok {
+// 		panic("invalid overview service type")
+// 	}
+// 	migrationSvc, ok := services.Migration.(*service.MigrationService)
+// 	if !ok {
+// 		panic("invalid migration service type")
+// 	}
+
+// 	h := &Handlers{
+// 		Auth:          NewAuthHandler(authSvc, base),
+// 		Environment:   NewEnviromentHandler(*envSvc, base),
+// 		Schema:        NewSchemaHandler(schemaSvc, base),
+// 		Error:         NewErrorHandler(errorSvc, base),
+// 		APIKey:        NewAPIKeyHandler(apiKeySvc, base),
+// 		Ws:            NewWsHandler(base, store),
+// 		AgentRegister: NewAgentRegisterHandler(agentRegSvc, base),
+// 		ACL:           NewACLHandler(aclSvc, base),
+// 		Profiler:      NewProfilerHandler(profilerSvc, base),
+// 		N1:            NewN1Handler(n1Svc, base),
+// 		Budget:        NewBudgetHandler(budgetSvc, base),
+// 		Alert:         NewAlertHandler(alertSvc, base),
+// 		Overview:      NewOverviewHandler(overviewSvc, base),
+// 		Migration:     NewMigrationHandler(migrationSvc, base),
+// 	}
+
+// 	// Wire up stream-based handlers when Redis is available.
+// 	if deps != nil && deps.RedisClient != nil {
+// 		h.Batch = NewBatchHandler(base, deps.RedisClient, deps.IngestStreamName)
+// 	}
+
+// 	return h
+// }
 
 // =============================================================================
 // Base Handler (common utilities)
@@ -153,16 +235,20 @@ func (h *BaseHandler) HandleVersion(w http.ResponseWriter, r *http.Request) {
 
 // DecodeJSON decodes the request body into v. It rejects unknown fields.
 func (h *BaseHandler) DecodeJSON(r *http.Request, v any) *api.Error {
-
-	if r.Body == nil {
+	if r.Body == nil || r.Body == http.NoBody {
 		return api.ErrBadRequest("Request body is empty")
 	}
 
 	dec := json.NewDecoder(r.Body)
-
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(v); err != nil {
+		// io.EOF means the body was present but contained no data at all
+		// (e.g. Content-Length: 0). Distinguish this from a mid-stream
+		// truncation (io.ErrUnexpectedEOF) or a JSON syntax error.
+		if errors.Is(err, io.EOF) {
+			return api.ErrBadRequest("Request body is empty")
+		}
 		h.logger.Error().Err(err).
 			Str("path", r.URL.Path).
 			Msg("JSON decode failed")

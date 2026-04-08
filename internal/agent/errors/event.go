@@ -1,6 +1,7 @@
+package errors
+
 // Package errors provides the agent-side error event pipeline:
 // capture from Odoo ir.logging → ring buffer → batch flush to server.
-package errors
 
 import (
 	"crypto/sha256"

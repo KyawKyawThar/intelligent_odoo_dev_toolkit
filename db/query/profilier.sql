@@ -42,6 +42,16 @@ LIMIT $3;
 SELECT count(*) FROM profiler_recordings
 WHERE env_id = $1;
 
+-- name: ListRecordingsWithChain :many
+SELECT id, env_id, triggered_by, name, endpoint,
+       total_ms, sql_count, sql_ms, python_ms,
+       compute_chain, recorded_at
+FROM profiler_recordings
+WHERE env_id = $1
+  AND compute_chain IS NOT NULL
+ORDER BY recorded_at DESC
+LIMIT $2 OFFSET $3;
+
 -- name: DeleteOldProfilerRecordings :execresult
 DELETE FROM profiler_recordings
 WHERE env_id IN (

@@ -1,0 +1,44 @@
+
+You're right — asking end users to manually edit .env.agent files isn't practical for production. But this is actually the correct flow for this type of tool.
+This isn't for end users — it's for DevOps/sysadmins who manage Odoo servers. The workflow is:
+1. Admin creates an environment in the dashboard (what you just did)
+2. Admin copies the registration token
+3. Admin SSHs into the Odoo server and configures the agent there
+4. The agent self-registers and connects via WebSocket
+This is similar to how tools like Datadog, New Relic, or Grafana Agent work — you install an agent on your server with an API key/token. The dashboard user and the server admin are typically the same person or on the same team.
+If you want to make this smoother in the future, you could add:
+* One-line install script: curl -sSL https://your-domain/install.sh | REGISTRATION_TOKEN=reg_xxx bash — downloads the agent binary and configures it automatically
+* Docker compose snippet: ready to copy-paste with the token pre-filled
+* Ansible/Terraform module: for teams managing multiple Odoo instances
+But the current manual token approach is the standard pattern for agent-based monitoring tools and is appropriate for your target audience (Odoo developers/admins).
+
+
+You're absolutely right. In production, Odoo developers won't have access to your Go project folder. The flow would be:
+The dashboard UI already shows everything they need — look at your screenshot:
+1. The registration token is displayed with a copy button
+2. The AGENT_CLOUD_URL and AGENT_REGISTRATION_TOKEN are shown as a snippet
+The Odoo developer just needs to:
+1. Download the agent binary (you'd distribute it as a standalone binary or Docker image)
+2. Set 2 environment variables from what the dashboard shows them
+3. Run the agent
+They never touch your Go project. They only run the agent binary on their Odoo server.
+Think of it like installing Datadog on a server — you don't need access to Datadog's source code, you just run their agent with an API key.
+For production, you'd want to:
+* Publish the agent as a standalone binary (build from cmd/agent in your Go project and host the binary for download)
+* Provide a one-liner install, e.g.:
+
+curl -sSL https://yourdomain.com/install-agent.sh | \
+  AGENT_CLOUD_URL=wss://api.yourdomain.com/agent/ws \
+  AGENT_REGISTRATION_TOKEN=reg_xxx \
+  bash
+* Or a Docker one-liner:
+
+docker run -d \
+  -e AGENT_CLOUD_URL=wss://api.yourdomain.com/agent/ws \
+  -e AGENT_REGISTRATION_TOKEN=reg_xxx \
+  -e ODOO_URL=http://localhost:8069 \
+  yourdomain/odoo-agent:latest
+The dashboard already shows the right info — the Odoo developer copies those values and uses them to configure the agent on their own server. No access to your codebase needed.
+
+This is a production deployment concern — you're not there yet, but here are the practical options when you're ready:
+Option 1: GitHub Releases (simplest)

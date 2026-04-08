@@ -127,6 +127,48 @@ func (h *SchemaHandler) HandleGetLatest(w http.ResponseWriter, r *http.Request) 
 }
 
 // =============================================================================
+// GET /api/v1/environments/{env_id}/schema/{snapshot_id}
+// =============================================================================
+
+// HandleGetSnapshot returns a single schema snapshot by ID for an environment.
+//
+//	@Summary      Get schema snapshot by ID
+//	@Description  Return a specific schema snapshot for the given environment
+//	@Tags         schema
+//	@Produce      json
+//	@Param        env_id       path      string  true  "Environment ID (UUID)"
+//	@Param        snapshot_id  path      string  true  "Snapshot ID (UUID)"
+//	@Success      200          {object}  dto.SchemaSnapshotResponse
+//	@Failure      401          {object}  api.Error
+//	@Failure      404          {object}  api.Error
+//	@Router       /environments/{env_id}/schema/{snapshot_id} [get]
+//	@Security     BearerAuth
+func (h *SchemaHandler) HandleGetSnapshot(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := h.mustTenantID(w, r)
+	if !ok {
+		return
+	}
+
+	envID, ok := h.MustUUIDParam(w, r, "env_id")
+	if !ok {
+		return
+	}
+
+	snapshotID, ok := h.MustUUIDParam(w, r, "snapshot_id")
+	if !ok {
+		return
+	}
+
+	resp, err := h.svc.GetSnapshot(r.Context(), tenantID, envID, snapshotID)
+	if err != nil {
+		h.HandleErr(w, r, err)
+		return
+	}
+
+	dto.WriteSuccess(w, r, resp)
+}
+
+// =============================================================================
 // GET /api/v1/environments/{env_id}/schema
 // =============================================================================
 

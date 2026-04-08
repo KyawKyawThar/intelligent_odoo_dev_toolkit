@@ -1308,6 +1308,268 @@ const docTemplate = `{
                 }
             }
         },
+        "/environments/{env_id}/alerts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns alerts for the environment, optionally filtered to unacknowledged only",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "List alerts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max alerts to return (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "If true, return only unacknowledged alerts",
+                        "name": "unacknowledged",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AlertListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/alerts/acknowledge-all": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks every unacknowledged alert in the environment as acknowledged",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Acknowledge all alerts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AcknowledgeAllResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/alerts/count": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the count of unacknowledged alerts for the environment, useful for notification badges",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Count unacknowledged alerts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AlertCountResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/alerts/{alert_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a single alert by its ID, scoped to the environment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Get alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "alert_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AlertResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/alerts/{alert_id}/acknowledge": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks the alert as acknowledged by the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Acknowledge alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "alert_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AlertResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/environments/{env_id}/api-keys": {
             "get": {
                 "security": [
@@ -2160,6 +2422,104 @@ const docTemplate = `{
                 }
             }
         },
+        "/environments/{env_id}/heartbeats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List recent agent heartbeats for an environment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "environments"
+                ],
+                "summary": "List heartbeats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID (UUID)",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of heartbeats to return (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.HeartbeatListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/heartbeats/latest": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the latest agent heartbeat for an environment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "environments"
+                ],
+                "summary": "Get latest heartbeat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID (UUID)",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.HeartbeatResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/environments/{env_id}/n1/detect": {
             "get": {
                 "security": [
@@ -2275,6 +2635,163 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns aggregated stats across all features (errors, profiler, N+1, alerts, budgets, agent) for a single environment",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "overview"
+                ],
+                "summary": "Environment overview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.OverviewResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/profiler/chain": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List profiler recordings that contain compute-chain dependency data",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiler"
+                ],
+                "summary": "List chain recordings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ChainRecordingListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/{env_id}/profiler/chain/{recording_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns only the compute-chain dependency graph for a profiler recording (lighter than the full recording detail)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profiler"
+                ],
+                "summary": "Get compute chain",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Environment ID",
+                        "name": "env_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Recording ID",
+                        "name": "recording_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ChainResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/api.Error"
                         }
@@ -3008,6 +3525,91 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.AcknowledgeAllResponse": {
+            "type": "object",
+            "properties": {
+                "acknowledged": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AgentOverview": {
+            "type": "object",
+            "properties": {
+                "last_heartbeat_at": {
+                    "description": "LastHeartbeatAt is the time of the most recent heartbeat (nil if never seen).",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is the latest heartbeat status (\"healthy\", \"degraded\", \"offline\", \"unknown\").",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AlertCountResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AlertListResponse": {
+            "type": "object",
+            "properties": {
+                "alerts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AlertResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.AlertResponse": {
+            "type": "object",
+            "properties": {
+                "acknowledged": {
+                    "type": "boolean"
+                },
+                "acknowledged_at": {
+                    "type": "string"
+                },
+                "acknowledged_by": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "env_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "metadata": {},
+                "severity": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AlertsOverview": {
+            "type": "object",
+            "properties": {
+                "unacknowledged": {
+                    "description": "Unacknowledged is the number of alerts not yet acknowledged.",
+                    "type": "integer"
+                }
+            }
+        },
         "dto.BatchORMStat": {
             "type": "object",
             "properties": {
@@ -3237,6 +3839,79 @@ const docTemplate = `{
                 },
                 "sample_count": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.BudgetsOverview": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "description": "Active is the number of currently active budgets.",
+                    "type": "integer"
+                },
+                "total": {
+                    "description": "Total is the total number of configured budgets (active + inactive).",
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ChainRecordingItem": {
+            "type": "object",
+            "properties": {
+                "compute_chain": {
+                    "$ref": "#/definitions/dto.ComputeChain"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "env_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "recorded_at": {
+                    "type": "string"
+                },
+                "total_ms": {
+                    "type": "integer"
+                },
+                "triggered_by": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ChainRecordingListResponse": {
+            "type": "object",
+            "properties": {
+                "recordings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.ChainRecordingItem"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.ChainResponse": {
+            "type": "object",
+            "properties": {
+                "compute_chain": {
+                    "$ref": "#/definitions/dto.ComputeChain"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "recorded_at": {
+                    "type": "string"
+                },
+                "recording_id": {
+                    "type": "string"
                 }
             }
         },
@@ -3722,6 +4397,19 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ErrorsOverview": {
+            "type": "object",
+            "properties": {
+                "open": {
+                    "description": "Open is the count of error groups still in \"open\" status.",
+                    "type": "integer"
+                },
+                "total": {
+                    "description": "Total is the total number of error groups for this environment.",
+                    "type": "integer"
+                }
+            }
+        },
         "dto.ForgotPasswordRequest": {
             "type": "object",
             "required": [
@@ -3797,6 +4485,49 @@ const docTemplate = `{
                 },
                 "pct": {
                     "type": "number"
+                }
+            }
+        },
+        "dto.HeartbeatListResponse": {
+            "type": "object",
+            "properties": {
+                "heartbeats": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.HeartbeatResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.HeartbeatResponse": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "agent_version": {
+                    "type": "string"
+                },
+                "env_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "received_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
                 }
             }
         },
@@ -3953,6 +4684,19 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.N1Overview": {
+            "type": "object",
+            "properties": {
+                "critical_count": {
+                    "description": "CriticalCount is the number of patterns classified as critical severity.",
+                    "type": "integer"
+                },
+                "patterns_detected": {
+                    "description": "PatternsDetected is the number of distinct N+1 patterns found in the last 24h.",
+                    "type": "integer"
+                }
+            }
+        },
         "dto.N1Pattern": {
             "type": "object",
             "properties": {
@@ -4072,6 +4816,42 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/dto.N1TimelinePoint"
                     }
+                }
+            }
+        },
+        "dto.OverviewResponse": {
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "$ref": "#/definitions/dto.AgentOverview"
+                },
+                "alerts": {
+                    "$ref": "#/definitions/dto.AlertsOverview"
+                },
+                "budgets": {
+                    "$ref": "#/definitions/dto.BudgetsOverview"
+                },
+                "errors": {
+                    "$ref": "#/definitions/dto.ErrorsOverview"
+                },
+                "n1": {
+                    "$ref": "#/definitions/dto.N1Overview"
+                },
+                "profiler": {
+                    "$ref": "#/definitions/dto.ProfilerOverview"
+                }
+            }
+        },
+        "dto.ProfilerOverview": {
+            "type": "object",
+            "properties": {
+                "total_recordings": {
+                    "description": "TotalRecordings is the total number of profiler recordings.",
+                    "type": "integer"
+                },
+                "with_compute_chain": {
+                    "description": "WithComputeChain is the count of recordings that contain compute-chain data.",
+                    "type": "integer"
                 }
             }
         },

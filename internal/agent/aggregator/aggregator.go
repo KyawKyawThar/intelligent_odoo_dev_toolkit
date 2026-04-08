@@ -133,8 +133,10 @@ func (a *Aggregator) ingest(ev Event) {
 	a.updateSummary(ev)
 
 	// Decide whether to keep the raw event.
-	if a.shouldKeepRaw(ev) {
-		if a.config.MaxRawPerFlush <= 0 || len(a.rawBuf) < a.config.MaxRawPerFlush {
+	// Compute-chain events are always kept — they are rare and critical for chain visualization.
+	alwaysKeep := ev.IsCompute || ev.IsError
+	if alwaysKeep || a.shouldKeepRaw(ev) {
+		if alwaysKeep || a.config.MaxRawPerFlush <= 0 || len(a.rawBuf) < a.config.MaxRawPerFlush {
 			a.rawBuf = append(a.rawBuf, ev)
 		}
 	}

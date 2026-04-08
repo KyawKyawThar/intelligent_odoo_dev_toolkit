@@ -77,6 +77,13 @@ type ProfilerServicer interface {
 	GetRecording(ctx context.Context, tenantID, envID, recordingID uuid.UUID) (*dto.ProfilerRecordingResponse, error)
 	ListRecordings(ctx context.Context, tenantID, envID uuid.UUID, req *dto.ListProfilerRecordingsRequest) (*dto.ProfilerRecordingListResponse, error)
 	ListSlowRecordings(ctx context.Context, tenantID, envID uuid.UUID, req *dto.ListSlowRecordingsRequest) (*dto.ProfilerRecordingListResponse, error)
+	ListChainRecordings(ctx context.Context, tenantID, envID uuid.UUID, limit, offset int32) (*dto.ChainRecordingListResponse, error)
+	GetChain(ctx context.Context, tenantID, envID, recordingID uuid.UUID) (*dto.ChainResponse, error)
+}
+
+// OverviewServicer defines the business operations for the environment dashboard.
+type OverviewServicer interface {
+	GetOverview(ctx context.Context, tenantID, envID uuid.UUID) (*dto.OverviewResponse, error)
 }
 
 // BudgetServicer defines the business operations for performance budgets.
@@ -92,6 +99,33 @@ type BudgetServicer interface {
 	CalculateOverhead(ctx context.Context, envID uuid.UUID, events []ProfilerEvent, logger zerolog.Logger) (*OverheadResult, error)
 }
 
+// AlertServicer defines the business operations for alert management.
+type AlertServicer interface {
+	List(ctx context.Context, tenantID, envID uuid.UUID, req *dto.ListAlertsRequest) (*dto.AlertListResponse, error)
+	GetByID(ctx context.Context, tenantID, envID, alertID uuid.UUID) (*dto.AlertResponse, error)
+	Acknowledge(ctx context.Context, tenantID, envID, alertID, userID uuid.UUID) (*dto.AlertResponse, error)
+	AcknowledgeAll(ctx context.Context, tenantID, envID, userID uuid.UUID) (*dto.AcknowledgeAllResponse, error)
+	CountUnacknowledged(ctx context.Context, tenantID, envID uuid.UUID) (*dto.AlertCountResponse, error)
+}
+
+// MigrationServicer defines the business operations for migration scans.
+type MigrationServicer interface {
+	// RunScan scans the environment schema against the deprecation DB.
+	RunScan(ctx context.Context, tenantID, envID uuid.UUID, userID *uuid.UUID, req *dto.RunMigrationScanRequest) (*dto.MigrationScanResponse, error)
+	// GetScan retrieves one scan by ID.
+	GetScan(ctx context.Context, tenantID, envID, scanID uuid.UUID) (*dto.MigrationScanResponse, error)
+	// GetLatestScan retrieves the most recent scan for an environment.
+	GetLatestScan(ctx context.Context, tenantID, envID uuid.UUID) (*dto.MigrationScanResponse, error)
+	// ListScans returns a paginated list of scans.
+	ListScans(ctx context.Context, tenantID, envID uuid.UUID, req *dto.ListMigrationScansRequest) (*dto.MigrationScanListResponse, error)
+	// DeleteScan removes a scan record.
+	DeleteScan(ctx context.Context, tenantID, envID, scanID uuid.UUID) error
+	// SupportedTransitions lists the version pairs the deprecation DB covers.
+	SupportedTransitions() *dto.SupportedTransitionsResponse
+	// ScanSourceCode scans uploaded Odoo module files for deprecated Python/XML patterns.
+	ScanSourceCode(ctx context.Context, tenantID uuid.UUID, req *dto.ScanSourceRequest) (*dto.ScanSourceResponse, error)
+}
+
 // SchemaServicer defines the business operations for schema snapshots.
 type SchemaServicer interface {
 	// StoreSchema is called by the agent to persist a collected schema snapshot.
@@ -100,6 +134,8 @@ type SchemaServicer interface {
 	GetLatest(ctx context.Context, tenantID, envID uuid.UUID) (*dto.SchemaSnapshotResponse, error)
 	// ListSnapshots returns a lightweight list of snapshots for an environment.
 	ListSnapshots(ctx context.Context, tenantID, envID uuid.UUID, limit int32) (*dto.SchemaSnapshotListResponse, error)
+	// GetSnapshot returns a single snapshot by ID, scoped to the environment.
+	GetSnapshot(ctx context.Context, tenantID, envID, snapshotID uuid.UUID) (*dto.SchemaSnapshotResponse, error)
 	// SearchModels searches models within the latest snapshot for an environment.
 	SearchModels(ctx context.Context, tenantID, envID uuid.UUID, q string, limit, offset int32) (*dto.SearchModelsResponse, error)
 }

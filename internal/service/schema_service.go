@@ -111,6 +111,27 @@ func (s *SchemaService) ListSnapshots(ctx context.Context, tenantID, envID uuid.
 	}, nil
 }
 
+// GetSnapshot returns a single schema snapshot by ID, verifying that it
+// belongs to the given environment and tenant.
+func (s *SchemaService) GetSnapshot(ctx context.Context, tenantID, envID, snapshotID uuid.UUID) (*dto.SchemaSnapshotResponse, error) {
+	if _, err := s.store.GetEnvironmentByID(ctx, db.GetEnvironmentByIDParams{
+		ID:       envID,
+		TenantID: tenantID,
+	}); err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	snapshot, err := s.store.GetSchemaByID(ctx, db.GetSchemaByIDParams{
+		ID:    snapshotID,
+		EnvID: envID,
+	})
+	if err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	return dto.ToSchemaSnapshotResponse(&snapshot), nil
+}
+
 // SearchModels searches model entries within the latest snapshot for an
 // environment. It filters by case-insensitive substring match on the model's
 // "model" (technical name) or "name" (display label) keys.

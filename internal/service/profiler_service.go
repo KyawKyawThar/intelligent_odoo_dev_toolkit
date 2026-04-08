@@ -188,6 +188,83 @@ func (s *ProfilerService) ListSlowRecordings(
 	}, nil
 }
 
+// ListChainRecordings returns recordings that contain compute-chain data.
+func (s *ProfilerService) ListChainRecordings(
+	ctx context.Context,
+	tenantID, envID uuid.UUID,
+	limit, offset int32,
+) (*dto.ChainRecordingListResponse, error) {
+	if _, err := s.store.GetEnvironmentByID(ctx, db.GetEnvironmentByIDParams{
+		ID:       envID,
+		TenantID: tenantID,
+	}); err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	rows, err := s.store.ListRecordingsWithChain(ctx, db.ListRecordingsWithChainParams{
+		EnvID:  envID,
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	items := make([]dto.ChainRecordingItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, dto.ChainRecordingItem{
+			ID:           row.ID,
+			EnvID:        row.EnvID,
+			TriggeredBy:  row.TriggeredBy,
+			Name:         row.Name,
+			Endpoint:     row.Endpoint,
+			TotalMS:      row.TotalMs,
+			RecordedAt:   row.RecordedAt,
+			ComputeChain: BuildComputeChain(row.ComputeChain),
+		})
+	}
+
+	return &dto.ChainRecordingListResponse{
+		Recordings: items,
+		Total:      int64(len(items)),
+	}, nil
+}
+
+// GetChain returns just the compute-chain for a single recording.
+func (s *ProfilerService) GetChain(
+	ctx context.Context,
+	tenantID, envID, recordingID uuid.UUID,
+) (*dto.ChainResponse, error) {
+	if _, err := s.store.GetEnvironmentByID(ctx, db.GetEnvironmentByIDParams{
+		ID:       envID,
+		TenantID: tenantID,
+	}); err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	rec, err := s.store.GetProfilerRecording(ctx, db.GetProfilerRecordingParams{
+		ID:    recordingID,
+		EnvID: envID,
+	})
+	if err != nil {
+		return nil, api.FromPgError(err)
+	}
+
+	return &dto.ChainResponse{
+		RecordingID:  rec.ID,
+		Name:         rec.Name,
+		RecordedAt:   rec.RecordedAt,
+		ComputeChain: BuildComputeChain(rec.ComputeChain),
+	}, nil
+}
+
 // ─── Waterfall Builder ──────────────────────────────────────────────────────
 
 // rawSpan is the shape of individual span entries stored in the waterfall JSONB.
@@ -804,7 +881,12 @@ func BuildComputeChainFromEvents(events []ProfilerEvent) *json.RawMessage {
 
 	for i, ev := range computeEvents {
 		nodeID := fmt.Sprintf("compute-%d", i)
-		key := ev.Model + "." + ev.FieldName
+		// Use Method as key fallback when FieldName is unknown (e.g. method not in ir.model.fields).
+		keyField := ev.FieldName
+		if keyField == "" {
+			keyField = ev.Method
+		}
+		key := ev.Model + "." + keyField
 		fieldToNodeID[key] = nodeID
 
 		depth, parentID := determineDepthAndParent(ev, nodes, fieldToNodeID)
@@ -834,7 +916,9 @@ func BuildComputeChainFromEvents(events []ProfilerEvent) *json.RawMessage {
 func filterComputeEvents(events []ProfilerEvent) []ProfilerEvent {
 	var computeEvents []ProfilerEvent
 	for _, ev := range events {
-		if ev.IsCompute && ev.FieldName != "" {
+		// Accept compute events even when FieldName is unknown — the method name
+		// alone is enough to build a meaningful chain node.
+		if ev.IsCompute && (ev.FieldName != "" || ev.Method != "") {
 			computeEvents = append(computeEvents, ev)
 		}
 	}

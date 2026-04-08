@@ -1,6 +1,5 @@
 // Package main is the entry point for the background worker process.
 // It runs the ingest worker that consumes from Redis streams and writes
-// to PostgreSQL + S3.
 package main
 
 import (
