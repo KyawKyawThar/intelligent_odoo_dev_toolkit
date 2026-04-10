@@ -255,20 +255,17 @@ jobs:
         go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
         -o bin/server-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/server
 
-    # Uncomment when worker & agent cmds are ready:
-    # - name: Build worker binary
-    #   run: |
-    #     CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-    #     go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-    #     -o bin/worker-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/worker
-    #   continue-on-error: true
+    - name: Build worker binary
+      run: |
+        CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+        -o bin/worker-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/worker
 
-    # - name: Build agent binary
-    #   run: |
-    #     CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
-    #     go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-    #     -o bin/agent-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/agent
-    #   continue-on-error: true
+    - name: Build agent binary
+      run: |
+        CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+        -o bin/agent-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/agent
 
     - name: Upload binaries
       uses: actions/upload-artifact@v4
@@ -343,19 +340,17 @@ jobs:
     #     cache-to: type=gha,mode=max
     #   continue-on-error: true
 
-    # Uncomment when Dockerfile_agent is ready:
-    # - name: Build and push Agent image
-    #   uses: docker/build-push-action@v6
-    #   with:
-    #     context: .
-    #     file: ./deploy/Dockerfile.agent
-    #     push: true
-    #     platforms: linux/amd64,linux/arm64
-    #     tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-agent:${{ github.ref_name }}
-    #     labels: ${{ steps.meta.outputs.labels }}
-    #     cache-from: type=gha
-    #     cache-to: type=gha,mode=max
-    #   continue-on-error: true
+    - name: Build and push Agent image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: ./deploy/Dockerfile_agent
+        push: true
+        platforms: linux/amd64,linux/arm64
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-agent:${{ github.ref_name }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     # ─────────────────────────────────────────────────────────────────
     # Create GitHub Release (on tags)

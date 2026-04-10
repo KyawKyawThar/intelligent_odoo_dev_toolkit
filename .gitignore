@@ -1,12 +1,29 @@
 # Ignore postgres data
 deploy/db-data/postgres_data
 cmd/server/tmp
+
+# Environment / secrets
 .env
 .env.agent
 deploy/.env
+
+# Local dev assets
 deploy/custom-addons
+
+# Generated / docs
 *.md
 *.toml
 *.json
+
 # Never ignore example/template env files
 *.example
+
+# Log files — never commit these (can be large and contain sensitive data)
+*.log
+odoo-server.log
+
+# Local scratch / notes files — keep off GitHub
+config.txt
+server.txt
+suggestion.txt
+server_setup.txt
