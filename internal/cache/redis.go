@@ -77,6 +77,7 @@ func parseRedisURL(urlStr string) (RedisConfig, error) {
 		return cfg, fmt.Errorf("invalid redis scheme: %s", u.Scheme)
 	}
 
+	cfg.TLS = u.Scheme == "rediss"
 	cfg.Host = u.Hostname()
 	if p := u.Port(); p != "" {
 		if pi, err := strconv.Atoi(p); err == nil {
@@ -112,15 +113,13 @@ func parseSimpleRedisAddr(urlStr string) (RedisConfig, error) {
 	return cfg, nil
 }
 
-// NewRedisClient creates a new Redis client.
-func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
-	// if an address string is provided, parse it to fill missing fields.
+// buildOptsFromConfig builds redis.Options from a non-URL RedisConfig.
+func buildOptsFromConfig(cfg RedisConfig) (*redis.Options, error) {
 	if cfg.Address != "" {
 		parsed, err := ParseRedisConfig(cfg.Address)
 		if err != nil {
 			return nil, fmt.Errorf("invalid redis address: %w", err)
 		}
-		// only override hosts/port/password/db when not explicitly set
 		if cfg.Host == "" {
 			cfg.Host = parsed.Host
 		}
@@ -134,23 +133,41 @@ func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
 			cfg.DB = parsed.DB
 		}
 	}
-
 	if cfg.Port == 0 {
 		cfg.Port = 6379
 	}
-
-	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	opts := &redis.Options{
-		Addr:     addr,
+		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	}
-
 	if cfg.TLS {
 		opts.TLSConfig = &tls.Config{
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: false,
 			ServerName:         cfg.Host,
+		}
+	}
+	return opts, nil
+}
+
+// NewRedisClient creates a new Redis client.
+func NewRedisClient(cfg RedisConfig) (*RedisClient, error) {
+	var opts *redis.Options
+
+	// When a full redis:// or rediss:// URL is supplied, delegate to go-redis
+	// ParseURL which correctly handles TLS for rediss:// out of the box.
+	if cfg.Address != "" && (strings.HasPrefix(cfg.Address, "redis://") || strings.HasPrefix(cfg.Address, "rediss://")) {
+		var err error
+		opts, err = redis.ParseURL(cfg.Address)
+		if err != nil {
+			return nil, fmt.Errorf("invalid redis URL: %w", err)
+		}
+	} else {
+		var err error
+		opts, err = buildOptsFromConfig(cfg)
+		if err != nil {
+			return nil, err
 		}
 	}
 

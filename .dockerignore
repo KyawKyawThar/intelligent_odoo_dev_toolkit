@@ -1,0 +1,14 @@
+# flyctl launch added from .gitignore
+# Ignore postgres data
+**/deploy/db-data/postgres_data
+**/cmd/server/tmp
+**/.env
+**/.env.agent
+**/deploy/.env
+**/deploy/custom-addons
+**/*.md
+**/*.toml
+**/*.json
+# Never ignore example/template env files
+**/*.example
+fly.toml

@@ -196,6 +196,7 @@ func LoadConfig(path string) (config Config, err error) {
 
 	// Set defaults
 	viper.SetDefault("ENVIRONMENT", EnvironmentDevelopment)
+	viper.SetDefault("APP_ENV", EnvironmentDevelopment)
 	viper.SetDefault("SERVER_HOST", "0.0.0.0")
 	viper.SetDefault("SERVER_PORT", "8080")
 	viper.SetDefault("ACCESS_TOKEN_DURATION", "15m")
@@ -205,6 +206,15 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetDefault("RATE_LIMIT_INGEST_PM", 1000)
 	viper.SetDefault("REDIS_DB", 0)
 	viper.SetDefault("TOKEN_SYMMETRIC_KEY", utils.RandomString(32))
+	// Register env-only keys so AutomaticEnv() populates them when no .env file exists
+	viper.SetDefault("DATABASE_URL", "")
+	viper.SetDefault("REDIS_URL", "")
+	viper.SetDefault("S3_BUCKET", "")
+	viper.SetDefault("S3_ENDPOINT", "")
+	viper.SetDefault("S3_ACCESS_KEY", "")
+	viper.SetDefault("S3_SECRET_KEY", "")
+	viper.SetDefault("S3_REGION", "")
+	viper.SetDefault("AGENT_CLOUD_URL", "")
 
 	err = viper.ReadInConfig()
 	if err != nil {

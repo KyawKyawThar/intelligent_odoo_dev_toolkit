@@ -30,8 +30,4 @@ COPY --from=builder /bin/worker .
 
 USER odoodt
 
-# Workers don't expose HTTP — healthcheck via process exit code
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD pgrep worker || exit 1
-
 ENTRYPOINT ["./worker"]
