@@ -109,3 +109,15 @@ WHERE env_id IN (
 )
 AND last_seen < $2
 AND status != 'open';
+
+-- name: ListExpiringErrorGroupRefs :many
+-- Returns the S3 raw_trace_ref for error groups that will be deleted by
+-- DeleteOldErrorGroups. Call this BEFORE DeleteOldErrorGroups so the
+-- retention worker can clean up orphaned S3 objects first.
+SELECT raw_trace_ref FROM error_groups
+WHERE env_id IN (
+    SELECT id FROM environments WHERE tenant_id = $1
+)
+AND last_seen < $2
+AND status != 'open'
+AND raw_trace_ref IS NOT NULL;

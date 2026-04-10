@@ -151,10 +151,43 @@ func (s *Server) setupProtectedRoutes(r chi.Router) {
 
 		r.Use(mw.TenantResolver(mw.DatabaseTenantLookup(s.store)))
 		r.Use(mw.TieredRateLimit(mw.DefaultPlanLimits))
+		r.Use(mw.AuditLog(s.store, *s.logger))
 
 		s.registerAuthRoutes(r)
 		s.registerEnvironmentRoutes(r)
 		s.registerStandaloneMigrationRoutes(r)
+		s.registerAuditRoutes(r)
+		s.registerNotificationChannelRoutes(r)
+	})
+}
+
+// registerNotificationChannelRoutes mounts CRUD endpoints for notification channels.
+func (s *Server) registerNotificationChannelRoutes(r chi.Router) {
+	if s.handler.NotificationChannel == nil {
+		return
+	}
+	r.Route("/api/v1/notification-channels", func(r chi.Router) {
+		r.Get("/", s.handler.NotificationChannel.HandleList)
+		r.Post("/", s.handler.NotificationChannel.HandleCreate)
+		r.Route("/{channel_id}", func(r chi.Router) {
+			r.Get("/", s.handler.NotificationChannel.HandleGet)
+			r.Patch("/", s.handler.NotificationChannel.HandleUpdate)
+			r.Delete("/", s.handler.NotificationChannel.HandleDelete)
+		})
+	})
+}
+
+// registerAuditRoutes mounts the audit log query endpoints.
+func (s *Server) registerAuditRoutes(r chi.Router) {
+	if s.handler.Audit == nil {
+		return
+	}
+	r.Route("/api/v1/audit-logs", func(r chi.Router) {
+		r.Get("/", s.handler.Audit.HandleList)
+		r.Get("/by-action/{action}", s.handler.Audit.HandleListByAction)
+		r.Get("/by-user/{user_id}", s.handler.Audit.HandleListByUser)
+		r.Get("/by-resource", s.handler.Audit.HandleListByResource)
+		r.Get("/between", s.handler.Audit.HandleListBetween)
 	})
 }
 

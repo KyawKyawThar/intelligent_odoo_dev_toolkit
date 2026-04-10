@@ -164,6 +164,10 @@ type Querier interface {
 	ListErrorGroups(ctx context.Context, arg ListErrorGroupsParams) ([]ErrorGroup, error)
 	ListErrorGroupsByStatus(ctx context.Context, arg ListErrorGroupsByStatusParams) ([]ErrorGroup, error)
 	ListErrorGroupsByType(ctx context.Context, arg ListErrorGroupsByTypeParams) ([]ErrorGroup, error)
+	// Returns the S3 raw_trace_ref for error groups that will be deleted by
+	// DeleteOldErrorGroups. Call this BEFORE DeleteOldErrorGroups so the
+	// retention worker can clean up orphaned S3 objects first.
+	ListExpiringErrorGroupRefs(ctx context.Context, arg ListExpiringErrorGroupRefsParams) ([]*string, error)
 	ListHeartbeats(ctx context.Context, arg ListHeartbeatsParams) ([]AgentHeartbeat, error)
 	ListMigrationScans(ctx context.Context, arg ListMigrationScansParams) ([]MigrationScan, error)
 	ListN1Detections(ctx context.Context, arg ListN1DetectionsParams) ([]OrmStat, error)

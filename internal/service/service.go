@@ -26,6 +26,8 @@ type Services struct {
 	Alert         AlertServicer
 	Overview      OverviewServicer
 	Migration     MigrationServicer
+	Audit         *AuditService
+	Notification  *NotificationService
 }
 
 type Config struct {
@@ -114,6 +116,8 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 	alertSvc := NewAlertService(store)
 	overviewSvc := NewOverviewService(store)
 	migrationSvc := NewMigrationService(store)
+	auditSvc := NewAuditService(store)
+	notificationSvc := NewNotificationService(store)
 
 	return &Services{
 		Auth:          authSvc,
@@ -129,5 +133,7 @@ func NewServices(store db.Store, redisCache *cache.RedisClient, tokenMaker token
 		Alert:         alertSvc,
 		Overview:      overviewSvc,
 		Migration:     migrationSvc,
+		Audit:         auditSvc,
+		Notification:  notificationSvc,
 	}
 }

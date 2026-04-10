@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
@@ -21,7 +22,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func main() {
+func main() { //nolint:gocognit,gocyclo // worker startup wires multiple subsystems; acceptable top-level complexity
 	// ── 1. Load config ────────────────────────────────────────────────────────
 	cfg, err := config.LoadConfig(".")
 	if err != nil {
@@ -113,7 +114,22 @@ func main() {
 
 	aw := worker.NewAlertWorker(store, redisClient.Client, alertCfg, log.Logger)
 
-	// ── 8. Shutdown context ──────────────────────────────────────────────────
+	// ── 8. Retention worker ──────────────────────────────────────────────────
+	retentionCfg := worker.DefaultRetentionConfig()
+	if cfg.RetentionInterval != "" {
+		if d, err := time.ParseDuration(cfg.RetentionInterval); err == nil && d > 0 {
+			retentionCfg.RunInterval = d
+		} else {
+			log.Warn().Str("value", cfg.RetentionInterval).Msg("invalid RETENTION_INTERVAL, using default 1h")
+		}
+	}
+
+	rw := worker.NewRetentionWorker(store, s3Client, retentionCfg, log.Logger)
+
+	// ── 9. Notification worker ───────────────────────────────────────────────
+	nw := worker.NewNotificationWorker(store, worker.DefaultNotificationConfig(), log.Logger)
+
+	// ── 10. Shutdown context ─────────────────────────────────────────────────
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -129,10 +145,30 @@ func main() {
 		Int("workers", alertCfg.WorkerCount).
 		Msg("starting alert worker")
 
-	// Run ingest worker in background, alert worker in foreground.
+	log.Info().
+		Dur("interval", retentionCfg.RunInterval).
+		Msg("starting retention worker")
+
+	log.Info().
+		Dur("poll_interval", worker.DefaultNotificationConfig().PollInterval).
+		Msg("starting notification worker")
+
+	// Run ingest, retention, and notification workers in background; block on alert worker.
 	go func() {
 		if err := iw.Run(ctx); err != nil {
 			log.Error().Err(err).Msg("ingest worker error")
+		}
+	}()
+
+	go func() {
+		if err := rw.Run(ctx); err != nil {
+			log.Error().Err(err).Msg("retention worker error")
+		}
+	}()
+
+	go func() {
+		if err := nw.Run(ctx); err != nil {
+			log.Error().Err(err).Msg("notification worker error")
 		}
 	}()
 
