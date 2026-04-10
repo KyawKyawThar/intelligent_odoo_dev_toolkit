@@ -99,6 +99,7 @@ type Config struct {
 	AlertWorkerCount        int    `mapstructure:"ALERT_WORKER_COUNT"`
 	RetentionCron           string `mapstructure:"RETENTION_CRON"`
 	RetentionDryRun         bool   `mapstructure:"RETENTION_DRY_RUN"`
+	RetentionInterval       string `mapstructure:"RETENTION_INTERVAL"` // e.g. "1h", "30m"; default 1h
 
 	// ── Rate Limiting ────────────────────────────────────────────
 	RateLimitCloud                int   `mapstructure:"RATE_LIMIT_CLOUD"`

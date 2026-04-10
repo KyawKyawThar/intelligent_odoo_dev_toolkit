@@ -348,6 +348,44 @@ func (q *Queries) ListErrorGroupsByType(ctx context.Context, arg ListErrorGroups
 	return items, nil
 }
 
+const listExpiringErrorGroupRefs = `-- name: ListExpiringErrorGroupRefs :many
+SELECT raw_trace_ref FROM error_groups
+WHERE env_id IN (
+    SELECT id FROM environments WHERE tenant_id = $1
+)
+AND last_seen < $2
+AND status != 'open'
+AND raw_trace_ref IS NOT NULL
+`
+
+type ListExpiringErrorGroupRefsParams struct {
+	TenantID uuid.UUID `db:"tenant_id" json:"tenant_id"`
+	LastSeen time.Time `db:"last_seen" json:"last_seen"`
+}
+
+// Returns the S3 raw_trace_ref for error groups that will be deleted by
+// DeleteOldErrorGroups. Call this BEFORE DeleteOldErrorGroups so the
+// retention worker can clean up orphaned S3 objects first.
+func (q *Queries) ListExpiringErrorGroupRefs(ctx context.Context, arg ListExpiringErrorGroupRefsParams) ([]*string, error) {
+	rows, err := q.db.Query(ctx, listExpiringErrorGroupRefs, arg.TenantID, arg.LastSeen)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*string{}
+	for rows.Next() {
+		var raw_trace_ref *string
+		if err := rows.Scan(&raw_trace_ref); err != nil {
+			return nil, err
+		}
+		items = append(items, raw_trace_ref)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const reopenErrorGroup = `-- name: ReopenErrorGroup :one
 UPDATE error_groups
 SET

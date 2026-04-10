@@ -24,21 +24,23 @@ const trueString = "true"
 
 // Handlers is the main container for all HTTP handlers.
 type Handlers struct {
-	Auth          *AuthHandler
-	Ws            *WsHandler
-	Environment   *EnvironmentHandler
-	Schema        *SchemaHandler
-	Error         *ErrorHandler
-	APIKey        *APIKeyHandler
-	Batch         *BatchHandler
-	AgentRegister *AgentRegisterHandler
-	ACL           *ACLHandler
-	Profiler      *ProfilerHandler
-	N1            *N1Handler
-	Budget        *BudgetHandler
-	Alert         *AlertHandler
-	Overview      *OverviewHandler
-	Migration     *MigrationHandler
+	Auth                *AuthHandler
+	Ws                  *WsHandler
+	Environment         *EnvironmentHandler
+	Schema              *SchemaHandler
+	Error               *ErrorHandler
+	APIKey              *APIKeyHandler
+	Batch               *BatchHandler
+	AgentRegister       *AgentRegisterHandler
+	ACL                 *ACLHandler
+	Profiler            *ProfilerHandler
+	N1                  *N1Handler
+	Budget              *BudgetHandler
+	Alert               *AlertHandler
+	Overview            *OverviewHandler
+	Migration           *MigrationHandler
+	Audit               *AuditHandler
+	NotificationChannel *NotificationChannelHandler
 }
 
 // HandlerDeps holds optional dependencies for handler construction.
@@ -93,20 +95,22 @@ func NewHandlers(
 	migrationSvc := mustCast[service.MigrationService](services.Migration, "migration")
 
 	h := &Handlers{
-		Auth:          NewAuthHandler(authSvc, base),
-		Environment:   NewEnviromentHandler(*envSvc, base),
-		Schema:        NewSchemaHandler(schemaSvc, base),
-		Error:         NewErrorHandler(errorSvc, base),
-		APIKey:        NewAPIKeyHandler(apiKeySvc, base),
-		Ws:            NewWsHandler(base, store),
-		AgentRegister: NewAgentRegisterHandler(agentRegSvc, base),
-		ACL:           NewACLHandler(aclSvc, base),
-		Profiler:      NewProfilerHandler(profilerSvc, base),
-		N1:            NewN1Handler(n1Svc, base),
-		Budget:        NewBudgetHandler(budgetSvc, base),
-		Alert:         NewAlertHandler(alertSvc, base),
-		Overview:      NewOverviewHandler(overviewSvc, base),
-		Migration:     NewMigrationHandler(migrationSvc, base),
+		Auth:                NewAuthHandler(authSvc, base),
+		Environment:         NewEnviromentHandler(*envSvc, base),
+		Schema:              NewSchemaHandler(schemaSvc, base),
+		Error:               NewErrorHandler(errorSvc, base),
+		APIKey:              NewAPIKeyHandler(apiKeySvc, base),
+		Ws:                  NewWsHandler(base, store),
+		AgentRegister:       NewAgentRegisterHandler(agentRegSvc, base),
+		ACL:                 NewACLHandler(aclSvc, base),
+		Profiler:            NewProfilerHandler(profilerSvc, base),
+		N1:                  NewN1Handler(n1Svc, base),
+		Budget:              NewBudgetHandler(budgetSvc, base),
+		Alert:               NewAlertHandler(alertSvc, base),
+		Overview:            NewOverviewHandler(overviewSvc, base),
+		Migration:           NewMigrationHandler(migrationSvc, base),
+		Audit:               NewAuditHandler(services.Audit, base),
+		NotificationChannel: NewNotificationChannelHandler(services.Notification, base),
 	}
 
 	// Optional dependency (single branch only)
