@@ -2,11 +2,10 @@ package service
 
 import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
-
 	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
-
 	"Intelligent_Dev_ToolKit_Odoo/internal/token"
-
+	"fmt"
+	"net/smtp"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -52,10 +51,19 @@ type AuthConfig struct {
 	PasswordMinLength    int
 	BcryptCost           int
 
-	// MailHog / SMTP
-	SMTPHost   string
-	SMTPPort   int
-	SMTPFrom   string
+	Environment string // "development" | "staging" | "production"
+
+	// SMTP — production (Resend, SendGrid, etc.)
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
+
+	// MailHog — used automatically when Environment == "development"
+	MailhogHost string
+	MailhogPort int
+
 	AppBaseURL string
 }
 
@@ -66,11 +74,22 @@ func DefaultAuthConfig() *AuthConfig {
 		PasswordMinLength:    8,
 		BcryptCost:           bcrypt.DefaultCost,
 
-		SMTPHost:   "localhost",
-		SMTPPort:   1025,
-		SMTPFrom:   "noreply@odoodevtools.com",
-		AppBaseURL: "http://localhost:8080",
+		Environment: "development",
+		MailhogHost: "localhost",
+		MailhogPort: 1025,
+		SMTPFrom:    "noreply@odoodevtools.com",
+		AppBaseURL:  "http://localhost:8080",
 	}
+}
+
+// smtpSettings returns the correct host, port, and auth based on environment.
+// Development → MailHog (no auth). Staging/Production → real SMTP with auth.
+func (c *AuthConfig) smtpSettings() (addr string, auth smtp.Auth) {
+	if c.Environment == "development" {
+		return fmt.Sprintf("%s:%d", c.MailhogHost, c.MailhogPort), nil
+	}
+	a := buildSMTPAuth(c.SMTPUsername, c.SMTPPassword, c.SMTPHost)
+	return fmt.Sprintf("%s:%d", c.SMTPHost, c.SMTPPort), a
 }
 
 // DefaultConfig returns sensible defaults for all services.

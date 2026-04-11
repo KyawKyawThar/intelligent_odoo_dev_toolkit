@@ -45,8 +45,8 @@ func (s *AuthService) persistSession(
 // =============================================================================
 
 // sendVerificationEmail generates a 6-digit verification code, stores it in
-// Redis, and delivers an email via MailHog. An error is returned if delivery
-// fails so callers (such as registration) can rollback any database changes.
+// Redis, and delivers it via SMTP. An error is returned if delivery fails so
+// callers (such as registration) can rollback any database changes.
 func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email string) error {
 	code, err := generate6DigitCode()
 	if err != nil {
@@ -64,6 +64,7 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email s
 		return err
 	}
 
+	from := s.config.SMTPFrom
 	body := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: Verify your email address\r\n\r\n"+
 			"Hello,\r\n\r\n"+
@@ -72,17 +73,26 @@ func (s *AuthService) sendVerificationEmail(ctx context.Context, userID, email s
 			"Enter this 6-digit code to verify your email address.\r\n\r\n"+
 			"This code expires in 10 minutes.\r\n\r\n"+
 			"If you did not create an account, you can safely ignore this email.\r\n",
-		s.config.SMTPFrom, email, code,
+		from, email, code,
 	)
 
-	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
+	addr, auth := s.config.smtpSettings()
 	//gosec:G107
-	if err := smtp.SendMail(addr, nil, s.config.SMTPFrom, []string{email}, []byte(body)); err != nil {
+	if err := smtp.SendMail(addr, auth, from, []string{email}, []byte(body)); err != nil {
 		log.Error().Err(err).Str("email", email).Str("addr", addr).Msg("failed to send verify email")
 		return err
 	}
-	log.Info().Str("email", email).Str("addr", addr).Msg("sent verification code email")
+	log.Info().Str("email", email).Str("addr", addr).Str("env", s.config.Environment).Msg("sent verification code email")
 	return nil
+}
+
+// buildSMTPAuth returns PlainAuth when credentials are set, nil otherwise
+// (nil = unauthenticated relay, e.g. MailHog in development).
+func buildSMTPAuth(username, password, host string) smtp.Auth {
+	if username == "" {
+		return nil
+	}
+	return smtp.PlainAuth("", username, password, host)
 }
 
 // generate6DigitCode returns a cryptographically random 6-digit numeric string.
@@ -96,12 +106,10 @@ func generate6DigitCode() (string, error) {
 	return fmt.Sprintf("%06d", n), nil
 }
 
-// sendPasswordResetEmail sends the reset link via MailHog.
+// sendPasswordResetEmail sends the reset link via SMTP.
 func (s *AuthService) sendPasswordResetEmail(_ context.Context, email, resetToken string) {
-	resetURL := fmt.Sprintf(
-		"%s/reset-password?token=%s",
-		s.config.AppBaseURL, resetToken,
-	)
+	resetURL := fmt.Sprintf("%s/reset-password?token=%s", s.config.AppBaseURL, resetToken)
+	from := s.config.SMTPFrom
 	body := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: Reset your password\r\n\r\n"+
 			"Hello,\r\n\r\n"+
@@ -109,16 +117,16 @@ func (s *AuthService) sendPasswordResetEmail(_ context.Context, email, resetToke
 			"  %s\r\n\r\n"+
 			"This link expires in 1 hour.\r\n\r\n"+
 			"If you did not request a password reset, please ignore this email.\r\n",
-		s.config.SMTPFrom, email, resetURL,
+		from, email, resetURL,
 	)
 
-	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
+	addr, auth := s.config.smtpSettings()
 	//gosec:G107
-	if err := smtp.SendMail(addr, nil, s.config.SMTPFrom, []string{email}, []byte(body)); err != nil {
+	if err := smtp.SendMail(addr, auth, from, []string{email}, []byte(body)); err != nil {
 		log.Error().Err(err).Str("email", email).Str("addr", addr).Msg("failed to send reset email")
 		return
 	}
-	log.Info().Str("email", email).Str("addr", addr).Msg("sent password reset email")
+	log.Info().Str("email", email).Str("addr", addr).Str("env", s.config.Environment).Msg("sent password reset email")
 }
 func defaultFeatureFlags(envType string) json.RawMessage {
 	switch envType {

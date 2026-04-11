@@ -61,21 +61,23 @@ func NewServer(store db.Store, redisCache *cache.RedisClient, cfg config.Config)
 	// Customize service config from main config
 	serviceConfig.Auth.AccessTokenDuration = cfg.AccessTokenDuration
 	serviceConfig.Auth.RefreshTokenDuration = cfg.RefreshTokenDuration
-	serviceConfig.Auth.SMTPHost = cfg.SMTPHost
-	serviceConfig.Auth.SMTPPort = cfg.SMTPPort
-	serviceConfig.Auth.SMTPFrom = cfg.EmailFrom
-	serviceConfig.Auth.AppBaseURL = cfg.ClientAppURL
-
 	services := service.NewServices(server.store, server.cache, server.tokenMaker, &service.Config{
 		Auth: service.AuthConfig{
 			AccessTokenDuration:  cfg.AccessTokenDuration,
 			RefreshTokenDuration: cfg.RefreshTokenDuration,
 			PasswordMinLength:    8,
 			BcryptCost:           10,
-			SMTPHost:             cfg.SMTPHost,
-			SMTPPort:             cfg.SMTPPort,
-			SMTPFrom:             cfg.EmailFrom,
-			AppBaseURL:           cfg.ClientAppURL,
+			Environment:          cfg.Environment,
+			// Real SMTP (Resend, SendGrid, etc.) — used in staging/production
+			SMTPHost:     cfg.SMTPHost,
+			SMTPPort:     cfg.SMTPPort,
+			SMTPUsername: cfg.SMTPUsername,
+			SMTPPassword: cfg.SMTPPassword,
+			SMTPFrom:     cfg.EmailFrom,
+			// MailHog — used automatically in development
+			MailhogHost: "localhost",
+			MailhogPort: 1025,
+			AppBaseURL:  cfg.ClientAppURL,
 		},
 	})
 	server.services = services
