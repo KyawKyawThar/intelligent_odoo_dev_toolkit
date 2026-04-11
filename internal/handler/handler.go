@@ -6,6 +6,7 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/middleware"
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
+	"Intelligent_Dev_ToolKit_Odoo/internal/storage"
 	"encoding/json"
 	"errors"
 	"io"
@@ -32,6 +33,7 @@ type Handlers struct {
 	APIKey              *APIKeyHandler
 	Batch               *BatchHandler
 	AgentRegister       *AgentRegisterHandler
+	AgentDistribution   *AgentDistributionHandler
 	ACL                 *ACLHandler
 	Profiler            *ProfilerHandler
 	N1                  *N1Handler
@@ -50,6 +52,9 @@ type HandlerDeps struct {
 	RedisClient *redis.Client
 	// IngestStreamName overrides the Redis stream name for batch ingestion.
 	IngestStreamName string
+	// S3Client enables agent binary distribution endpoints.
+	// If nil, those endpoints are not registered.
+	S3Client *storage.S3Client
 }
 
 func mustCast[T any](svc any, name string) *T {
@@ -113,9 +118,14 @@ func NewHandlers(
 		NotificationChannel: NewNotificationChannelHandler(services.Notification, base),
 	}
 
-	// Optional dependency (single branch only)
-	if deps != nil && deps.RedisClient != nil {
-		h.Batch = NewBatchHandler(base, deps.RedisClient, deps.IngestStreamName)
+	// Optional dependencies
+	if deps != nil {
+		if deps.RedisClient != nil {
+			h.Batch = NewBatchHandler(base, deps.RedisClient, deps.IngestStreamName)
+		}
+		if deps.S3Client != nil {
+			h.AgentDistribution = NewAgentDistributionHandler(deps.S3Client, base)
+		}
 	}
 
 	return h

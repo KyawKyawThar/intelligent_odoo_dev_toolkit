@@ -114,6 +114,14 @@ func (s *Server) setupPublicRoutes(r chi.Router) {
 			})
 		})
 
+		// ── Agent binary distribution (no auth — repo can be private) ──
+		if s.handler.AgentDistribution != nil {
+			r.Get("/install", s.handler.AgentDistribution.HandleInstallScript)
+			r.Get("/api/v1/agent/version", s.handler.AgentDistribution.HandleAgentVersion)
+			r.Get("/api/v1/agent/download", s.handler.AgentDistribution.HandleAgentDownload)
+			r.Get("/api/v1/agent/checksums", s.handler.AgentDistribution.HandleAgentChecksums)
+		}
+
 		r.Route("/api/v1", func(r chi.Router) {
 			r.Get("/health", s.handleHealth)
 			r.Get("/version", s.handleVersion)

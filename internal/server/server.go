@@ -18,6 +18,7 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"Intelligent_Dev_ToolKit_Odoo/internal/handler"
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
+	"Intelligent_Dev_ToolKit_Odoo/internal/storage"
 	"Intelligent_Dev_ToolKit_Odoo/internal/token"
 )
 
@@ -83,11 +84,26 @@ func NewServer(store db.Store, redisCache *cache.RedisClient, cfg config.Config)
 	server.services = services
 
 	// Build optional handler dependencies.
-	var deps *handler.HandlerDeps
+	deps := &handler.HandlerDeps{}
+
 	if redisCache != nil {
-		deps = &handler.HandlerDeps{
-			RedisClient:      redisCache.Client,
-			IngestStreamName: cfg.RedisStreamIngest,
+		deps.RedisClient = redisCache.Client
+		deps.IngestStreamName = cfg.RedisStreamIngest
+	}
+
+	if cfg.S3Bucket != "" && cfg.S3AccessKey != "" {
+		s3Client, s3Err := storage.NewS3Client(storage.S3Config{
+			Endpoint:       cfg.S3Endpoint,
+			Bucket:         cfg.S3Bucket,
+			Region:         cfg.S3Region,
+			AccessKey:      cfg.S3AccessKey,
+			SecretKey:      cfg.S3SecretKey,
+			ForcePathStyle: cfg.S3ForcePathStyle,
+		})
+		if s3Err != nil {
+			server.logger.Warn().Err(s3Err).Msg("S3 init failed — agent distribution endpoints disabled")
+		} else {
+			deps.S3Client = s3Client
 		}
 	}
 

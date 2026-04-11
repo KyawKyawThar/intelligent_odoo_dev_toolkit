@@ -2,12 +2,13 @@
 # install-agent.sh — OdooDevTools Agent one-liner installer
 #
 # Usage (copy from your dashboard):
-#   curl -sSL https://raw.githubusercontent.com/KyawKyawThar/intelligent_odoo_dev_toolkit/main/scripts/install-agent.sh | \
-#     AGENT_CLOUD_URL=wss://api.yourdomain.com/api/v1/agent/ws \
+#   curl -sSL https://YOUR_API_DOMAIN/install | \
+#     AGENT_CLOUD_URL=wss://YOUR_API_DOMAIN/api/v1/agent/ws \
 #     AGENT_REGISTRATION_TOKEN=reg_YOUR_TOKEN_HERE \
 #     bash
 #
 # Optional environment variables:
+#   AGENT_API_URL          — base URL of the OdooDevTools API (derived from AGENT_CLOUD_URL if not set)
 #   AGENT_VERSION          — pin a specific release tag (default: latest)
 #   INSTALL_DIR            — where to put the binary (default: /usr/local/bin)
 #   CONFIG_DIR             — where to put agent.env (default: /etc/odoodevtools)
@@ -20,7 +21,6 @@
 set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────────────────────────────
-REPO="KyawKyawThar/intelligent_odoo_dev_toolkit"
 BINARY_NAME="odoodevtools-agent"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 CONFIG_DIR="${CONFIG_DIR:-/etc/odoodevtools}"
@@ -38,6 +38,13 @@ step()  { echo -e "\n${BOLD}▶ $*${RESET}"; }
 # ─── Required env vars ────────────────────────────────────────────────────────
 : "${AGENT_CLOUD_URL:?'AGENT_CLOUD_URL is required (e.g. wss://api.yourdomain.com/api/v1/agent/ws)'}"
 : "${AGENT_REGISTRATION_TOKEN:?'AGENT_REGISTRATION_TOKEN is required (copy from the dashboard)'}"
+
+# Derive the HTTPS API base URL from AGENT_CLOUD_URL when not explicitly set.
+# wss://api.example.com/... → https://api.example.com
+if [ -z "${AGENT_API_URL:-}" ]; then
+  AGENT_API_URL=$(echo "$AGENT_CLOUD_URL" | sed -E 's|^wss?://([^/]+).*|\1|')
+  AGENT_API_URL="https://${AGENT_API_URL}"
+fi
 
 # ─── Detect OS / architecture ─────────────────────────────────────────────────
 step "Detecting platform"
@@ -62,16 +69,16 @@ info "Platform: $PLATFORM"
 # ─── Resolve version ──────────────────────────────────────────────────────────
 step "Resolving agent version"
 if [ -z "${AGENT_VERSION:-}" ]; then
-  AGENT_VERSION=$(curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"tag_name"' \
-    | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
-  [ -z "$AGENT_VERSION" ] && error "Could not fetch latest release tag. Check your internet connection."
+  AGENT_VERSION=$(curl -sSf "${AGENT_API_URL}/api/v1/agent/version" \
+    | grep -o '"latest":"[^"]*"' \
+    | sed 's/"latest":"//;s/"//')
+  [ -z "$AGENT_VERSION" ] && error "Could not fetch latest agent version from ${AGENT_API_URL}. Check your internet connection."
 fi
 info "Installing version: $AGENT_VERSION"
 
 BINARY_FILENAME="${BINARY_NAME}-${PLATFORM}"
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${AGENT_VERSION}/${BINARY_FILENAME}"
-CHECKSUM_URL="https://github.com/${REPO}/releases/download/${AGENT_VERSION}/checksums.txt"
+DOWNLOAD_URL="${AGENT_API_URL}/api/v1/agent/download?version=${AGENT_VERSION}&platform=${PLATFORM}"
+CHECKSUM_URL="${AGENT_API_URL}/api/v1/agent/checksums?version=${AGENT_VERSION}"
 
 # ─── Download binary ──────────────────────────────────────────────────────────
 step "Downloading agent binary"
@@ -79,8 +86,9 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 info "URL: $DOWNLOAD_URL"
+# Follow the redirect (API redirects to a pre-signed S3/R2 URL)
 curl -sSfL "$DOWNLOAD_URL" -o "$TMPDIR/$BINARY_FILENAME" \
-  || error "Download failed. Is version $AGENT_VERSION published? Check: https://github.com/${REPO}/releases"
+  || error "Download failed. Is version $AGENT_VERSION available? Check your dashboard."
 
 # ─── Verify checksum ──────────────────────────────────────────────────────────
 step "Verifying checksum"
@@ -157,7 +165,7 @@ if [ "$OS" = "linux" ] && [ "$INSTALL_SYSTEMD" = "true" ] && command -v systemct
   sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" > /dev/null <<EOF
 [Unit]
 Description=OdooDevTools Agent
-Documentation=https://github.com/${REPO}
+Documentation=${AGENT_API_URL}/docs
 After=network-online.target
 Wants=network-online.target
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -128,6 +129,21 @@ func (c *S3Client) Delete(ctx context.Context, key string) error {
 		return fmt.Errorf("s3 delete %s: %w", key, err)
 	}
 	return nil
+}
+
+// PresignGetURL generates a pre-signed GET URL for the given key that expires
+// after the given duration. The caller can redirect the HTTP client to this URL
+// to allow direct download from S3/R2 without exposing credentials.
+func (c *S3Client) PresignGetURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	presign := s3.NewPresignClient(c.client)
+	req, err := presign.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", fmt.Errorf("s3 presign %s: %w", key, err)
+	}
+	return req.URL, nil
 }
 
 // TraceKey builds the S3 key for a raw error traceback.
