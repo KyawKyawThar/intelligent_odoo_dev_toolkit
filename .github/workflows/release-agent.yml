@@ -9,6 +9,12 @@ on:
 env:
   GO_VERSION: "1.26.1"
   REPO: KyawKyawThar/intelligent_odoo_dev_toolkit
+  # S3/R2 bucket for agent binary distribution.
+  # Set these as GitHub repository secrets:
+  #   S3_ENDPOINT  — e.g. https://<id>.r2.cloudflarestorage.com  (blank for AWS S3)
+  #   S3_BUCKET    — bucket name
+  #   S3_REGION    — e.g. auto  (for R2) or us-east-1  (for AWS)
+  #   S3_ACCESS_KEY / S3_SECRET_KEY
 
 jobs:
   # ──────────────────────────────────────────────────────────────────
@@ -111,6 +117,36 @@ jobs:
           echo "=== checksums.txt ==="
           cat checksums.txt
 
+      - name: Upload binaries to S3
+        if: ${{ vars.S3_BUCKET != '' || secrets.S3_BUCKET != '' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION || 'auto' }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          VERSION=${{ github.ref_name }}
+          ENDPOINT_FLAG=""
+          [ -n "$S3_ENDPOINT" ] && ENDPOINT_FLAG="--endpoint-url $S3_ENDPOINT"
+
+          # Upload each binary + its checksum under agents/<version>/
+          for f in dist/odoodevtools-agent-* dist/checksums.txt; do
+            filename=$(basename "$f")
+            aws s3 cp "$f" "s3://${S3_BUCKET}/agents/${VERSION}/${filename}" \
+              $ENDPOINT_FLAG --no-progress
+          done
+
+          # Upload the install script
+          aws s3 cp scripts/install-agent.sh "s3://${S3_BUCKET}/agents/install.sh" \
+            $ENDPOINT_FLAG --no-progress
+
+          # Update the "latest" pointer (plain-text file)
+          echo -n "$VERSION" | aws s3 cp - "s3://${S3_BUCKET}/agents/latest" \
+            $ENDPOINT_FLAG --content-type "text/plain" --no-progress
+
+          echo "Uploaded agent $VERSION to s3://${S3_BUCKET}/agents/"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -127,13 +163,13 @@ jobs:
             Install the agent on your Odoo server with one command:
 
             ```bash
-            curl -sSL https://raw.githubusercontent.com/${{ env.REPO }}/main/scripts/install-agent.sh | \
-              AGENT_CLOUD_URL=wss://api.yourdomain.com/api/v1/agent/ws \
+            curl -sSL https://YOUR_API_DOMAIN/install | \
+              AGENT_CLOUD_URL=wss://YOUR_API_DOMAIN/api/v1/agent/ws \
               AGENT_REGISTRATION_TOKEN=reg_YOUR_TOKEN_HERE \
               bash
             ```
 
-            Or copy the token and URL from your OdooDevTools dashboard and run the command shown there.
+            Or copy the command directly from your OdooDevTools dashboard.
 
             ### Manual Installation
 

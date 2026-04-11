@@ -10,6 +10,11 @@ deploy/.env
 # Local dev assets
 deploy/custom-addons
 
+# Air live-reload configs (local dev only)
+.air.toml
+.air.agent.toml
+.air.worker.toml
+
 # Generated / docs
 *.md
 *.json
