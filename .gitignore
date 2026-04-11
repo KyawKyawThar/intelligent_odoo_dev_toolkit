@@ -12,7 +12,6 @@ deploy/custom-addons
 
 # Generated / docs
 *.md
-*.toml
 *.json
 
 # Never ignore example/template env files

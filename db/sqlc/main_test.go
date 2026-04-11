@@ -4,6 +4,7 @@ import (
 	"Intelligent_Dev_ToolKit_Odoo/internal/config"
 	"context"
 	"errors"
+	"flag"
 	"log"
 	"os"
 	"testing"
@@ -17,6 +18,13 @@ import (
 var testStore Store
 
 func TestMain(m *testing.M) {
+	// Database integration tests require a running PostgreSQL instance.
+	// Skip the entire package when running in short mode (e.g. pre-push hook).
+	flag.Parse()
+	if testing.Short() {
+		os.Exit(0)
+	}
+
 	config, err := config.LoadConfig("../..")
 
 	if err != nil {
