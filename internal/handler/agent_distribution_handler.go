@@ -126,7 +126,7 @@ func (h *AgentDistributionHandler) HandleAgentChecksums(w http.ResponseWriter, r
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	_, _ = w.Write(data) // #nosec G705 — content-type is text/plain; data is checksums.txt from our own S3 bucket
 }
 
 // HandleInstallScript godoc
@@ -146,7 +146,7 @@ func (h *AgentDistributionHandler) HandleInstallScript(w http.ResponseWriter, r 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	_, _ = w.Write(data) // #nosec G705 — content-type is text/plain; data is install.sh from our own S3 bucket
 }
 
 // writeJSONMap is a minimal JSON writer to avoid importing dto here.
@@ -163,5 +163,5 @@ func writeJSONMap(w http.ResponseWriter, status int, m map[string]string) {
 		first = false
 	}
 	b = append(b, '}')
-	_, _ = w.Write(b)
+	_, _ = w.Write(b) // #nosec G705 — b is constructed from known string literals, not external input
 }
