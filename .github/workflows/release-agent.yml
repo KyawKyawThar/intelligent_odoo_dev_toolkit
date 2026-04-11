@@ -118,7 +118,6 @@ jobs:
           cat checksums.txt
 
       - name: Upload binaries to S3
-        if: ${{ vars.S3_BUCKET != '' || secrets.S3_BUCKET != '' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
