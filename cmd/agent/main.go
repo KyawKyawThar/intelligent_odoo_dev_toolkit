@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -43,9 +44,73 @@ const (
 	ormSourceIRLogging = "irlogging"
 )
 
+// systemConfigPath returns the platform-specific path for the installed
+// agent config file written by the installer scripts:
+//   - Linux / macOS : /etc/odoodevtools/agent.env
+//   - Windows       : %PROGRAMDATA%\OdooDevTools\agent.env
+//
+// On Linux the file is sourced by systemd's EnvironmentFile= directive so
+// values arrive as plain OS env vars.  On macOS and Windows the binary loads
+// the file explicitly because there is no equivalent service mechanism.
+func systemConfigPath() string {
+	if runtime.GOOS == "windows" {
+		base := os.Getenv("PROGRAMDATA")
+		if base == "" {
+			base = `C:\ProgramData`
+		}
+		return filepath.Join(base, "OdooDevTools", "agent.env")
+	}
+	return "/etc/odoodevtools/agent.env"
+}
+
+// loadSystemConfig parses KEY=VALUE pairs from the system-installed agent.env
+// and sets each one as an OS environment variable (skipping keys that are
+// already set, so explicit env overrides still work).  Must be called before
+// LoadConfig so that viper.AutomaticEnv() picks up the values.
+func loadSystemConfig(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	for line := range strings.SplitSeq(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || os.Getenv(k) != "" {
+			continue // already set — explicit env overrides file
+		}
+		if err := os.Setenv(k, v); err != nil {
+			return fmt.Errorf("setenv %s: %w", k, err)
+		}
+	}
+	return nil
+}
+
 func main() {
 	// ── 1. Load config ────────────────────────────────────────────────────────
-	cfg, err := config.LoadAgentConfig(".")
+	// When the system config file is present (installed binary on macOS/Linux
+	// without systemd sourcing it), load it as OS env vars so AutomaticEnv()
+	// picks them up, then use LoadConfig instead of LoadAgentConfig to avoid
+	// the .env.agent overlay overriding the system-installed AGENT_CLOUD_URL.
+	var cfg config.Config
+	var err error
+	sysConfig := systemConfigPath()
+	if _, statErr := os.Stat(sysConfig); statErr == nil {
+		if loadErr := loadSystemConfig(sysConfig); loadErr != nil {
+			// Non-fatal: log and fall back to the standard path.
+			fmt.Fprintf(os.Stderr, "WARN: could not read %s: %v\n", sysConfig, loadErr)
+		}
+		cfg, err = config.LoadConfig(".")
+	} else {
+		cfg, err = config.LoadAgentConfig(".")
+	}
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load config")
 	}
@@ -66,7 +131,7 @@ func main() {
 
 	// ── 3. Validate config ────────────────────────────────────────────────────
 	if cfg.OdooURL == "" || cfg.OdooDB == "" || cfg.OdooUser == "" || cfg.OdooPassword == "" {
-		log.Fatal().Msg("Odoo configuration is missing — check ODOO_URL, PG_ODOO_DB, ODOO_ADMIN_USER, ODOO_ADMIN_PASSWORD in .env")
+		log.Fatal().Msg("Odoo configuration is missing — check ODOO_URL, PG_ODOO_DB, ODOO_ADMIN_USER, ODOO_ADMIN_PASSWORD in /etc/odoodevtools/agent.env (installed) or .env.agent (local dev)")
 	}
 	if cfg.AgentCloudURL == "" {
 		log.Fatal().Msg("AGENT_CLOUD_URL is required")
@@ -905,7 +970,7 @@ func runDebugFeeder(ctx context.Context, agg *aggregator.Aggregator) {
 		case <-ticker.C:
 			// Send 1–5 events per tick to simulate realistic ORM traffic.
 			batch := 1 + debugRand(5)
-			for i := 0; i < batch; i++ {
+			for range batch {
 				ev := generateDebugEvent(seq)
 				agg.EventCh <- ev
 				seq++
