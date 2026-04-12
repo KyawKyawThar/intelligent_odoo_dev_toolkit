@@ -197,23 +197,13 @@ func LoadConfig(path string) (config Config, err error) {
 	// Explicitly bind env vars that must be readable without a .env file.
 	// AutomaticEnv alone only works for keys viper already knows about via
 	// SetDefault; BindEnv guarantees the OS env var is always checked first.
-	_ = viper.BindEnv("APP_ENV")
-	_ = viper.BindEnv("DATABASE_URL")
-	_ = viper.BindEnv("REDIS_URL")
-	_ = viper.BindEnv("SMTP_HOST")
-	_ = viper.BindEnv("SMTP_PORT")
-	_ = viper.BindEnv("SMTP_USERNAME")
-	_ = viper.BindEnv("SMTP_PASSWORD")
-	_ = viper.BindEnv("EMAIL_FROM")
-	_ = viper.BindEnv("CLIENT_APP_URL")
-	_ = viper.BindEnv("S3_BUCKET")
-	_ = viper.BindEnv("S3_ENDPOINT")
-	_ = viper.BindEnv("S3_ACCESS_KEY")
-	_ = viper.BindEnv("S3_SECRET_KEY")
-	_ = viper.BindEnv("S3_REGION")
-	_ = viper.BindEnv("AGENT_CLOUD_URL")
-	_ = viper.BindEnv("TOKEN_SYMMETRIC_KEY")
-	_ = viper.BindEnv("ALLOWED_ORIGINS")
+	mustBindEnv(
+		"APP_ENV", "DATABASE_URL", "REDIS_URL",
+		"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD",
+		"EMAIL_FROM", "CLIENT_APP_URL",
+		"S3_BUCKET", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_REGION",
+		"AGENT_CLOUD_URL", "TOKEN_SYMMETRIC_KEY", "ALLOWED_ORIGINS",
+	)
 
 	// Set defaults
 	viper.SetDefault("ENVIRONMENT", EnvironmentDevelopment)
@@ -298,6 +288,17 @@ func LoadConfig(path string) (config Config, err error) {
 }
 
 // parseOrigins parses a comma-separated string of origins.
+// mustBindEnv binds each key to its matching OS environment variable.
+// BindEnv only returns an error for empty key names, which can never happen
+// with the string literals used here, so we panic to surface bugs early.
+func mustBindEnv(keys ...string) {
+	for _, k := range keys {
+		if err := viper.BindEnv(k); err != nil {
+			panic(fmt.Sprintf("config: BindEnv(%q): %v", k, err))
+		}
+	}
+}
+
 func parseOrigins(s string) []string {
 	if s == "*" {
 		return []string{"*"}
