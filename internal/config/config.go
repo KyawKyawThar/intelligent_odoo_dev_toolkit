@@ -204,6 +204,10 @@ func LoadConfig(path string) (config Config, err error) {
 		"S3_BUCKET", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_REGION",
 		"AGENT_CLOUD_URL", "TOKEN_SYMMETRIC_KEY", "ALLOWED_ORIGINS",
 		"JWT_ACCESS_TOKEN_TTL", "JWT_REFRESH_TOKEN_TTL",
+		// Odoo keys must be bound so loadSystemConfig's os.Setenv calls are visible
+		// to viper.AutomaticEnv() when no .env file is present (installed binary).
+		"ODOO_URL", "PG_ODOO_DB", "ODOO_ADMIN_USER", "ODOO_ADMIN_PASSWORD",
+		"AGENT_REGISTRATION_TOKEN",
 	)
 
 	// Set defaults
