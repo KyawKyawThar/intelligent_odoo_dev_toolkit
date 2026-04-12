@@ -203,6 +203,7 @@ func LoadConfig(path string) (config Config, err error) {
 		"EMAIL_FROM", "CLIENT_APP_URL",
 		"S3_BUCKET", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_REGION",
 		"AGENT_CLOUD_URL", "TOKEN_SYMMETRIC_KEY", "ALLOWED_ORIGINS",
+		"JWT_ACCESS_TOKEN_TTL", "JWT_REFRESH_TOKEN_TTL",
 	)
 
 	// Set defaults
@@ -210,8 +211,8 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetDefault("APP_ENV", EnvironmentDevelopment)
 	viper.SetDefault("SERVER_HOST", "0.0.0.0")
 	viper.SetDefault("SERVER_PORT", "8080")
-	viper.SetDefault("ACCESS_TOKEN_DURATION", "15m")
-	viper.SetDefault("REFRESH_TOKEN_DURATION", "24h")
+	viper.SetDefault("JWT_ACCESS_TOKEN_TTL", "15m")
+	viper.SetDefault("JWT_REFRESH_TOKEN_TTL", "168h")
 	viper.SetDefault("ALLOWED_ORIGINS", "*")
 	viper.SetDefault("RATE_LIMIT_RPM", 100)
 	viper.SetDefault("RATE_LIMIT_INGEST_PM", 1000)
