@@ -7,6 +7,9 @@ primary_region = 'sin'
 [build]
   dockerfile = 'deploy/Dockerfile'
 
+[env]
+  APP_ENV = "production"
+
 [http_service]
   internal_port = 8080
   force_https = true
