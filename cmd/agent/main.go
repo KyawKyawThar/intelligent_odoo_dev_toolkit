@@ -93,18 +93,16 @@ func loadSystemConfig(path string) error {
 	return nil
 }
 
-func main() {
-	// ── 1. Load config ────────────────────────────────────────────────────────
-	// When the system config file is present (installed binary on macOS/Linux
-	// without systemd sourcing it), load it as OS env vars so AutomaticEnv()
-	// picks them up, then use LoadConfig instead of LoadAgentConfig to avoid
-	// the .env.agent overlay overriding the system-installed AGENT_CLOUD_URL.
+// initConfig loads agent configuration. When the system config file is present
+// (installed binary on macOS/Linux without systemd), it loads that file as OS
+// env vars so viper.AutomaticEnv() picks them up, then calls LoadConfig to
+// avoid the .env.agent overlay overriding the system-installed AGENT_CLOUD_URL.
+func initConfig() config.Config {
+	sysConfig := systemConfigPath()
 	var cfg config.Config
 	var err error
-	sysConfig := systemConfigPath()
 	if _, statErr := os.Stat(sysConfig); statErr == nil {
 		if loadErr := loadSystemConfig(sysConfig); loadErr != nil {
-			// Non-fatal: log and fall back to the standard path.
 			fmt.Fprintf(os.Stderr, "WARN: could not read %s: %v\n", sysConfig, loadErr)
 		}
 		cfg, err = config.LoadConfig(".")
@@ -114,8 +112,11 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to load config")
 	}
+	return cfg
+}
 
-	// ── 2. Logger ─────────────────────────────────────────────────────────────
+// initLogger configures the global zerolog logger and sets the log level.
+func initLogger(cfg *config.Config) {
 	log.Logger = zerolog.New(zerolog.ConsoleWriter{
 		Out:        os.Stderr,
 		TimeFormat: "15:04:05",
@@ -126,16 +127,28 @@ func main() {
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
+}
 
-	printBanner(cfg.Environment)
-
-	// ── 3. Validate config ────────────────────────────────────────────────────
+// validateConfig terminates the process if required config fields are missing.
+func validateConfig(cfg *config.Config) {
 	if cfg.OdooURL == "" || cfg.OdooDB == "" || cfg.OdooUser == "" || cfg.OdooPassword == "" {
 		log.Fatal().Msg("Odoo configuration is missing — check ODOO_URL, PG_ODOO_DB, ODOO_ADMIN_USER, ODOO_ADMIN_PASSWORD in /etc/odoodevtools/agent.env (installed) or .env.agent (local dev)")
 	}
 	if cfg.AgentCloudURL == "" {
 		log.Fatal().Msg("AGENT_CLOUD_URL is required")
 	}
+}
+
+func main() {
+	// ── 1. Config ─────────────────────────────────────────────────────────────
+	cfg := initConfig()
+
+	// ── 2. Logger ─────────────────────────────────────────────────────────────
+	initLogger(&cfg)
+	printBanner(cfg.Environment)
+
+	// ── 3. Validate ───────────────────────────────────────────────────────────
+	validateConfig(&cfg)
 
 	// ── 3b. Self-registration or cached credentials ─────────────────────────
 	credMgr, err := loadOrRegister(&cfg)
