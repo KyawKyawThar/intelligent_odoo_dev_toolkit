@@ -44,6 +44,13 @@ jobs:
           - goos: darwin
             goarch: arm64
             suffix: darwin-arm64
+          # Windows — for Windows Server / dev machines
+          - goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+          - goos: windows
+            goarch: arm64
+            suffix: windows-arm64
 
     steps:
       - name: Checkout
@@ -68,18 +75,24 @@ jobs:
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           COMMIT=$(git rev-parse --short HEAD)
 
+          # Windows binaries get a .exe extension
+          EXT=""
+          [ "${{ matrix.goos }}" = "windows" ] && EXT=".exe"
+
           go build \
             -ldflags="-s -w \
               -X main.version=${VERSION} \
               -X main.buildTime=${BUILD_TIME} \
               -X main.commit=${COMMIT}" \
-            -o dist/odoodevtools-agent-${{ matrix.suffix }} \
+            -o dist/odoodevtools-agent-${{ matrix.suffix }}${EXT} \
             ./cmd/agent
 
       - name: Generate SHA256 checksum
         run: |
           cd dist
-          sha256sum odoodevtools-agent-${{ matrix.suffix }} \
+          EXT=""
+          [ "${{ matrix.goos }}" = "windows" ] && EXT=".exe"
+          sha256sum odoodevtools-agent-${{ matrix.suffix }}${EXT} \
             > odoodevtools-agent-${{ matrix.suffix }}.sha256
 
       - name: Upload artifact
@@ -114,7 +127,7 @@ jobs:
       - name: Verify all binaries are present
         run: |
           missing=0
-          for suffix in linux-amd64 linux-arm64 linux-armv7 darwin-amd64 darwin-arm64; do
+          for suffix in linux-amd64 linux-arm64 linux-armv7 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64; do
             f="dist/odoodevtools-agent-${suffix}"
             if [ -f "$f" ]; then
               echo "OK  $f ($(du -sh "$f" | cut -f1))"
@@ -152,9 +165,11 @@ jobs:
               $ENDPOINT_FLAG --no-progress
           done
 
-          # Upload the install script
-          aws s3 cp scripts/install-agent.sh "s3://${S3_BUCKET}/agents/install.sh" \
+          # Upload the install scripts (bash for Linux/macOS, PS1 for Windows)
+          aws s3 cp scripts/install-agent.sh  "s3://${S3_BUCKET}/agents/install.sh" \
             $ENDPOINT_FLAG --no-progress
+          aws s3 cp scripts/install-agent.ps1 "s3://${S3_BUCKET}/agents/install.ps1" \
+            $ENDPOINT_FLAG --content-type "text/plain" --no-progress
 
           # Update the "latest" pointer (plain-text file)
           echo -n "$VERSION" | aws s3 cp - "s3://${S3_BUCKET}/agents/latest" \
@@ -219,6 +234,8 @@ jobs:
             | Linux armv7 (Raspberry Pi) | `odoodevtools-agent-linux-armv7` |
             | macOS amd64 | `odoodevtools-agent-darwin-amd64` |
             | macOS arm64 (Apple Silicon) | `odoodevtools-agent-darwin-arm64` |
+            | Windows amd64 | `odoodevtools-agent-windows-amd64.exe` |
+            | Windows arm64 | `odoodevtools-agent-windows-arm64.exe` |
 
             Verify your download:
             ```bash
