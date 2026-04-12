@@ -194,6 +194,27 @@ func LoadConfig(path string) (config Config, err error) {
 
 	viper.AutomaticEnv()
 
+	// Explicitly bind env vars that must be readable without a .env file.
+	// AutomaticEnv alone only works for keys viper already knows about via
+	// SetDefault; BindEnv guarantees the OS env var is always checked first.
+	_ = viper.BindEnv("APP_ENV")
+	_ = viper.BindEnv("DATABASE_URL")
+	_ = viper.BindEnv("REDIS_URL")
+	_ = viper.BindEnv("SMTP_HOST")
+	_ = viper.BindEnv("SMTP_PORT")
+	_ = viper.BindEnv("SMTP_USERNAME")
+	_ = viper.BindEnv("SMTP_PASSWORD")
+	_ = viper.BindEnv("EMAIL_FROM")
+	_ = viper.BindEnv("CLIENT_APP_URL")
+	_ = viper.BindEnv("S3_BUCKET")
+	_ = viper.BindEnv("S3_ENDPOINT")
+	_ = viper.BindEnv("S3_ACCESS_KEY")
+	_ = viper.BindEnv("S3_SECRET_KEY")
+	_ = viper.BindEnv("S3_REGION")
+	_ = viper.BindEnv("AGENT_CLOUD_URL")
+	_ = viper.BindEnv("TOKEN_SYMMETRIC_KEY")
+	_ = viper.BindEnv("ALLOWED_ORIGINS")
+
 	// Set defaults
 	viper.SetDefault("ENVIRONMENT", EnvironmentDevelopment)
 	viper.SetDefault("APP_ENV", EnvironmentDevelopment)
