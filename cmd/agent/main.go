@@ -139,7 +139,21 @@ func validateConfig(cfg *config.Config) {
 	}
 }
 
+// version, buildTime, and commit are set at build time via -ldflags.
+var (
+	version   = "dev"
+	buildTime = "unknown"
+	commit    = "unknown"
+)
+
 func main() {
+	// Handle --version / -version before doing anything else so the install
+	// script can probe the binary without starting the agent process.
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version" || os.Args[1] == "version") {
+		fmt.Printf("odoodevtools-agent %s (commit %s, built %s)\n", version, commit, buildTime)
+		os.Exit(0)
+	}
+
 	// ── 1. Config ─────────────────────────────────────────────────────────────
 	cfg := initConfig()
 

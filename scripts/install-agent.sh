@@ -122,7 +122,9 @@ else
 fi
 
 info "Binary installed: $INSTALL_DIR/$BINARY_NAME"
-"$INSTALL_DIR/$BINARY_NAME" --version 2>/dev/null || true
+# Print the version to confirm the binary runs. Use a timeout so a binary that
+# doesn't support --version (or hangs on startup) never blocks the installer.
+timeout 5s "$INSTALL_DIR/$BINARY_NAME" --version 2>/dev/null || true
 
 # ─── Write config file ────────────────────────────────────────────────────────
 step "Writing config to $CONFIG_DIR/agent.env"
