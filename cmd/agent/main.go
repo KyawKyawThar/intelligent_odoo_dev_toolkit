@@ -150,7 +150,9 @@ func main() {
 	// Handle --version / -version before doing anything else so the install
 	// script can probe the binary without starting the agent process.
 	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-version" || os.Args[1] == "version") {
-		fmt.Printf("odoodevtools-agent %s (commit %s, built %s)\n", version, commit, buildTime)
+		if _, err := fmt.Fprintf(os.Stdout, "odoodevtools-agent %s (commit %s, built %s)\n", version, commit, buildTime); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 
