@@ -128,7 +128,9 @@ jobs:
         run: |
           missing=0
           for suffix in linux-amd64 linux-arm64 linux-armv7 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64; do
-            f="dist/odoodevtools-agent-${suffix}"
+            EXT=""
+            [[ "$suffix" == windows-* ]] && EXT=".exe"
+            f="dist/odoodevtools-agent-${suffix}${EXT}"
             if [ -f "$f" ]; then
               echo "OK  $f ($(du -sh "$f" | cut -f1))"
             else
