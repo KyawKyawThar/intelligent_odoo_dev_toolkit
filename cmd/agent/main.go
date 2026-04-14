@@ -246,10 +246,15 @@ func main() {
 	errBuf := startErrorPipeline(ctx, client, httpBase, credMgr, envID, &cfg, smp)
 
 	// ── 10b. Log file tailer (optional — runs when AGENT_LOG_FILE is set) ────
-	startLogTailer(ctx, &cfg, errBuf, smp)
+	// logLineCh carries parsed log lines from the tailer to the WS forwarder.
+	var logLineCh chan []flags.LogLine
+	if cfg.AgentLogFile != "" {
+		logLineCh = make(chan []flags.LogLine, 64)
+	}
+	startLogTailer(ctx, &cfg, errBuf, smp, logLineCh)
 
 	// ── 11. Feature flag receiver (WebSocket) ────────────────────────────────
-	startFlagReceiver(ctx, httpBase, &cfg, smp, rateLimiter, credMgr)
+	startFlagReceiver(ctx, httpBase, &cfg, smp, rateLimiter, credMgr, logLineCh)
 
 	// ── 12. Fetch Odoo version and run periodic sync loop ─────────────────────
 	odooVersion, err := client.Version(ctx)
@@ -501,22 +506,33 @@ func startErrorPipeline(
 }
 
 // startLogTailer launches the log file tailer if AGENT_LOG_FILE is set.
-func startLogTailer(ctx context.Context, cfg *config.Config, errBuf *ringbuf.RingBuffer[agenterrors.ErrorEvent], smp *sampler.Sampler) {
-	if cfg.AgentLogFile != "" {
-		tailerCfg := hook.DefaultTailerConfig(cfg.AgentLogFile)
-		tailer := hook.NewLogTailer(tailerCfg, errBuf, smp, log.Logger)
-		go tailer.Run(ctx)
-
-		log.Info().
-			Str("path", cfg.AgentLogFile).
-			Msg("log file tailer started")
-	} else {
+// logLineCh, when non-nil, receives all parsed log lines for live streaming.
+func startLogTailer(ctx context.Context, cfg *config.Config, errBuf *ringbuf.RingBuffer[agenterrors.ErrorEvent], smp *sampler.Sampler, logLineCh chan []flags.LogLine) {
+	if cfg.AgentLogFile == "" {
 		log.Info().Msg("log file tailer disabled (AGENT_LOG_FILE not set)")
+		return
 	}
+
+	tailerCfg := hook.DefaultTailerConfig(cfg.AgentLogFile)
+
+	// Error tailer — pushes ERROR/CRITICAL entries to the error ring buffer.
+	tailer := hook.NewLogTailer(tailerCfg, errBuf, smp, log.Logger)
+	go tailer.Run(ctx)
+
+	// Server log forwarder — forwards all levels to the cloud via WebSocket.
+	if logLineCh != nil {
+		forwarder := hook.NewServerLogForwarder(tailerCfg, logLineCh, log.Logger)
+		go forwarder.Run(ctx)
+	}
+
+	log.Info().
+		Str("path", cfg.AgentLogFile).
+		Bool("streaming", logLineCh != nil).
+		Msg("log file tailer started")
 }
 
 // startFlagReceiver launches the WebSocket feature flag receiver.
-func startFlagReceiver(ctx context.Context, httpBase string, cfg *config.Config, smp *sampler.Sampler, rateLimiter *transport.RateLimiter, credMgr creds.Provider) {
+func startFlagReceiver(ctx context.Context, httpBase string, cfg *config.Config, smp *sampler.Sampler, rateLimiter *transport.RateLimiter, credMgr creds.Provider, logLineCh chan []flags.LogLine) {
 	wsURL := httpToWSBase(httpBase) + "/api/v1/agent/ws"
 
 	flagApplier := func(f flags.FeatureFlags) {
@@ -536,6 +552,7 @@ func startFlagReceiver(ctx context.Context, httpBase string, cfg *config.Config,
 	}
 
 	flagCfg := flags.DefaultReceiverConfig(wsURL, cfg.AgentID)
+	flagCfg.LogLineCh = logLineCh
 	flagReceiver := flags.NewFlagReceiver(flagCfg, flagApplier, credMgr, log.Logger)
 	go flagReceiver.Run(ctx)
 

@@ -88,6 +88,7 @@ func NewServer(store db.Store, redisCache *cache.RedisClient, cfg config.Config)
 
 	if redisCache != nil {
 		deps.RedisClient = redisCache.Client
+		deps.RedisCache = redisCache
 		deps.IngestStreamName = cfg.RedisStreamIngest
 	}
 

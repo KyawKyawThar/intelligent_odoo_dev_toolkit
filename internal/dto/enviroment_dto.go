@@ -2,6 +2,7 @@ package dto
 
 import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
+	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
 	"encoding/json"
 
 	"time"
@@ -143,6 +144,11 @@ func ToHeartbeatResponse(hb *db.AgentHeartbeat) *HeartbeatResponse {
 		Metadata:     hb.Metadata,
 		ReceivedAt:   hb.ReceivedAt,
 	}
+}
+
+// ServerLogsResponse is returned by GET /environments/{env_id}/server-logs.
+type ServerLogsResponse struct {
+	Lines []cache.ServerLogLine `json:"lines"`
 }
 
 func ToEnvironmentResponse(env *db.Environment) *EnvironmentResponse {

@@ -75,6 +75,16 @@ func (f *FeatureFlags) ToSamplerConfig() sampler.Config {
 // WebSocket message types
 // ────────────────────────────────────────────────────────────────────────────
 
+// LogLine is a single parsed Odoo server log line forwarded to the cloud.
+// Fields match cache.ServerLogLine so the server can store them directly.
+type LogLine struct {
+	Timestamp string `json:"ts"`
+	Level     string `json:"level"`
+	Logger    string `json:"logger"`
+	DB        string `json:"db,omitempty"`
+	Message   string `json:"msg"`
+}
+
 // wsMessage is the envelope for all WebSocket messages between cloud and agent.
 type wsMessage struct {
 	Type  string          `json:"type"`
@@ -122,6 +132,11 @@ type ReceiverConfig struct {
 
 	// AgentVersion is reported in heartbeats.
 	AgentVersion string
+
+	// LogLineCh is an optional channel of server log line batches produced by the
+	// log file tailer. When set, each batch is forwarded to the cloud via a
+	// "log_lines" WebSocket message. May be nil (log streaming disabled).
+	LogLineCh <-chan []LogLine
 }
 
 // DefaultReceiverConfig returns sensible defaults.
@@ -257,6 +272,11 @@ func (r *FlagReceiver) connectAndListen(ctx context.Context) error {
 	heartCtx, heartCancel := context.WithCancel(ctx)
 	defer heartCancel()
 	go r.heartbeatLoop(heartCtx, conn)
+
+	// Forward server log lines when the tailer is wired up.
+	if r.cfg.LogLineCh != nil {
+		go r.logLineForwarder(heartCtx, conn)
+	}
 
 	// Read loop.
 	for {
@@ -411,6 +431,39 @@ func (r *FlagReceiver) buildURL() string {
 		}
 	}
 	return u + sep + "agent_id=" + r.cfg.AgentID
+}
+
+// logLinesMsg is the envelope sent to the server for server log streaming.
+type logLinesMsg struct {
+	Type  string    `json:"type"`
+	Lines []LogLine `json:"lines"`
+}
+
+// logLineForwarder reads batches from LogLineCh and sends them as "log_lines"
+// WebSocket messages. Runs until ctx is canceled or the channel is closed.
+func (r *FlagReceiver) logLineForwarder(ctx context.Context, conn *websocket.Conn) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case batch, ok := <-r.cfg.LogLineCh:
+			if !ok {
+				return
+			}
+			msg, err := json.Marshal(logLinesMsg{Type: "log_lines", Lines: batch})
+			if err != nil {
+				r.logger.Error().Err(err).Msg("failed to marshal log_lines")
+				continue
+			}
+			r.wsMu.Lock()
+			err = conn.WriteMessage(websocket.TextMessage, msg)
+			r.wsMu.Unlock()
+			if err != nil {
+				r.logger.Warn().Err(err).Msg("failed to send log_lines")
+				return // connection broken — outer loop will reconnect
+			}
+		}
+	}
 }
 
 func closeConn(conn *websocket.Conn, logger *zerolog.Logger) {

@@ -342,6 +342,16 @@ func (s *Server) registerEnvSubRoutes(r chi.Router) {
 		})
 	}
 
+	if s.handler.ServerLog != nil {
+		r.Route("/server-logs", func(r chi.Router) {
+			r.Get("/", s.handler.ServerLog.HandleGetLogs)
+			// SSE stream — no timeout (long-lived connection).
+			r.Group(func(r chi.Router) {
+				r.Get("/stream", s.handler.ServerLog.HandleStreamLogs)
+			})
+		})
+	}
+
 	r.Post("/agent", s.handler.Environment.HandleRegisterAgent)
 
 	r.Route("/heartbeats", func(r chi.Router) {

@@ -737,6 +737,92 @@ func (r *RedisClient) Publish(ctx context.Context, channel string, message any) 
 	return r.Client.Publish(ctx, r.Key(channel), data).Err()
 }
 
+// =============================================================================
+// Server Log Streaming
+// =============================================================================
+
+const (
+	serverLogPrefix  = "server_logs"
+	serverLogCap     = 1000           // lines kept per environment
+	serverLogTTL     = 24 * time.Hour // auto-expire after 24h of inactivity
+	serverLogChanPfx = "server_logs_chan"
+)
+
+// ServerLogLine is a single parsed Odoo server log line stored in Redis.
+type ServerLogLine struct {
+	Timestamp string `json:"ts"`
+	Level     string `json:"level"`
+	Logger    string `json:"logger"`
+	DB        string `json:"db,omitempty"`
+	Message   string `json:"msg"`
+}
+
+// AppendServerLogs pushes lines into a per-environment capped Redis list and
+// publishes them on a Pub/Sub channel so SSE subscribers get them immediately.
+func (r *RedisClient) AppendServerLogs(ctx context.Context, envID string, lines []ServerLogLine) error {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	key := r.Key(serverLogPrefix, envID)
+	chanKey := r.Key(serverLogChanPfx, envID)
+
+	pipe := r.Client.Pipeline()
+	for _, line := range lines {
+		data, err := json.Marshal(line)
+		if err != nil {
+			continue
+		}
+		pipe.RPush(ctx, key, data)
+	}
+	// Keep only the last serverLogCap entries.
+	pipe.LTrim(ctx, key, -serverLogCap, -1)
+	pipe.Expire(ctx, key, serverLogTTL)
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("append server logs: %w", err)
+	}
+
+	// Publish the batch so SSE listeners get it without polling.
+	batch, err := json.Marshal(lines)
+	if err == nil {
+		_ = r.Client.Publish(ctx, chanKey, batch).Err() //nolint:errcheck // best-effort pub
+	}
+
+	return nil
+}
+
+// GetServerLogs returns up to limit recent log lines for envID (oldest first).
+func (r *RedisClient) GetServerLogs(ctx context.Context, envID string, limit int64) ([]ServerLogLine, error) {
+	key := r.Key(serverLogPrefix, envID)
+
+	if limit <= 0 || limit > serverLogCap {
+		limit = serverLogCap
+	}
+
+	raw, err := r.Client.LRange(ctx, key, -limit, -1).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get server logs: %w", err)
+	}
+
+	lines := make([]ServerLogLine, 0, len(raw))
+	for _, s := range raw {
+		var l ServerLogLine
+		if jsonErr := json.Unmarshal([]byte(s), &l); jsonErr == nil {
+			lines = append(lines, l)
+		}
+	}
+	return lines, nil
+}
+
+// SubscribeServerLogs returns a Redis Pub/Sub subscription for live log lines.
+func (r *RedisClient) SubscribeServerLogs(ctx context.Context, envID string) *redis.PubSub {
+	return r.Client.Subscribe(ctx, r.Key(serverLogChanPfx, envID))
+}
+
 // Subscribe returns a subscription to a channel
 func (r *RedisClient) Subscribe(ctx context.Context, channels ...string) *redis.PubSub {
 	prefixedChannels := make([]string, len(channels))

@@ -3,6 +3,7 @@ package handler
 import (
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
+	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/middleware"
 	"Intelligent_Dev_ToolKit_Odoo/internal/service"
@@ -43,6 +44,7 @@ type Handlers struct {
 	Migration           *MigrationHandler
 	Audit               *AuditHandler
 	NotificationChannel *NotificationChannelHandler
+	ServerLog           *ServerLogHandler
 }
 
 // HandlerDeps holds optional dependencies for handler construction.
@@ -50,6 +52,8 @@ type HandlerDeps struct {
 	// RedisClient is the underlying redis.Client for stream-based handlers.
 	// If nil, stream-based handlers (e.g. BatchHandler) will not be created.
 	RedisClient *redis.Client
+	// RedisCache is the full RedisClient wrapper — used by server-log and WS handlers.
+	RedisCache *cache.RedisClient
 	// IngestStreamName overrides the Redis stream name for batch ingestion.
 	IngestStreamName string
 	// S3Client enables agent binary distribution endpoints.
@@ -99,13 +103,18 @@ func NewHandlers(
 	overviewSvc := mustCast[service.OverviewService](services.Overview, "overview")
 	migrationSvc := mustCast[service.MigrationService](services.Migration, "migration")
 
+	var redisCache *cache.RedisClient
+	if deps != nil {
+		redisCache = deps.RedisCache
+	}
+
 	h := &Handlers{
 		Auth:                NewAuthHandler(authSvc, base),
 		Environment:         NewEnviromentHandler(*envSvc, base),
 		Schema:              NewSchemaHandler(schemaSvc, base),
 		Error:               NewErrorHandler(errorSvc, base),
 		APIKey:              NewAPIKeyHandler(apiKeySvc, base),
-		Ws:                  NewWsHandler(base, store),
+		Ws:                  NewWsHandler(base, store, redisCache),
 		AgentRegister:       NewAgentRegisterHandler(agentRegSvc, base),
 		ACL:                 NewACLHandler(aclSvc, base),
 		Profiler:            NewProfilerHandler(profilerSvc, base),
@@ -116,6 +125,7 @@ func NewHandlers(
 		Migration:           NewMigrationHandler(migrationSvc, base),
 		Audit:               NewAuditHandler(services.Audit, base),
 		NotificationChannel: NewNotificationChannelHandler(services.Notification, base),
+		ServerLog:           NewServerLogHandler(base, redisCache),
 	}
 
 	// Optional dependencies

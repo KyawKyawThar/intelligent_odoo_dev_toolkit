@@ -9,6 +9,7 @@ import (
 
 	db "Intelligent_Dev_ToolKit_Odoo/db/sqlc"
 	"Intelligent_Dev_ToolKit_Odoo/internal/api"
+	"Intelligent_Dev_ToolKit_Odoo/internal/cache"
 	"Intelligent_Dev_ToolKit_Odoo/internal/dto"
 	"Intelligent_Dev_ToolKit_Odoo/internal/middleware"
 
@@ -34,16 +35,20 @@ type agentConn struct {
 type WsHandler struct {
 	*BaseHandler
 	store db.Store
+	cache interface {
+		AppendServerLogs(ctx context.Context, envID string, lines []cache.ServerLogLine) error
+	}
 
 	// Connection registry: env_id -> active agent connection.
 	mu    sync.RWMutex
 	conns map[uuid.UUID]*agentConn
 }
 
-func NewWsHandler(base *BaseHandler, store db.Store) *WsHandler {
+func NewWsHandler(base *BaseHandler, store db.Store, redisCache *cache.RedisClient) *WsHandler {
 	return &WsHandler{
 		BaseHandler: base,
 		store:       store,
+		cache:       redisCache,
 		conns:       make(map[uuid.UUID]*agentConn),
 	}
 }
@@ -231,11 +236,41 @@ func (h *WsHandler) handleMessages(r *http.Request, conn *websocket.Conn, env db
 		switch envelope.Type {
 		case "heartbeat":
 			h.handleHeartbeat(r.Context(), p, env.ID, agentID)
+		case "log_lines":
+			h.handleLogLines(r.Context(), p, env.ID)
 		case "pong":
 			// Agent responded to our ping — nothing to do.
 		default:
 			h.logger.Debug().Str("type", envelope.Type).Msg("unhandled ws message type")
 		}
+	}
+}
+
+// logLinesPayload is the envelope sent by the agent for server log streaming.
+type logLinesPayload struct {
+	Type  string                `json:"type"`
+	Lines []cache.ServerLogLine `json:"lines"`
+}
+
+func (h *WsHandler) handleLogLines(ctx context.Context, raw []byte, envID uuid.UUID) {
+	if h.cache == nil {
+		return // Redis not configured — silently drop
+	}
+
+	var payload logLinesPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		h.logger.Error().Err(err).Msg("failed to unmarshal log_lines")
+		return
+	}
+	if len(payload.Lines) == 0 {
+		return
+	}
+
+	storeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := h.cache.AppendServerLogs(storeCtx, envID.String(), payload.Lines); err != nil {
+		h.logger.Error().Err(err).Str("env_id", envID.String()).Msg("failed to store server logs")
 	}
 }
 
