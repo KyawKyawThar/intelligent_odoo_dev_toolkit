@@ -149,6 +149,9 @@ APP_ENV=production
 AGENT_SAMPLER_MODE=sampled
 AGENT_SAMPLER_RATE=0.1
 AGENT_SLOW_THRESHOLD_MS=200
+
+# Log streaming — path to your Odoo log file (agent tails this and streams to dashboard)
+AGENT_LOG_FILE=/var/log/odoo/odoo-server.log
 EOF
 
 sudo chmod 600 "$CONFIG_DIR/agent.env"
