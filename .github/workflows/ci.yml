@@ -115,6 +115,7 @@ jobs:
       with:
         name: coverage-unit
         path: coverage-unit.out
+        retention-days: 3
 
   # ─────────────────────────────────────────────────────────────────
   # Integration Tests (with PostgreSQL & Redis)
@@ -202,6 +203,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -270,9 +272,11 @@ jobs:
 
     - name: Upload binaries
       uses: actions/upload-artifact@v4
+      if: github.event_name == 'push'
       with:
         name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
         path: bin/
+        retention-days: 7
 
   # ─────────────────────────────────────────────────────────────────
   # Build & Push Docker Images
