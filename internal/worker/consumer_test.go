@@ -34,7 +34,7 @@ func TestDefaultConsumerConfig_Values(t *testing.T) {
 	assert.Equal(t, "agent:ingest", cfg.Stream)
 	assert.Equal(t, "ingest-workers", cfg.Group)
 	assert.Equal(t, int64(10), cfg.BatchSize)
-	assert.Equal(t, 5*time.Second, cfg.BlockTime)
+	assert.Equal(t, 30*time.Second, cfg.BlockTime)
 	assert.Equal(t, 3, cfg.MaxRetries)
 	assert.Equal(t, 30*time.Second, cfg.ClaimTimeout)
 }
