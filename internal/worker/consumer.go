@@ -27,7 +27,7 @@ func DefaultConsumerConfig(stream, group string) ConsumerConfig {
 		Stream:       stream,
 		Group:        group,
 		BatchSize:    10,
-		BlockTime:    5 * time.Second,
+		BlockTime:    30 * time.Second,
 		MaxRetries:   3,
 		ClaimTimeout: 30 * time.Second,
 	}
