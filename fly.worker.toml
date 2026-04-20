@@ -8,7 +8,11 @@ primary_region = 'sin'
   APP_ENV = 'production'
 
 # No [http_service] — worker has no HTTP port.
-# restart policy = always keeps it running if the process exits or crashes.
+# Disable auto-stop: worker must run continuously to consume Redis streams.
+[machines]
+  auto_stop_machines  = "off"
+  auto_start_machines = true
+
 [[restart]]
   policy = 'always'
 
