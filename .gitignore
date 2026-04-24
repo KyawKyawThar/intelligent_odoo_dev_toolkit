@@ -29,5 +29,8 @@ odoo-server.log
 # Local scratch / notes files — keep off GitHub
 config.txt
 server.txt
+fly.toml
+fly.worker.toml
+odoo-server.log
 suggestion.txt
 server_setup.txt
